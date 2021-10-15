@@ -20,7 +20,7 @@ import           Data.List           (concat, dropWhile, head, intersperse,
                                       (++), last, splitAt, length)
 import           Data.Monoid         (Monoid (mconcat))
 import           Data.Ord            (Ord ((>=)), comparing)
-import           Data.Text           (Text, splitOn, intercalate)
+import           Data.Text           (Text, splitOn, intercalate, toLower)
 import qualified Data.Text           as Text
 import           Data.Text.IO        (interact)
 import           Data.Traversable    (for)
@@ -36,14 +36,9 @@ import GHC.Num ((+), Num ((-)))
 main :: IO ()
 main = interact parseSeries
 
-parseSeries str = showt $ optSeries $ splitOn "|" str
+parseSeries str = showt $ optSeries $ splitOn "|" $ toLower str
 
 optSeries :: [Text] -> (Int, [Chord])
--- optSeries str =
---   let (h:tl) = splitOn "|" str
---       (cHead, scoreHead) = parseChord h
---       (cTail, scoreTail) = optSeries $ intercalate "|" tl
---   in  (cHead : cTail, scoreHead + scoreTail)
 optSeries [] = (0, [])
 optSeries parts =
   maximumBy (comparing fst) $
