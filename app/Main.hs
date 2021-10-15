@@ -17,12 +17,12 @@ import           Data.Function       (($))
 import           Data.Functor        (Functor (fmap), void, ($>), (<$>), (<&>))
 import           Data.Int            (Int)
 import           Data.List           (concat, dropWhile, head, intersperse,
-                                      (++), last, splitAt, length)
-import           Data.Monoid         (Monoid (mconcat))
+                                      (++), last, splitAt, length, (!!))
+import           Data.Monoid         (Monoid (mconcat), (<>))
 import           Data.Ord            (Ord ((>=)), comparing)
 import           Data.Text           (Text, splitOn, intercalate, toLower)
 import qualified Data.Text           as Text
-import           Data.Text.IO        (interact)
+import           Data.Text.IO        (interact, putStrLn)
 import           Data.Traversable    (for)
 import           Data.Tuple          (snd, fst)
 import           System.IO           (IO)
@@ -32,31 +32,41 @@ import           Text.Parsec         (ParseError, Parsec, char, eof, getState,
 import           TextShow            (TextShow (showb, showt), singleton)
 import GHC.Real ((^))
 import GHC.Num ((+), Num ((-)))
+import System.Environment (getArgs)
+import Data.Maybe (Maybe(..))
+import Text.Show (Show(show))
 
 main :: IO ()
-main = interact parseSeries
+main = do
+  args <- getArgs
+  putStrLn $ parseSeries $ Text.pack $ head args
 
-parseSeries str = showt $ optSeries $ splitOn "|" $ toLower str
+parseSeries str =
+  let (mScore, chords) = optSeries $ splitOn "|" $ toLower str
+  in  case mScore of
+        Right score -> showt (Series chords) <> " " <> showt score
+        Left  err   -> err
 
-optSeries :: [Text] -> (Int, [Chord])
-optSeries [] = (0, [])
+optSeries :: [Text] -> (Either Text Int, [Chord])
+optSeries [] = (Right 0, [])
 optSeries parts =
   maximumBy (comparing fst) $
     [1 .. (length parts)] <&> \i ->
       let (front, back) = splitAt i parts
           (scoreFront, cFront) = parseChord $ intercalate "|" front
           (scoreBack , cBack ) = optSeries back
-      in  (scoreFront + scoreBack, cFront : cBack)
+      in  ((+) <$> scoreFront <*> scoreBack, cFront : cBack)
 
-parseChord :: Text -> (Int, Chord)
+parseChord :: Text -> (Either Text Int, Chord)
 parseChord str =
     case runParser chord FingerNone "series" str of
-      Left  _  -> (0                  , Chord [])
-      Right ks -> (Text.length str ^ 2, Chord ks)
+      Left  err -> (Left  $ Text.pack $ show err, Chord [])
+      Right ks  -> (Right $ Text.length str ^ 2 , Chord ks)
   where
     chord = do
       initial <- keys
       tail <- concat <$> many1 (pipe <|> keys)
+      eof
       pure $ initial ++ tail
     pipe = char '|' $> []
     keys = do
@@ -64,11 +74,10 @@ parseChord str =
       -- drop used keys from list
       -- a key is used when the finger of that key has been used
       let remPrimitives = dropWhile (\p -> lastFinger >= finger (head $ snd p)) primitives
-          -- TODO check if string consumes when fails
-          -- acc parser (str, keys) = parser <|> try (string str)
+          -- string consumes when fails
           acc parser (str, ks) =
             let primitive = do
-                  _ <- string (Text.unpack str)
+                  _ <- try $ string $ Text.unpack str
                   setState $ finger $ last ks
                   pure ks
             in  parser <|> primitive
@@ -170,6 +179,7 @@ primitives =
   , ("chr" , [LeftGKGe, LeftREr])
   , ("ch"  , [LeftSChSchZTschTs])
   , ("ci"  , [LeftSChSchZTschTs, RightI])
+  , ("ck"  , [LeftGKGe])
   , ("c"   , [LeftGKGe])
 
   , ("ü"   , [RightUUmlautY    ])
