@@ -155,6 +155,7 @@ primitives =
   , ("ä"   , [LeftE            ])
   , ("a"   , [LeftA            ])
   , ("o"   , [LeftO            ])
+  , ("x"   , [LeftGKGe, LeftSChSchZTschTs])
   , ("qu"  , [LeftGKGe, LeftFVW])       -- qu -> KW
   -- ambiguous
   -- c
@@ -230,8 +231,9 @@ primitives =
   , ("en"  , [RightEn          ])
   , ("el"  , [RightElEr        ])
   , ("lk"  , [RightGKCkCh , RightElEr]) -- lk -> KL
-  , ("l"  , [RightElEr         ]) -- maybe for Austria?
+  , ("l"   , [RightElEr         ]) -- maybe for Austria?
   , ("er"  , [RightElEr        ]) -- most probably with RightCross
+  , ("x"   , [RightGKCkCh, RightSChSchZTsTschTzEs ])
   ]
 
 data Key
