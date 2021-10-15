@@ -35,6 +35,7 @@ import GHC.Num ((+), Num ((-)))
 import System.Environment (getArgs)
 import Data.Maybe (Maybe(..))
 import Text.Show (Show(show))
+import Text.Parsec (many)
 
 main :: IO ()
 main = do
@@ -65,7 +66,7 @@ parseChord str =
   where
     chord = do
       initial <- keys
-      tail <- concat <$> many1 (pipe <|> keys)
+      tail <- concat <$> many (pipe <|> keys)
       eof
       pure $ initial ++ tail
     pipe = char '|' $> []
@@ -184,6 +185,7 @@ primitives =
 
   , ("ü"   , [RightUUmlautY    ])
   , ("y"   , [RightUUmlautY    ])
+  , ("ie"  , [RightI           ])
   , ("i"   , [RightI           ])
   , ("u"   , [RightU           ])
   , ("rr"  , [RightRRe         ])
