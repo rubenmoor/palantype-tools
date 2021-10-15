@@ -10,6 +10,7 @@ import           Control.Applicative (Alternative ((<|>)),
                                       Applicative (pure, (*>), (<*>)))
 import           Control.Category    (Category ((.)))
 import           Control.Monad       (MonadPlus (mzero), foldM)
+import           Data.Bool           (Bool (False))
 import           Data.Either         (Either (..))
 import           Data.Eq             (Eq)
 import           Data.Foldable       (Foldable (foldl), maximumBy)
@@ -17,27 +18,26 @@ import           Data.Function       (($))
 import           Data.Functor        (Functor (fmap), void, ($>), (<$>), (<&>))
 import           Data.Int            (Int)
 import           Data.List           (concat, dropWhile, head, intersperse,
-                                      (++), last, splitAt, length, (!!))
+                                      last, length, splitAt, (!!), (++))
+import           Data.Maybe          (Maybe (..), fromMaybe, maybe)
 import           Data.Monoid         (Monoid (mconcat), (<>))
 import           Data.Ord            (Ord ((>=)), comparing)
-import           Data.Text           (Text, splitOn, intercalate, toLower)
+import           Data.Text           (Text, intercalate, splitOn, toLower)
 import qualified Data.Text           as Text
 import           Data.Text.IO        (interact, putStrLn)
 import           Data.Traversable    (for)
-import           Data.Tuple          (snd, fst)
+import           Data.Tuple          (fst, snd)
+import           GHC.Num             (Num ((-)), (+))
+import           GHC.Real            ((^), Fractional ((/)), fromIntegral)
+import           Safe                (headMay, lastMay)
+import           System.Environment  (getArgs)
 import           System.IO           (IO)
 import           Text.Parsec         (ParseError, Parsec, char, eof, getState,
-                                      letter, many1, parse, runParser, sepBy1,
-                                      setState, string, try)
+                                      letter, many, many1, parse, runParser,
+                                      sepBy1, setState, string, try)
+import           Text.Show           (Show (show))
 import           TextShow            (TextShow (showb, showt), singleton)
-import GHC.Real ((^))
-import GHC.Num ((+), Num ((-)))
-import System.Environment (getArgs)
-import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Text.Show (Show(show))
-import Text.Parsec (many)
-import Data.Bool (Bool(False))
-import Safe (headMay, lastMay)
+import GHC.Float (Double)
 
 main :: IO ()
 main = do
@@ -45,9 +45,9 @@ main = do
   putStrLn $ parseSeries $ Text.pack $ head args
 
 parseSeries str =
-  let (mScore, chords) = optSeries $ splitOn "|" $ toLower str
-  in  case mScore of
-        Right score -> showt (Series chords) <> " " <> showt score
+  let (eScore, chords) = optSeries $ splitOn "|" $ toLower str
+  in  case eScore of
+        Right score -> showt (Series chords) <> " " <> showt ((fromIntegral score :: Double) / fromIntegral ( length chords))
         Left  err   -> err
 
 optSeries :: [Text] -> (Either Text Int, [Chord])
