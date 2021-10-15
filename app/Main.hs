@@ -1,46 +1,83 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 module Main where
 
-import           Control.Applicative (Alternative ((<|>)))
+import           Control.Applicative (Alternative ((<|>)),
+                                      Applicative (pure, (*>), (<*>)))
 import           Control.Category    (Category ((.)))
+import           Control.Monad       (MonadPlus (mzero), foldM)
 import           Data.Either         (Either (..))
 import           Data.Eq             (Eq)
+import           Data.Foldable       (Foldable (foldl), maximumBy)
 import           Data.Function       (($))
-import           Data.Functor        ((<$>), Functor (fmap))
+import           Data.Functor        (Functor (fmap), void, ($>), (<$>), (<&>))
 import           Data.Int            (Int)
-import           Data.Ord            (Ord)
-import           Data.Text           (Text, splitOn, concat)
+import           Data.List           (concat, dropWhile, head, intersperse,
+                                      (++), last, splitAt, length)
+import           Data.Monoid         (Monoid (mconcat))
+import           Data.Ord            (Ord ((>=)), comparing)
+import           Data.Text           (Text, splitOn, intercalate)
 import qualified Data.Text           as Text
 import           Data.Text.IO        (interact)
+import           Data.Traversable    (for)
+import           Data.Tuple          (snd, fst)
 import           System.IO           (IO)
-import           Text.Parsec         (ParseError, Parsec, char, eof, letter,
-                                      many1, parse, sepBy1, runParser)
-import TextShow (TextShow(showt, showb), singleton)
-import Data.Monoid (Monoid(mconcat))
-import Data.List (intersperse)
+import           Text.Parsec         (ParseError, Parsec, char, eof, getState,
+                                      letter, many1, parse, runParser, sepBy1,
+                                      setState, string, try)
+import           TextShow            (TextShow (showb, showt), singleton)
+import GHC.Real ((^))
+import GHC.Num ((+), Num ((-)))
 
 main :: IO ()
 main = interact parseSeries
 
-data ParserState = ParserState
-  { pstScore :: Int
-  , pstFinger  :: Finger
-  }
+parseSeries str = showt $ optSeries $ splitOn "|" str
 
-parseSeries :: Text -> Text
-parseSeries str =
-  let pstScore = 0
-      pstKeys = FingerNone
-  in  case runParser series ParserState{..} "pipe" str of
-        Left err -> showt err
-        Right s  -> showt s
+optSeries :: [Text] -> (Int, [Chord])
+-- optSeries str =
+--   let (h:tl) = splitOn "|" str
+--       (cHead, scoreHead) = parseChord h
+--       (cTail, scoreTail) = optSeries $ intercalate "|" tl
+--   in  (cHead : cTail, scoreHead + scoreTail)
+optSeries [] = (0, [])
+optSeries parts =
+  maximumBy (comparing fst) $
+    [1 .. (length parts)] <&> \i ->
+      let (front, back) = splitAt i parts
+          (scoreFront, cFront) = parseChord $ intercalate "|" front
+          (scoreBack , cBack ) = optSeries back
+      in  (scoreFront + scoreBack, cFront : cBack)
 
--- chord :: Parsec Text ParserState Chord
--- chord =
+parseChord :: Text -> (Int, Chord)
+parseChord str =
+    case runParser chord FingerNone "series" str of
+      Left  _  -> (0                  , Chord [])
+      Right ks -> (Text.length str ^ 2, Chord ks)
+  where
+    chord = do
+      initial <- keys
+      tail <- concat <$> many1 (pipe <|> keys)
+      pure $ initial ++ tail
+    pipe = char '|' $> []
+    keys = do
+      lastFinger <- getState
+      -- drop used keys from list
+      -- a key is used when the finger of that key has been used
+      let remPrimitives = dropWhile (\p -> lastFinger >= finger (head $ snd p)) primitives
+          -- TODO check if string consumes when fails
+          -- acc parser (str, keys) = parser <|> try (string str)
+          acc parser (str, ks) =
+            let primitive = do
+                  _ <- string (Text.unpack str)
+                  setState $ finger $ last ks
+                  pure ks
+            in  parser <|> primitive
+      foldl acc mzero remPrimitives
 
 -- a series of chords, to type a word of arbitrary length
 newtype Series = Series { unSeries :: [Chord] }
