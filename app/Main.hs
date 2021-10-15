@@ -33,9 +33,11 @@ import           TextShow            (TextShow (showb, showt), singleton)
 import GHC.Real ((^))
 import GHC.Num ((+), Num ((-)))
 import System.Environment (getArgs)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Text.Show (Show(show))
 import Text.Parsec (many)
+import Data.Bool (Bool(False))
+import Safe (headMay, lastMay)
 
 main :: IO ()
 main = do
@@ -69,17 +71,26 @@ parseChord str =
       tail <- concat <$> many (pipe <|> keys)
       eof
       pure $ initial ++ tail
+
     pipe = char '|' $> []
+
     keys = do
+
       lastFinger <- getState
+
       -- drop used keys from list
       -- a key is used when the finger of that key has been used
-      let remPrimitives = dropWhile (\p -> lastFinger >= finger (head $ snd p)) primitives
+      let predicate pair = fromMaybe False $ do
+            k <- headMay $ snd pair
+            pure $ lastFinger >= finger k
+
+          remPrimitives = dropWhile predicate primitives
+
           -- string consumes when fails
           acc parser (str, ks) =
             let primitive = do
                   _ <- try $ string $ Text.unpack str
-                  setState $ finger $ last ks
+                  setState $ maybe lastFinger finger (lastMay ks)
                   pure ks
             in  parser <|> primitive
       foldl acc mzero remPrimitives
@@ -234,10 +245,12 @@ primitives =
   , ("l"   , [RightElEr         ]) -- maybe for Austria?
   , ("er"  , [RightElEr        ]) -- most probably with RightCross
   , ("x"   , [RightGKCkCh, RightSChSchZTsTschTzEs ])
+  , ("h"   , [])
   ]
 
 data Key
-  = LeftGKGe
+  = KeyNone
+  | LeftGKGe
   | LeftBPBe
   | LeftCrossPrim
   | LeftH
@@ -273,6 +286,7 @@ data Key
 
 instance TextShow Key where
   showb = \case
+    KeyNone                -> "%"
     LeftGKGe               -> "G"
     LeftBPBe               -> "B"
     LeftCrossPrim          -> "+"
@@ -322,6 +336,7 @@ data Finger
 
 finger :: Key -> Finger
 finger = \case
+  KeyNone                -> FingerNone
   LeftGKGe               -> LeftPinky
   LeftBPBe               -> LeftPinky
   LeftCrossPrim          -> LeftPinky

@@ -32,6 +32,7 @@ executable buildStenoDict
     build-depends:
         base ^>=4.14.1.0
       , parsec
+      , safe
       , text
       , text-show
     hs-source-dirs: app
