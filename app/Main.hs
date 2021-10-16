@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Main where
@@ -10,10 +11,12 @@ import           Control.Applicative (Alternative ((<|>)),
                                       Applicative (pure, (*>), (<*>)))
 import           Control.Category    (Category ((.)))
 import           Control.Monad       (MonadPlus (mzero), foldM)
+import qualified Data.Map as Map
+import Data.Map (Map)
 import           Data.Bool           (Bool (False))
 import           Data.Either         (Either (..))
 import           Data.Eq             (Eq)
-import           Data.Foldable       (Foldable (foldl), maximumBy)
+import           Data.Foldable       (Foldable (foldl, maximum), maximumBy)
 import           Data.Function       (($))
 import           Data.Functor        (Functor (fmap), void, ($>), (<$>), (<&>))
 import           Data.Int            (Int)
@@ -27,8 +30,9 @@ import qualified Data.Text           as Text
 import           Data.Text.IO        (interact, putStrLn)
 import           Data.Traversable    (for)
 import           Data.Tuple          (fst, snd)
+import           GHC.Float           (Double)
 import           GHC.Num             (Num ((-)), (+))
-import           GHC.Real            ((^), Fractional ((/)), fromIntegral)
+import           GHC.Real            (Fractional ((/)), fromIntegral, (^))
 import           Safe                (headMay, lastMay)
 import           System.Environment  (getArgs)
 import           System.IO           (IO)
@@ -37,7 +41,8 @@ import           Text.Parsec         (ParseError, Parsec, char, eof, getState,
                                       sepBy1, setState, string, try)
 import           Text.Show           (Show (show))
 import           TextShow            (TextShow (showb, showt), singleton)
-import GHC.Float (Double)
+import Data.Char (Char)
+import Data.List.NonEmpty (NonEmpty)
 
 main :: IO ()
 main = do
@@ -45,26 +50,32 @@ main = do
   putStrLn $ parseSeries $ Text.pack $ head args
 
 parseSeries str =
-  let (eScore, chords) = optSeries $ splitOn "|" $ toLower str
-  in  case eScore of
-        Right score -> showt (Series chords) <> " " <> showt ((fromIntegral score :: Double) / fromIntegral ( length chords))
+  case optSeries $ splitOn "|" $ toLower str of
+        Right (scoreAcc, chords) ->
+          let -- the score of a series of chords for a given word is the average
+              -- chord score, i.e. the average number of letters per chord
+              score = (fromIntegral scoreAcc :: Double)
+                    / fromIntegral ( length chords)
+          in  showt (Series chords) <> " " <> showt score
         Left  err   -> err
 
-optSeries :: [Text] -> (Either Text Int, [Chord])
-optSeries [] = (Right 0, [])
+optSeries :: [Text] -> Either Text (Int, [Chord])
+optSeries [] = Right (0, [])
 optSeries parts =
-  maximumBy (comparing fst) $
+  maximum $
     [1 .. (length parts)] <&> \i ->
       let (front, back) = splitAt i parts
-          (scoreFront, cFront) = parseChord $ intercalate "|" front
-          (scoreBack , cBack ) = optSeries back
-      in  ((+) <$> scoreFront <*> scoreBack, cFront : cBack)
+      in  do
+            (scoreFront, cFront) <- parseChord $ intercalate "|" front
+            (scoreBack , cBack ) <- optSeries back
+            pure (scoreFront + scoreBack, cFront : cBack)
 
-parseChord :: Text -> (Either Text Int, Chord)
+parseChord :: Text -> Either Text (Int, Chord)
 parseChord str =
     case runParser chord FingerNone "series" str of
-      Left  err -> (Left  $ Text.pack $ show err, Chord [])
-      Right ks  -> (Right $ Text.length str ^ 2 , Chord ks)
+      Left  err -> Left  $ Text.pack $ show err
+      -- the score of a chord is the number of letters it successfully encoded
+      Right ks  -> Right (Text.length str, Chord ks)
   where
     chord = do
       initial <- keys
@@ -97,17 +108,52 @@ parseChord str =
 
 -- a series of chords, to type a word of arbitrary length
 newtype Series = Series { unSeries :: [Chord] }
+  deriving (Eq, Ord)
 
 instance TextShow Series where
   showb = mconcat . intersperse (singleton '/') . fmap showb . unSeries
 
 newtype Chord = Chord { unChord :: [Key] }
+  deriving (Eq, Ord)
 
 instance TextShow Chord where
   showb = mconcat . fmap showb . unChord
 
-  -- let syllables = splitOn "|" str
-  -- in
+-- primitives
+
+mapCharParsers :: Map Char (NonEmpty (Text, Text))
+mapCharParsers = Map.fromList
+  [
+  ]
+
+-- the 'code' is raw steno written out
+mapCodeKey :: Map Char (NonEmpty Key)
+mapCodeKey =
+  [ ('S', [LeftSZ, RightSZTz])
+  , ('B', [LeftBP])
+  , ('G', [LeftGK])
+  , ('H', [LeftHE])
+  , ('D', [LeftDT, RightDT])
+  , ('F', [LeftFV, RightFWVIv])
+  , ('M', [LeftM, RightM])
+  , ('J', [LeftJ])
+  , ('W', [LeftW])
+  , ('L', [LeftL, RightL])
+  , ('N', [LeftN, RightN])
+  , ('R', [LeftREr, RightREr])
+  , ('^', [LeftDiacritic])
+  , ('E', [LeftE])
+  , ('A', [LeftA])
+  , ('~', [LeftStretch])
+  , ('O', [RightOStretch])
+  , ('I', [RightI])
+  , ('U', [RightU])
+  , ('+', [RightModifier])
+  , ('K', [RightKG])
+  , ('P', [RightPB])
+  , ('ʃ', [RightSchCh])
+  , ('n', [RightEn])
+  ]
 
 -- capitalization:
 --   no information available on the level of syllables
@@ -177,12 +223,12 @@ primitives =
   -- TODO
   -- complicated by a lot of international words
   -- https://www.ids-mannheim.de/lexik/fremdwort/stichwortauswahl/lemmalisten/c/
-  , ("chaise", [LeftCrossPrim, LeftSChSchZTschTs, LeftE, RightPointSnd, RightCross, RightSChSchZTsTschTzEs])
+  , ("chaise", [LeftCrossPrim, LeftSChSchZTschTs, LeftE, RightPointSnd, RightCross, RightSChSchZTsTschTz])
   , ("chau", [LeftSChSchZTschTs, LeftA, RightU])
   , ("champ",[LeftSChSchZTschTs, LeftE, RightNMEm])
   , ("cham", [LeftSChSchZTschTs, LeftA, RightPointSnd, RightNMEm])
   , ("chan", [LeftSChSchZTschTs, LeftA, RightPointSnd, RightNMEm])
-  , ("charg",[LeftSChSchZTschTs, LeftA, RightRRe, RightSChSchZTsTschTzEs])
+  , ("charg",[LeftSChSchZTschTs, LeftA, RightRRe, RightSChSchZTsTschTz])
   , ("cha" , [LeftGKGe         , LeftA])
   -- TODO: exceptions. pronounciation of "char" depends on word
   -- archaisch, charmant
@@ -217,17 +263,17 @@ primitives =
   , ("f"   , [RightFVW         ])
   , ("v"   , [RightFVW         ])
   , ("w"   , [RightFVW         ])
-  , ("ß"   , [RightSChSchZTsTschTzEs])
-  , ("sch" , [RightSChSchZTsTschTzEs])
-  , ("ss"  , [RightSChSchZTsTschTzEs])
-  , ("s"   , [RightSChSchZTsTschTzEs])
-  , ("z"   , [RightSChSchZTsTschTzEs])
-  , ("chs" , [RightGKCkCh, RightSChSchZTsTschTzEs]) -- phonetically ks, like in "Wachs"
-  , ("ch"  , [RightSChSchZTsTschTzEs])
-  , ("tsch", [RightSChSchZTsTschTzEs])
-  , ("ts"  , [RightSChSchZTsTschTzEs])
-  , ("tz"  , [RightSChSchZTsTschTzEs])
-  , ("es"  , [RightSChSchZTsTschTzEs])
+  , ("ß"   , [RightSChSchZTsTschTz])
+  , ("sch" , [RightSChSchZTsTschTz])
+  , ("ss"  , [RightSChSchZTsTschTz])
+  , ("s"   , [RightSChSchZTsTschTz])
+  , ("z"   , [RightSChSchZTsTschTz])
+  , ("chs" , [RightGKCkCh, RightSChSchZTsTschTz]) -- phonetically ks, like in "Wachs"
+  , ("ch"  , [RightSChSchZTsTschTz])
+  , ("tsch", [RightSChSchZTsTschTz])
+  , ("ts"  , [RightSChSchZTsTschTz])
+  , ("tz"  , [RightSChSchZTsTschTz])
+  , ("es"  , [RightSChSchZTsTschTz])
   , ("ng"  , [RightGKCkCh , RightNMEm]) -- ng -> GN
   , ("nn"  , [RightNMEm        ])
   , ("n"   , [RightNMEm        ])
@@ -244,85 +290,81 @@ primitives =
   , ("lk"  , [RightGKCkCh , RightElEr]) -- lk -> KL
   , ("l"   , [RightElEr         ]) -- maybe for Austria?
   , ("er"  , [RightElEr        ]) -- most probably with RightCross
-  , ("x"   , [RightGKCkCh, RightSChSchZTsTschTzEs ])
+  , ("x"   , [RightGKCkCh, RightSChSchZTsTschTz ])
   , ("h"   , [])
   ]
 
+-- a key on a steno keyboard
 data Key
-  = KeyNone
-  | LeftGKGe
-  | LeftBPBe
-  | LeftCrossPrim
-  | LeftH
-  | LeftSChSchZTschTs
-  | LeftJ
-  | LeftFVW
-  | LeftDDeDiTTe
+  = LeftSZ
+  | LeftBP
+  | LeftGK
+  | LeftHE
+  | LeftDT
+  | LeftFV
   | LeftM
+  | LeftJ
+  | LeftW
   | LeftL
   | LeftN
   | LeftREr
-  | LeftCrossSnd
+  | LeftDiacritic
   | LeftE
   | LeftA
-  | LeftO
-  | RightPointSnd
-  | RightUUmlautY
+  | LeftStretch
+  | RightOStretch
   | RightI
   | RightU
-  | RightPointPrim
-  | RightRRe
-  | RightCross
+  | RightModifier
   | RightL
-  | RightGKCkCh
-  | RightBPBePe
-  | RightFVW
-  | RightSChSchZTsTschTzEs
-  | RightNMEm
-  | RightDTTe
+  | RightM
+  | RightN
+  | RightKG
+  | RightPB
+  | RightFWVIv
+  | RightSZTz
+  | RightSchCh
+  | RightREr
   | RightEn
-  | RightElEr
+  | RightDT
   deriving (Eq, Ord)
 
 instance TextShow Key where
   showb = \case
-    KeyNone                -> "%"
-    LeftGKGe               -> "G"
-    LeftBPBe               -> "B"
-    LeftCrossPrim          -> "+"
-    LeftH                  -> "H"
-    LeftSChSchZTschTs      -> "S"
-    LeftJ                  -> "J"
-    LeftFVW                -> "F"
-    LeftDDeDiTTe           -> "D"
-    LeftM                  -> "M"
-    LeftL                  -> "L"
-    LeftN                  -> "N"
-    LeftREr                -> "R"
-    LeftCrossSnd           -> "*"
-    LeftE                  -> "E"
-    LeftA                  -> "A"
-    LeftO                  -> "O"
-    RightPointSnd          -> "°"
-    RightUUmlautY          -> "Ü"
-    RightI                 -> "I"
-    RightU                 -> "U"
-    RightPointPrim         -> "^"
-    RightRRe               -> "R"
-    RightCross             -> "+"
-    RightL                 -> "L"
-    RightGKCkCh            -> "G"
-    RightBPBePe            -> "B"
-    RightFVW               -> "F"
-    RightSChSchZTsTschTzEs -> "Z"
-    RightNMEm              -> "M"
-    RightDTTe              -> "D"
-    RightEn                -> "n"
-    RightElEr              -> "l"
+    LeftSZ        -> "S"
+    LeftBP        -> "B"
+    LeftGK        -> "G"
+    LeftHE        -> "H"
+    LeftDT        -> "D"
+    LeftFV        -> "F"
+    LeftM         -> "M"
+    LeftJ         -> "J"
+    LeftW         -> "W"
+    LeftL         -> "L"
+    LeftN         -> "N"
+    LeftREr       -> "R"
+    LeftDiacritic -> "^"
+    LeftE         -> "E"
+    LeftA         -> "A"
+    LeftStretch   -> "~"
+    RightOStretch -> "O"
+    RightI        -> "I"
+    RightU        -> "U"
+    RightModifier -> "+"
+    RightL        -> "L"
+    RightM        -> "M"
+    RightN        -> "N"
+    RightKG       -> "K"
+    RightPB       -> "P"
+    RightFWVIv    -> "F"
+    RightSZTz     -> "S"
+    RightSchCh    -> "ʃ"
+    RightREr      -> "R"
+    RightEn       -> "n"
+    RightDT       -> "D"
 
 data Finger
-  = FingerNone
-  | LeftPinky
+  = LeftPinky
   | LeftRing
   | LeftMiddle
   | LeftIndex
@@ -334,41 +376,46 @@ data Finger
   | RightPinky
   deriving (Eq, Ord)
 
+-- the palantype.de keyboard
+--
+-- S|Z   H/e  M  L       .     + N   F/W/V  R/-er
+-- B|P   D|T  J  N       .     L K/G S/Z|Tz -en
+-- G|K   F/V  W  R/er-   .     M P/B ʃ|ç    D/T
+-- thumbg     ^  E  A ː  . O I U
+
 finger :: Key -> Finger
 finger = \case
-  KeyNone                -> FingerNone
-  LeftGKGe               -> LeftPinky
-  LeftBPBe               -> LeftPinky
-  LeftCrossPrim          -> LeftPinky
-  LeftH                  -> LeftRing
-  LeftSChSchZTschTs      -> LeftRing
-  LeftJ                  -> LeftRing
-  LeftFVW                -> LeftMiddle
-  LeftDDeDiTTe           -> LeftMiddle
-  LeftM                  -> LeftMiddle
-  LeftL                  -> LeftIndex
-  LeftN                  -> LeftIndex
-  LeftREr                -> LeftIndex
-  LeftCrossSnd           -> LeftThumb
-  LeftE                  -> LeftThumb
-  LeftA                  -> LeftThumb
-  LeftO                  -> LeftThumb
-  RightPointSnd          -> RightThumb
-  RightUUmlautY          -> RightThumb
-  RightI                 -> RightThumb
-  RightU                 -> RightThumb
-  RightPointPrim         -> RightIndex
-  RightRRe               -> RightIndex
-  RightCross             -> RightIndex
-  RightL                 -> RightMiddle
-  RightGKCkCh            -> RightMiddle
-  RightBPBePe            -> RightMiddle
-  RightFVW               -> RightRing
-  RightSChSchZTsTschTzEs -> RightRing
-  RightNMEm              -> RightRing
-  RightDTTe              -> RightPinky
-  RightEn                -> RightPinky
-  RightElEr              -> RightPinky
+  LeftSZ        -> LeftPinky
+  LeftBP        -> LeftPinky
+  LeftGK        -> LeftPinky
+  LeftHE        -> LeftRing
+  LeftDT        -> LeftRing
+  LeftFV        -> LeftRing
+  LeftM         -> LeftMiddle
+  LeftJ         -> LeftMiddle
+  LeftW         -> LeftMiddle
+  LeftL         -> LeftIndex
+  LeftN         -> LeftIndex
+  LeftREr       -> LeftIndex
+  LeftDiacritic -> LeftThumb
+  LeftE         -> LeftThumb
+  LeftA         -> LeftThumb
+  LeftStretch   -> LeftThumb
+  RightOStretch -> RightThumb
+  RightI        -> RightThumb
+  RightU        -> RightThumb
+  RightModifier -> RightIndex
+  RightL        -> RightIndex
+  RightM        -> RightIndex
+  RightN        -> RightMiddle
+  RightKG       -> RightMiddle
+  RightPB       -> RightMiddle
+  RightFWVIv    -> RightRing
+  RightSZTz     -> RightRing
+  RightSchCh    -> RightRing
+  RightREr      -> RightPinky
+  RightEn       -> RightPinky
+  RightDT       -> RightPinky
 
 
 -- chord :: Parsec Text ParserState Chord
