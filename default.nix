@@ -29,7 +29,11 @@ in
       # );
       with pkgs.haskellPackages;
       drv.env.overrideAttrs ( oldAttrs: rec {
-        nativeBuildInputs = oldAttrs.nativeBuildInputs ++ [ haskell-language-server ];
+        nativeBuildInputs =
+          oldAttrs.nativeBuildInputs ++ [
+            haskell-language-server
+            cabal-install
+          ];
       });
     exec = drv;
   }

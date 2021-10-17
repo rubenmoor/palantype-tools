@@ -1,8 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Main where
@@ -11,17 +12,22 @@ import           Control.Applicative (Alternative ((<|>)),
                                       Applicative (pure, (*>), (<*>)))
 import           Control.Category    (Category ((.)))
 import           Control.Monad       (MonadPlus (mzero), foldM)
-import qualified Data.Map as Map
-import Data.Map (Map)
 import           Data.Bool           (Bool (False))
+import           Data.Char           (Char)
+import qualified Data.ByteString as ByteString
 import           Data.Either         (Either (..))
 import           Data.Eq             (Eq)
-import           Data.Foldable       (Foldable (foldl, maximum), maximumBy)
+import           Data.Foldable       (Foldable (foldl, length, maximum),
+                                      maximumBy)
 import           Data.Function       (($))
 import           Data.Functor        (Functor (fmap), void, ($>), (<$>), (<&>))
+import Data.HashMap.Strict (HashMap)
 import           Data.Int            (Int)
 import           Data.List           (concat, dropWhile, head, intersperse,
-                                      last, length, splitAt, (!!), (++))
+                                      last, splitAt, (!!), (++))
+import           Data.List.NonEmpty  (NonEmpty)
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
 import           Data.Maybe          (Maybe (..), fromMaybe, maybe)
 import           Data.Monoid         (Monoid (mconcat), (<>))
 import           Data.Ord            (Ord ((>=)), comparing)
@@ -41,8 +47,15 @@ import           Text.Parsec         (ParseError, Parsec, char, eof, getState,
                                       sepBy1, setState, string, try)
 import           Text.Show           (Show (show))
 import           TextShow            (TextShow (showb, showt), singleton)
-import Data.Char (Char)
-import Data.List.NonEmpty (NonEmpty)
+import qualified Data.HashMap.Strict as HasMap
+import Data.FileEmbed (embedFile)
+import qualified Data.ByteString.Char8 as Char8
+import qualified Text.JSON5 as JSON5
+import GHC.Err (error)
+import Data.Trie (Trie)
+import qualified Data.Trie as Trie
+import Data.Bifunctor (Bifunctor(second))
+import Data.String (String)
 
 main :: IO ()
 main = do
@@ -63,7 +76,7 @@ optSeries :: [Text] -> Either Text (Int, [Chord])
 optSeries [] = Right (0, [])
 optSeries parts =
   maximum $
-    [1 .. (length parts)] <&> \i ->
+    ([1 .. (length parts)] :: NonEmpty Int) <&> \i ->
       let (front, back) = splitAt i parts
       in  do
             (scoreFront, cFront) <- parseChord $ intercalate "|" front
@@ -119,15 +132,28 @@ newtype Chord = Chord { unChord :: [Key] }
 instance TextShow Chord where
   showb = mconcat . fmap showb . unChord
 
--- primitives
-
-mapCharParsers :: Map Char (NonEmpty (Text, Text))
-mapCharParsers = Map.fromList
-  [
+-- full word exceptions
+-- exceptions that span several chords go here
+mapWordExceptions :: HashMap Text Text
+mapWordExceptions = HasMap.fromList
+  [ ("archaisch", "AO/SJAIʃ")
+  , ("Chassis"  , "SJAS/SIS")
+  , ("charmant" , "SJAO/MAND")
+  , ("chopin"   , "SJO/BDIN")
   ]
 
+-- primitives
+
+mapCharParsers :: Trie [Text]
+mapCharParsers =
+  let str = Char8.unpack $(embedFile "primitives.json5")
+      ls = case JSON5.decodeStrict str of
+             JSON5.Ok m      -> m
+             JSON5.Error err -> error $ "Could not read primitives.json5: " <> err
+  in  Trie.fromList ls
+
 -- the 'code' is raw steno written out
-mapCodeKey :: Map Char (NonEmpty Key)
+mapCodeKey :: Map Char [Key]
 mapCodeKey =
   [ ('S', [LeftSZ, RightSZTz])
   , ('B', [LeftBP])
@@ -140,7 +166,7 @@ mapCodeKey =
   , ('W', [LeftW])
   , ('L', [LeftL, RightL])
   , ('N', [LeftN, RightN])
-  , ('R', [LeftREr, RightREr])
+  , ('R', [LeftREr])
   , ('^', [LeftDiacritic])
   , ('E', [LeftE])
   , ('A', [LeftA])
@@ -152,6 +178,7 @@ mapCodeKey =
   , ('K', [RightKG])
   , ('P', [RightPB])
   , ('ʃ', [RightSchCh])
+  , ('e', [RightEEr])
   , ('n', [RightEn])
   ]
 
@@ -256,6 +283,7 @@ primitives =
   -- for ch -> RightGKCkCh as in "Wachs", see "chs"
   , ("be"  , [RightBPBePe      ]) -- useful?
   , ("b"   , [RightBPBePe      ])
+                                  -- TODO: exceptions: archaisch, charmant, chassis
   , ("pe"  , [RightBPBePe      ]) -- useful?
   , ("pp"  , [RightBPBePe      ])
   , ("p"   , [RightBPBePe      ])
@@ -324,7 +352,7 @@ data Key
   | RightFWVIv
   | RightSZTz
   | RightSchCh
-  | RightREr
+  | RightEEr
   | RightEn
   | RightDT
   deriving (Eq, Ord)
@@ -358,8 +386,8 @@ instance TextShow Key where
     RightPB       -> "P"
     RightFWVIv    -> "F"
     RightSZTz     -> "S"
-    RightSchCh    -> "ʃ"
-    RightREr      -> "R"
+    RightSchCh    -> "ʃ" -- U+0283
+    RightEEr      -> "e"
     RightEn       -> "n"
     RightDT       -> "D"
 
@@ -413,7 +441,7 @@ finger = \case
   RightFWVIv    -> RightRing
   RightSZTz     -> RightRing
   RightSchCh    -> RightRing
-  RightREr      -> RightPinky
+  RightEEr      -> RightPinky
   RightEn       -> RightPinky
   RightDT       -> RightPinky
 

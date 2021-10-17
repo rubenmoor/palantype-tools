@@ -1,0 +1,16 @@
+{ archaisch : "AO/SJAIʃ"
+, Chassis   : "SJAS/SIS"
+, charmant  : "SJAO/MAND"
+, chopin    : "SJO/BDIN"
+, Düne      : "D^U/NE"    // < Dünne
+, Egge      : "EK/G"      // < Ecke
+, Haken     : "HAO/Kn"    // < hacken
+, knabber   : "GDNAP/BR"  // < knapper
+, Knigge    : "GDNIK/G"   // < knicke
+, Moor      : "MO/~O"     // < Mohr
+, Pils      : "BDI+LS"    // < Pilz
+, Rappen    : "RAP/BDn"   // < Raben    
+, Robbe     : "ROP/B"     // < Robe
+, spuken    : "BF~U/Kn"   // < spucken
+, tja       : "DJA"   
+}
