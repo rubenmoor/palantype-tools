@@ -1,5 +1,14 @@
 let
-  compiler = "ghc8104";
+  pkgs = import <nixpkgs> { inherit config; };
+  easy-hls-src = pkgs.fetchFromGitHub {
+    owner = "jkachmar";
+    repo = "easy-hls-nix";
+    rev = "db85cac9d0405b4769b75cba0b004aed3beaf2de";
+    sha256 = "10nff6mqflrd6dz1fp2l9vmfwbgk0r7zm81qh2xnjj19a47pd7v3";
+  };
+  easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.8.4" ]; };
+  
+  compiler = "ghc884";
   config = {
     packageOverrides = pkgs: rec {
       haskell = pkgs.haskell // {
@@ -12,9 +21,8 @@ let
         };
       };
     };
-    # allowBroken = true;
+    allowBroken = true;
   };
-  pkgs = import <nixpkgs> { inherit config; };
   drv = pkgs.haskell.packages."${compiler}".callCabal2nix "buildStenoDict" ./. { };
 in
   {
@@ -31,7 +39,7 @@ in
       drv.env.overrideAttrs ( oldAttrs: rec {
         nativeBuildInputs =
           oldAttrs.nativeBuildInputs ++ [
-            haskell-language-server
+            easy-hls
             cabal-install
           ];
       });

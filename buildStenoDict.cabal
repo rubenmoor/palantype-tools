@@ -30,7 +30,7 @@ executable buildStenoDict
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:
-        base ^>=4.14.1.0
+        base ^>=4.13.0.0
       , bytestring
       , bytestring-trie
       , containers

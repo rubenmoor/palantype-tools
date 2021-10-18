@@ -24,9 +24,9 @@
 , cha : ["GDA"]       // normal case: phonetic ka
 , chaise: ["SJAISe"]
 , cham: ["SJAM"]      // chambre
+// , ("champ", "SJAMP") // redundant, see "cham"; champion, champignon
 , chan: ["SJAN"]      // chanson
 , chau: ["SJAU"]
-// , ("champ", "SJAMP") // redundand, see next; champion, champignon
 , charg: ["SJAOʃ"]    // charge
 , chl : ["GDL"]
 , cho : ["GDO"]
@@ -52,6 +52,7 @@
 , err : ["EO+"]
 , f   : ["F"]
 , ff  : ["F"]
+, f|f : ["F"]
 , g   : ["G"]
 , ge  : ["G"]
 , gg  : ["G"]
@@ -99,10 +100,12 @@
 , ps  : ["SDJ"]     // TODO: documentation
 , qu  : ["GDW"]
 , r   : ["R"]
-, s
+, s   : ["S"]
 , sch : ["SJ", "ʃ"]
 , schw: ["SW"]
 , sp  : ["BF"]      // TODO: documentation
+, ss  : ["S"]
+, s|s : ["S"]
 , st  : ["SD"]
 , t   : ["DJ", "-D"]
 , te  : ["D-"]
