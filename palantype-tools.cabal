@@ -23,7 +23,8 @@ extra-source-files: CHANGELOG.md
 
 library
     exposed-modules:
-        Palantype.Tools
+        Palantype.Tools.Steno
+        Palantype.Tools.Syllables
 
     build-depends:
         base ^>=4.13.0.0
@@ -53,11 +54,15 @@ executable palantype-ops
         Args
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
+
     build-depends:
         base ^>=4.13.0.0
+      , directory
       , optparse-applicative
       , palantype-tools
       , text
+      , text-show
+      , time
     default-extensions:
         LambdaCase
         NoImplicitPrelude
