@@ -1,132 +1,143 @@
-{ a  : ["A"]
-, aa : ["AO"]
-, aar: ["AO"]
-, ah : ["AO"]
-, ahr: ["AO"]
+// apart from the single-line comments '//', this is valid json
+{ "a"  : ["A"]
+, "aa" : ["AO"]
+, "aar": ["AO"]
+, "ah" : ["AO"]
+, "ahr": ["AO"]
 // TODO: greedier: ah|r: ["AO"]
-, arr: ["AO+"]
-, ä  : ["AI"]
-, äh : ["AI"]
-, ähr: ["AI"]
-, är : ["AI"]
-, ärr: ["AI+"]
-, b  : ["B", "P"]
-, bb : ["P"]
-, be : ["B"]
-, c  : ["GD", "K"]
-, ca : ["GDA"]   // phonetic k
-, cä : ["SFAI"]  // phonetic z
-, ce : ["SFE", "Se"]  // onset: phonetic tsch: Cellist; coda: -ice
+, "arr": ["AO+"]
+, "aß" : ["AO+S"]
+, "ä"  : ["AI"]
+, "äh" : ["AI"]
+, "ähr": ["AI"]
+, "är" : ["AI"]
+, "ärr": ["AI+"]
+, "äß" : ["AI+S"]
+, "b"  : ["B", "P"]
+, "bb" : ["P"]
+, "be" : ["B"]
+, "c"  : ["GD", "K"]
+, "ca" : ["GDA"]   // phonetic k
+, "cä" : ["SFAI"]  // phonetic z
+, "ce" : ["SJE", "Se"]  // onset: phonetic tsch: Cellist; coda: -ice
 // ch
 // complicated by a lot of international words
 // https://www.ids-mannheim.de/lexik/fremdwort/stichwortauswahl/lemmalisten/c/
-, ch  : ["SJ", "Kʃ"]  // normal case
-, cha : ["GDA"]       // normal case: phonetic ka
-, chaise: ["SJAISe"]
-, cham: ["SJAM"]      // chambre
+, "ch"  : ["SJ", "Kʃ"]  // normal case
+, "cha" : ["GDA"]       // normal case: phonetic ka
+, "chaise": ["SJAISe"]
+, "cham": ["SJAM"]      // chambre
 // , ("champ", "SJAMP") // redundant, see "cham"; champion, champignon
-, chan: ["SJAN"]      // chanson
-, chau: ["SJAU"]
-, charg: ["SJAOʃ"]    // charge
-, chl : ["GDL"]
-, cho : ["GDO"]
-, chor: ["GD~O"]
-, chör: ["GD^O"]     // chöre
-, chr : ["GDR"]
-, chs : ["KS"]
-, ci  : ["SFI"]      // normal case
-, cia : ["SJIA"]     // phonetic tsch: ciao, ciabatta
-, ck  : ["GD", "K"]
-, d   : ["D"]
-, de  : ["D"]
-, di  : ["D"]
-, dt  : ["-T"]
-, e   : ["E", "e"]
-, ee  : ["Ee"]       // TODO: documentation for ee-rule
-, eer : ["Ee"]       //       ee, eer -> Ee
-, eh  : ["EO"]
-, ehr : ["EO"]
-, en  : ["N-"]
-, ent : ["BDN"]      // ent = "tn" -> BDN
-, er  : ["EO", "R"]    
-, err : ["EO+"]
-, f   : ["F"]
-, ff  : ["F"]
-, f|f : ["F"]
-, g   : ["G"]
-, ge  : ["G"]
-, gg  : ["G"]
-, g|g : ["G"]
-, h   : ["H"]
-, i   : ["I"]
-, ie  : ["~I"]
-, ier : ["~I"]
-, ih  : ["~I"]
-, ihr : ["~I"]
-, irr : ["~I+"]
-, iv  : ["-F"]       // TODO: documentation
-, j   : ["J"]
-, k   : ["GD", "K"] 
+, "chan": ["SJAN"]      // chanson
+, "chau": ["SJAU"]
+, "charg": ["SJAOʃ"]    // charge
+, "chl" : ["GDL"]
+, "cho" : ["GDO"]
+, "chor": ["GD~O"]
+, "chör": ["GD^O"]     // chöre
+, "chr" : ["GDR"]
+, "chs" : ["KS"]
+, "ci"  : ["SFI"]      // normal case
+, "cia" : ["SJIA"]     // phonetic tsch: ciao, ciabatta
+, "ck"  : ["GD", "K"]
+, "d"   : ["D"]
+, "de"  : ["D"]
+, "di"  : ["D"]
+, "dt"  : ["-T"]
+, "e"   : ["E", "e"]
+, "ee"  : ["Ee"]       // TODO: documentation for ee-rule
+, "eer" : ["Ee"]       //       ee, eer -> Ee
+, "eh"  : ["EO"]
+, "ehr" : ["EO"]
+, "en"  : ["N-", "n"]  // TODO: greedier: "ren" -> n
+, "ent" : ["BDN"]      // ent = "tn" -> BDN
+, "er"  : ["EO", "R"]    
+, "err" : ["EO+"]
+, "eß"  : ["EO+S"]
+, "f"   : ["F"]
+, "ff"  : ["F"]
+, "f|f" : ["F"]
+, "g"   : ["G"]
+, "ge"  : ["G"]
+, "gg"  : ["G"]
+, "g|g" : ["G"]
+, "h"   : ["H"]
+, "i"   : ["I"]
+, "ie"  : ["~I"]
+, "ier" : ["~I"]
+, "ih"  : ["~I"]
+, "ihr" : ["~I"]
+, "irr" : ["~I+"]
+, "iß"  : ["~I+S"]
+, "iv"  : ["-F"]       // TODO: documentation
+, "j"   : ["J"]
+, "k"   : ["GD", "K"] 
 // TODO: fe -> F maybe?
 // TODO: greedier: er : ["e"]
-, l   : ["L"]
-, ll  : ["-L"]
-, l|l : ["-L"]
-, m   : ["M"]
-, mm  : ["-M"]
-, m|m : ["-M"]
-, me  : ["M-"]
-, n   : ["N"]
-, nch : ["Nʃ"]     // TODO: documentation, ch is Kʃ
-, ng  : ["+N"]
-, nk  : ["+N"]
-, nn  : ["-N"]
-, n|n : ["-N"]
-, o   : ["O"]
-, oh  : ["~O"]
-, ohr : ["~O"]
-, oo  : ["~O"]
-, or  : ["~O"]
-, orr : ["~O+"]
-, ö   : ["^O"]
-, öh  : ["^O"]
-, öhr : ["^O"]
-, ör  : ["^O"]
-, örr : ["^O+"]
-, p   : ["BD", "P"]
-, pf  : ["BF"]
-, pp  : ["P"]
-, p|p : ["P"]
-, ps  : ["SDJ"]     // TODO: documentation
-, qu  : ["GDW"]
-, r   : ["R"]
-, s   : ["S"]
-, sch : ["SJ", "ʃ"]
-, schw: ["SW"]
-, sp  : ["BF"]      // TODO: documentation
-, ss  : ["S"]
-, s|s : ["S"]
-, st  : ["SD"]
-, t   : ["DJ", "-D"]
-, te  : ["D-"]
-, tt  : ["-D"]       // t|t isn't logically possible
-, ts  : ["SF", "+S"]
-, tsch: ["SJ, "ʃD"]  // TODO: documentation: -tsch like -scht
-, tz  : ["+S"]
-, u   : ["U"]
-, uh  : ["~U"]
-, uhr : ["~U"]
-, ur  : ["~U"]
-, urr : ["~U+"]
-, ü   : ["^U"]
-, üh  : ["^U"]
-, ür  : ["^U"]
-, ühr : ["^U"]
-, ürr : ["^U+"]
-, v   : ["F"]
-, w   : ["W", "-F"]
-, x   : ["GDJ"]      // TODO: documentation
-, y   : ["J", "I"]
-, z   : ["SF", "-S"]
+, "l"   : ["L"]
+, "ll"  : ["-L"]
+, "l|l" : ["-L"]
+, "m"   : ["M"]
+, "mm"  : ["-M"]
+, "m|m" : ["-M"]
+, "me"  : ["M-"]
+, "n"   : ["N"]
+, "nch" : ["Nʃ"]     // TODO: documentation, ch is Kʃ
+, "ng"  : ["+N"]
+, "nk"  : ["+N"]
+, "nn"  : ["-N"]
+, "n|n" : ["-N"]
+, "o"   : ["O"]
+, "oh"  : ["~O"]
+, "ohr" : ["~O"]
+, "oo"  : ["~O"]
+, "or"  : ["~O"]
+, "orr" : ["~O+"]
+, "oß"  : ["~O+S"]
+, "ö"   : ["^O"]
+, "öh"  : ["^O"]
+, "öhr" : ["^O"]
+, "ör"  : ["^O"]
+, "örr" : ["^O+"]
+, "öß"  : ["^O+S"]
+, "p"   : ["BD", "P"]
+, "pf"  : ["BF"]
+, "pp"  : ["P"]
+, "p|p" : ["P"]
+, "ps"  : ["SDJ"]     // TODO: documentation
+, "qu"  : ["GDW"]
+, "r"   : ["R"]
+// , "ren"  : ["n"]  // TODO: too greedy?
+, "s"   : ["S"]
+, "sch" : ["SJ", "ʃ"]
+, "schw": ["SW"]
+, "sh"  : ["SJ", "ʃ"] // cash, auscashen
+, "sp"  : ["BF"]      // TODO: documentation
+, "ss"  : ["S"]
+, "s|s" : ["S"]
+, "st"  : ["SD"]
+, "t"   : ["DJ", "-D"]
+, "te"  : ["D-"]
+, "tt"  : ["-D"]       // t|t isn't logically possible
+, "ts"  : ["SF", "+S"]
+, "tsch": ["SJ", "ʃD"]  // TODO: documentation: -tsch like -scht
+, "tz"  : ["+S"]
+, "u"   : ["U"]
+, "uh"  : ["~U"]
+, "uhr" : ["~U"]
+, "ur"  : ["~U"]
+, "urr" : ["~U+"]
+, "uß"  : ["~U+S"]
+, "ü"   : ["^U"]
+, "üh"  : ["^U"]
+, "ür"  : ["^U"]
+, "ühr" : ["^U"]
+, "ürr" : ["^U+"]
+, "üß"  : ["^U+S"]
+, "v"   : ["F"]
+, "w"   : ["W", "-F"]
+, "x"   : ["GDJ"]      // TODO: documentation
+, "y"   : ["J", "I"]
+, "z"   : ["SF", "-S"]
 // zt  : ["+SD"] -- default zt -> "SD"
 }

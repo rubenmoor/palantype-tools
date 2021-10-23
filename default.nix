@@ -7,7 +7,7 @@ let
     sha256 = "10nff6mqflrd6dz1fp2l9vmfwbgk0r7zm81qh2xnjj19a47pd7v3";
   };
   easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.8.4" ]; };
-  
+
   compiler = "ghc884";
   config = {
     packageOverrides = pkgs: rec {
@@ -15,7 +15,8 @@ let
         packages = pkgs.haskell.packages // {
           "${compiler}" = pkgs.haskell.packages."${compiler}".override {
             overrides = self: super: {
-              # hyphenation = self.callCabal2nix "hyphenation" ../ekmett-hyphenation { };
+              my-palantype = self.callCabal2nix "my-palantype" ../my-palantype { };
+              parsec = self.callCabal2nix "parsec" ../parsec { };
             };
           };
         };
@@ -23,7 +24,7 @@ let
     };
     allowBroken = true;
   };
-  drv = pkgs.haskell.packages."${compiler}".callCabal2nix "buildStenoDict" ./. { };
+  drv = pkgs.haskell.packages."${compiler}".callCabal2nix "palantype-tools" ./. { };
 in
   {
     env =
