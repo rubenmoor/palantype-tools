@@ -2,7 +2,7 @@
 
 module Main where
 
-import           Args                      (Task (..), argOpts)
+import           Args                      (Task (..), argOpts, OptionsSyllables (OSylFile, OSylArg))
 import           Control.Applicative       (Alternative ((<|>)),
                                             Applicative (pure, (*>), (<*>)))
 import           Control.Category          (Category ((.)))
@@ -57,12 +57,17 @@ main :: IO ()
 main =
   execParser argOpts >>= \case
     TaskWord str         -> StrictIO.putStrLn $ parseSeries str
-    TaskSyllables reset  -> syllables reset
+    TaskSyllables opts  -> syllables opts
     TaskStenoWords reset -> stenoWords reset
     TaskPartsDict reset  -> partsDict reset
 
-syllables :: Bool -> IO ()
-syllables reset = do
+syllables
+  :: OptionsSyllables
+  -> IO ()
+syllables (OSylArg str) =
+  StrictIO.putStrLn $ showt $ parseSyllables str
+
+syllables (OSylFile reset) = do
     start <- getCurrentTime
     when reset $ traverse_ removeFile
       [ fileSyllables

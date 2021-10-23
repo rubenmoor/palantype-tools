@@ -1,30 +1,37 @@
 module Args where
 
-import Options.Applicative
-import Data.Semigroup ((<>))
-import Data.Text (Text)
-import Data.Bool (Bool)
-import Data.Monoid (Monoid(mempty))
+import           Data.Bool           (Bool)
+import           Data.Monoid         (Monoid (mempty))
+import           Data.Semigroup      ((<>))
+import           Data.Text           (Text)
+import           Options.Applicative (Applicative ((<*>), (<*)), Parser, ParserInfo,
+                                      argument, command, help, helper, info,
+                                      long, progDesc, str, subparser, switch,
+                                      (<$>), Alternative ((<|>)), strOption, short)
 
 data Task
   = TaskWord Text
-  | TaskSyllables Bool
+  | TaskSyllables OptionsSyllables
   | TaskStenoWords Bool
   | TaskPartsDict Bool
 
+data OptionsSyllables
+  = OSylFile Bool
+  | OSylArg Text
+
 argOpts :: ParserInfo Task
-argOpts = info task mempty
+argOpts = info (helper <*> task) mempty
 
 task :: Parser Task
 task = subparser
-  (  command "word" (info (TaskWord <$> argument str mempty) wordInfo)
-  <> command "syllables" (info (TaskSyllables <$> resetSwitch) syllablesInfo)
-  <> command "stenoWords" (info (TaskStenoWords <$> resetSwitch) stenoWordsInfo)
-  <> command "stenoDict" (info (TaskPartsDict <$> resetSwitch) stenoDictInfo)
+  (  command "word" (info (TaskWord <$> argument str mempty <* helper) wordInfo)
+  <> command "syllables" (info (TaskSyllables <$> optsSyllables <* helper) syllablesInfo)
+  <> command "stenoWords" (info (TaskStenoWords <$> switchReset <* helper) stenoWordsInfo)
+  <> command "stenoDict" (info (TaskPartsDict <$> switchReset <* helper) stenoDictInfo)
   )
 
-resetSwitch :: Parser Bool
-resetSwitch = switch
+switchReset :: Parser Bool
+switchReset = switch
   (  long "reset"
   <> help "delete the no-parse-file, start from scratch and overwrite the \
           \result file."
@@ -33,6 +40,18 @@ resetSwitch = switch
 wordInfo =
   progDesc "Parse a single word in the format \"Di|rek|to|ren\" into a series \
            \of steno chords."
+
+optsSyllables :: Parser OptionsSyllables
+optsSyllables =
+      (OSylFile <$> switchReset)
+  <|> (OSylArg  <$> syllableArg)
+  where
+    syllableArg = strOption
+      (  long "arg"
+      <> short 'a'
+      <> help "Extract syllable patterns from one single line of the format:\n\n \
+              \Direktive >>> Di|rek|ti|ve, die; -, -n (Weisung; Verhaltensregel)"
+      )
 
 syllablesInfo =
   progDesc "Read the file \"entries.txt\" and extract the syllable patterns. \
