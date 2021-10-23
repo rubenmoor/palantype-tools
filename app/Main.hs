@@ -33,7 +33,7 @@ import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import qualified Data.Text.IO              as StrictIO
 import qualified Data.Text.Lazy            as Lazy
-import           Data.Text.Lazy.IO         (appendFile, readFile)
+import           Data.Text.Lazy.IO         (appendFile, readFile, hGetContents)
 import           Data.Traversable          (for)
 import           Data.Tuple                (fst, snd)
 import           GHC.Err                   (error)
@@ -49,9 +49,11 @@ import           Palantype.Tools.Syllables (Exception (..), Result (..),
 import           System.Directory          (doesFileExist, removeFile,
                                             renamePath)
 import           System.Environment        (getArgs)
-import           System.IO                 (IO, print, putStrLn)
+import           System.IO                 (IO, print, putStrLn, putStr, hSetNewlineMode, universalNewlineMode, openFile, IOMode (ReadMode), FilePath)
 import           TextShow                  (TextShow (showt))
 import Data.Time (getCurrentTime, diffUTCTime, formatTime, defaultTimeLocale)
+import WCL (wcl)
+import Text.Show (Show(show))
 
 main :: IO ()
 main =
@@ -69,13 +71,17 @@ syllables (OSylArg str) =
 
 syllables (OSylFile reset) = do
     start <- getCurrentTime
-    when reset $ traverse_ removeFile
-      [ fileSyllables
-      , fileSyllablesNoParse
-      , fileSyllablesAbbreviations
-      , fileSyllablesMultiple
-      , fileSyllablesSpecialChar
-      ]
+    let lsFiles =
+          [ fileSyllables
+          , fileSyllablesNoParse
+          , fileSyllablesAbbreviations
+          , fileSyllablesMultiple
+          , fileSyllablesSpecialChar
+          ]
+    when reset $ do
+      for_ lsFiles $ \file -> do
+        exists <- doesFileExist file
+        when exists $ removeFile file
 
     existsFileNoParse <- doesFileExist fileSyllablesNoParse
 
@@ -84,7 +90,16 @@ syllables (OSylFile reset) = do
         then fileSyllablesNoParse
         else "entries.txt"
 
+    putStrLn ""
+    putStrLn "Number of lines in"
+
+    for_ ("entries.txt":lsFiles) $ \file -> do
+      nl <- wcl file
+      putStrLn $ show nl <> "\t" <> file
+
+    putStrLn ""
     stop <- getCurrentTime
+    putStr "Syllables runtime (mm:ss): "
     putStrLn $ formatTime defaultTimeLocale "%2M:%2S" $ diffUTCTime stop start
 
   where
@@ -97,18 +112,21 @@ syllables (OSylFile reset) = do
     runSyllables file = do
 
       let tmpFileNoParse = "syllables-noparse.tmp.txt"
-      entries <- Lazy.lines <$> readFile file
+
+      handle <- openFile file ReadMode
+      hSetNewlineMode handle universalNewlineMode
+      entries <- Lazy.lines <$> hGetContents handle
 
       for_ entries $ \entry ->
         for_ (parseSyllables $ Lazy.toStrict entry) $ \case
           Failure err     -> do
             print err
-            appendFile tmpFileNoParse entry
-          Success sd -> appendFile fileSyllables $ Lazy.fromStrict $ showt sd
+            appendLine tmpFileNoParse entry
+          Success sd -> appendLine fileSyllables $ Lazy.fromStrict $ showt sd
           Exception exc -> case exc of
-            ExceptionAbbreviation  -> appendFile fileSyllablesAbbreviations entry
-            ExceptionMultiple      -> appendFile fileSyllablesMultiple entry
-            ExceptionSpecialChar c -> appendFile fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
+            ExceptionAbbreviation  -> appendLine fileSyllablesAbbreviations entry
+            ExceptionMultiple      -> appendLine fileSyllablesMultiple entry
+            ExceptionSpecialChar c -> appendLine fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
       renamePath tmpFileNoParse fileSyllablesNoParse
 
 stenoWords :: Bool -> IO ()
@@ -118,3 +136,6 @@ stenoWords reset = do
 partsDict :: Bool -> IO ()
 partsDict reset = do
   putStrLn "Starting over ..."
+
+appendLine :: FilePath -> Lazy.Text -> IO ()
+appendLine file str = appendFile file $ str <> "\n"

@@ -18,7 +18,7 @@ import           Prelude          (Applicative (pure, (<*), (*>)), Foldable (nul
                                    Monoid (mconcat), Eq ((/=)))
 import           Text.Parsec      (ParseError, Parsec, anyChar, char, getState,
                                    letter, many1, manyTill, notFollowedBy,
-                                   runParser, sepBy1, setState, string, try, evalParser, many, getInput, noneOf, parserTrace)
+                                   runParser, sepBy1, setState, string, try, evalParser, many, getInput, noneOf, parserTrace, spaces, space, satisfy)
 import           TextShow         (TextShow (..), fromText)
 import Control.Applicative (Alternative((<|>)))
 import Data.Eq ((==))
@@ -77,23 +77,29 @@ parseSyllables = fmap parseSyllables' . parseOptionalChar
 
     word :: Parsec Text (Maybe Exception) (Text, Text)
     word = do
-      void $ many (try $ anyChar *> notFollowedBy letter)
-      result <- Text.pack <$> manyTill someChar (try $ string " >>> ")
-      rem <- getInput
-      pure (result, rem)
+        void $ many (try $ anyChar *> notFollowedBy letter)
+        result <- Text.pack <$> manyTill someChar (try sep)
+        rem <- getInput
+        pure (result, rem)
+      where
+        sep = void $ many1 space *> string ">>>" *> many1 space
 
     someChar :: Parsec Text (Maybe Exception) Char
     someChar = do
       c <- anyChar
       mExc <- getState
-      when (isNothing mExc) $ do
-        when (c == ' ') $ setState $ Just ExceptionMultiple
-        when (c == '.') $ setState $ Just ExceptionAbbreviation
-        unless (isLetter c || c == '-') $ setState $ Just $ ExceptionSpecialChar c
+      when (isNothing mExc) $
+        case c of
+          '.' -> setState $ Just ExceptionAbbreviation
+          ' ' -> setState $ Just ExceptionMultiple
+          c' | not (isLetter c || c == '-') -> setState $ Just $ ExceptionSpecialChar c
+          _ -> pure ()
       pure c
 
     syllables :: Parsec Text String [Text]
     syllables = do
+        (x:_) <- getState
+        void $ many $ satisfy (/= x)
         mconcat <$> sepBy1 (intersperse "-" <$> sepByHyphen) (char '|')
       where
         sepByHyphen =

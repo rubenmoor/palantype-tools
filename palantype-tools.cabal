@@ -52,6 +52,7 @@ executable palantype-ops
 
     other-modules:
         Args
+      , WCL
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
@@ -60,6 +61,7 @@ executable palantype-ops
       , directory
       , optparse-applicative
       , palantype-tools
+      , streamly
       , text
       , text-show
       , time
