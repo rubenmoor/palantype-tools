@@ -6,7 +6,7 @@ module Palantype.Tools.Syllables where
 import           Control.Category (Category ((.)))
 import           Control.Monad    (Monad ((>>), (>>=)), MonadPlus (mzero), when, unless, guard)
 import           Data.Char        (Char, isLetter)
-import           Data.Either      (Either (..))
+import           Data.Either      (Either (..), isRight)
 import           Data.Function    (($))
 import           Data.Functor     (Functor (fmap), void, (<$>))
 import           Data.List        (intersperse, intercalate)
@@ -18,13 +18,13 @@ import           Prelude          (Applicative (pure, (<*), (*>)), Foldable (nul
                                    Monoid (mconcat), Eq ((/=)))
 import           Text.Parsec      (ParseError, Parsec, anyChar, char, getState,
                                    letter, many1, manyTill, notFollowedBy,
-                                   runParser, sepBy1, setState, string, try, evalParser, many, getInput, noneOf, parserTrace, spaces, space, satisfy)
+                                   runParser, sepBy1, setState, string, try, evalParser, many, getInput, noneOf, parserTrace, spaces, space, satisfy, oneOf, parse)
 import           TextShow         (TextShow (..), fromText)
 import Control.Applicative (Alternative((<|>)))
 import Data.Eq ((==))
-import Data.Maybe (Maybe (..), isNothing)
+import Data.Maybe (Maybe (..), isNothing, catMaybes)
 import Control.Exception.Base (mapException)
-import Data.Bool ((&&), not, (||))
+import Data.Bool ((&&), not, (||), otherwise)
 import TextShow.Generic (genericShowbPrec)
 import GHC.Generics (Generic)
 import Text.Show (Show(show))
@@ -56,13 +56,15 @@ data Exception
   = ExceptionAbbreviation
   | ExceptionMultiple
   | ExceptionSpecialChar Char
+  | ExceptionSingleLetter
+  | ExceptionEllipsis
   deriving (Generic)
 
 instance TextShow Exception where
   showbPrec = genericShowbPrec
 
 parseSyllables :: Text -> [Result]
-parseSyllables = fmap parseSyllables' . parseOptionalChar
+parseSyllables = fmap parseSyllables' . parseOptionalChars
   where
     parseSyllables' :: Text -> Result
     parseSyllables' str =
@@ -77,14 +79,18 @@ parseSyllables = fmap parseSyllables' . parseOptionalChar
 
     word :: Parsec Text (Maybe Exception) (Text, Text)
     word = do
-        void $ many (try $ anyChar *> notFollowedBy letter)
-        result <- Text.pack <$> manyTill someChar (try sep)
+        void $ many $ try (satisfy (not . isLetter) *> notFollowedBy sep)
+        result <- Text.pack . catMaybes <$> manyTill someChar (try sep)
+        when (Text.length result == 1) $ setState $ Just ExceptionSingleLetter
+        when (isRight $ parse ellipsis "" result) $
+          setState $ Just ExceptionEllipsis
         rem <- getInput
         pure (result, rem)
       where
         sep = void $ many1 space *> string ">>>" *> many1 space
+        ellipsis = void $ many (noneOf ".") *> string "..."
 
-    someChar :: Parsec Text (Maybe Exception) Char
+    someChar :: Parsec Text (Maybe Exception) (Maybe Char)
     someChar = do
       c <- anyChar
       mExc <- getState
@@ -92,9 +98,12 @@ parseSyllables = fmap parseSyllables' . parseOptionalChar
         case c of
           '.' -> setState $ Just ExceptionAbbreviation
           ' ' -> setState $ Just ExceptionMultiple
-          c' | not (isLetter c || c == '-') -> setState $ Just $ ExceptionSpecialChar c
+          c' | not (isLetter c || c `elem` ("-!®" :: String)) -> setState $ Just $ ExceptionSpecialChar c
           _ -> pure ()
-      pure c
+      pure $ case c of
+               '!' -> Nothing
+               '®' -> Nothing
+               _   -> Just c
 
     syllables :: Parsec Text String [Text]
     syllables = do
@@ -113,19 +122,30 @@ parseSyllables = fmap parseSyllables' . parseOptionalChar
           setState xs
           char x
 
-parseOptionalChar :: Text -> [Text]
-parseOptionalChar str =
-  case runParser optionalChar () "" str of
+parseOptionalChars :: Text -> [Text]
+parseOptionalChars str =
+  case runParser optionalChars () "" str of
     Left  _ -> [str]
-    Right c ->
-      let c' = Text.singleton c
-      in  [ replace ("[" <> c' <> "]") "" str
-          , replace ("[" <> c' <> "]") c' str
-          ]
+    Right (cs, cts) ->
+      [ replaceFirst ("[" <> cts <> "]") "" $ replaceFirst ("[" <> cs <> "]") "" str
+      , replaceFirst ("[" <> cts <> "]") cts $ replaceFirst ("[" <> cs <> "]") cs str
+      ]
 
-optionalChar :: Parsec Text () Char
-optionalChar = do
-  void $ manyTill (anyChar <* notFollowedBy (try $ string ">>>")) $ char '['
-  c <- letter
-  void $ char ']'
-  pure c
+optionalChars :: Parsec Text () (Text, Text)
+optionalChars = do
+    void $ manyTill anyChar (char '[')
+    cs <- Text.pack <$> many1 letter
+    void $ char ']'
+    void $ manyTill anyChar (try $ string ">>>")
+    void $ manyTill anyChar $ char '['
+    cts <- Text.pack <$> many1 (letter <|> char '|')
+    void $ char ']'
+    pure (cs, cts)
+
+
+replaceFirst :: Text -> Text -> Text -> Text
+replaceFirst needle replacement haystack
+  | Text.null back = haystack    -- pattern doesn't occur
+  | otherwise = Text.concat [front, replacement, Text.drop (Text.length needle) back]
+    where
+      (front, back) = Text.breakOn needle haystack

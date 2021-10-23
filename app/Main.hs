@@ -77,6 +77,8 @@ syllables (OSylFile reset) = do
           , fileSyllablesAbbreviations
           , fileSyllablesMultiple
           , fileSyllablesSpecialChar
+          , fileSyllablesSingleLetter
+          , fileSyllablesEllipsis
           ]
     when reset $ do
       for_ lsFiles $ \file -> do
@@ -108,6 +110,8 @@ syllables (OSylFile reset) = do
     fileSyllablesAbbreviations = "syllables-abbreviations.txt"
     fileSyllablesMultiple = "syllables-multiple.txt"
     fileSyllablesSpecialChar = "syllables-specialchar.txt"
+    fileSyllablesSingleLetter = "syllables-singleletter.txt"
+    fileSyllablesEllipsis = "syllables-ellipsis.txt"
 
     runSyllables file = do
 
@@ -127,6 +131,8 @@ syllables (OSylFile reset) = do
             ExceptionAbbreviation  -> appendLine fileSyllablesAbbreviations entry
             ExceptionMultiple      -> appendLine fileSyllablesMultiple entry
             ExceptionSpecialChar c -> appendLine fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
+            ExceptionSingleLetter  -> appendLine fileSyllablesSingleLetter entry
+            ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
       renamePath tmpFileNoParse fileSyllablesNoParse
 
 stenoWords :: Bool -> IO ()
