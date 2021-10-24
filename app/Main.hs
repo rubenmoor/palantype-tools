@@ -2,12 +2,14 @@
 
 module Main where
 
-import           Args                      (Task (..), argOpts, OptionsSyllables (OSylFile, OSylArg))
+import           Args                      (OptionsStenoWords (..),
+                                            OptionsSyllables (OSylArg, OSylFile),
+                                            Task (..), argOpts)
 import           Control.Applicative       (Alternative ((<|>)),
                                             Applicative (pure, (*>), (<*>)))
 import           Control.Category          (Category ((.)))
 import           Control.Monad             (Monad ((>>=)), MonadPlus (mzero),
-                                            foldM, join, when)
+                                            foldM, forever, join, when)
 import           Data.Bifunctor            (Bifunctor (first, second))
 import           Data.Bool                 (Bool (False))
 import           Data.Char                 (Char)
@@ -18,6 +20,8 @@ import           Data.Foldable             (Foldable (foldl, length, maximum),
 import           Data.Function             (($))
 import           Data.Functor              (Functor (fmap), void, ($>), (<$>),
                                             (<&>))
+import           Data.HashMap.Strict       (HashMap)
+import qualified Data.HashMap.Strict       as HashMap
 import           Data.Int                  (Int)
 import           Data.List                 (concat, dropWhile, head,
                                             intersperse, last, splitAt, (!!),
@@ -33,9 +37,12 @@ import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import qualified Data.Text.IO              as StrictIO
 import qualified Data.Text.Lazy            as Lazy
-import           Data.Text.Lazy.IO         (appendFile, readFile, hGetContents)
+import           Data.Text.Lazy.IO         (appendFile, getLine, hGetContents,
+                                            readFile)
 import           Data.Traversable          (for)
 import           Data.Tuple                (fst, snd)
+import           Formatting                (fprint, (%))
+import           Formatting.Clock          (timeSpecs)
 import           GHC.Err                   (error)
 import           GHC.Float                 (Double)
 import           GHC.Num                   (Num ((-)), (+))
@@ -43,25 +50,31 @@ import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
 import           Options.Applicative       (Parser, argument, command,
                                             execParser, idm, info, progDesc,
                                             str, subparser)
-import           Palantype.Tools.Steno     (parseSeries)
+import           Palantype.Tools.Steno     (SeriesData (SeriesData),
+                                            parseSeries)
 import           Palantype.Tools.Syllables (Exception (..), Result (..),
                                             parseSyllables)
+import           System.Clock              (Clock (Monotonic), getTime)
 import           System.Directory          (doesFileExist, removeFile,
                                             renamePath)
 import           System.Environment        (getArgs)
-import           System.IO                 (IO, print, putStrLn, putStr, hSetNewlineMode, universalNewlineMode, openFile, IOMode (ReadMode), FilePath)
+import           System.IO                 (FilePath, IO, IOMode (ReadMode),
+                                            hSetNewlineMode, openFile, print,
+                                            putStr, putStrLn,
+                                            universalNewlineMode)
+import           Text.Show                 (Show (show))
 import           TextShow                  (TextShow (showt))
-import Data.Time (getCurrentTime, diffUTCTime, formatTime, defaultTimeLocale)
-import WCL (wcl)
-import Text.Show (Show(show))
+import           WCL                       (wcl)
 
 main :: IO ()
 main =
   execParser argOpts >>= \case
-    TaskWord str         -> StrictIO.putStrLn $ parseSeries str
     TaskSyllables opts  -> syllables opts
-    TaskStenoWords reset -> stenoWords reset
-    TaskPartsDict reset  -> partsDict reset
+    TaskStenoWords opts -> stenoWords opts
+    TaskPartsDict reset -> partsDict reset
+
+fileSyllables :: FilePath
+fileSyllables = "syllables.txt"
 
 syllables
   :: OptionsSyllables
@@ -70,7 +83,7 @@ syllables (OSylArg str) =
   StrictIO.putStrLn $ showt $ parseSyllables str
 
 syllables (OSylFile reset) = do
-    start <- getCurrentTime
+    start <- getTime Monotonic
     let lsFiles =
           [ fileSyllables
           , fileSyllablesNoParse
@@ -100,12 +113,11 @@ syllables (OSylFile reset) = do
       putStrLn $ show nl <> "\t" <> file
 
     putStrLn ""
-    stop <- getCurrentTime
-    putStr "Syllables runtime (mm:ss): "
-    putStrLn $ formatTime defaultTimeLocale "%2M:%2S" $ diffUTCTime stop start
+    stop <- getTime Monotonic
+    putStr "Syllables runtime: "
+    fprint (timeSpecs % "\n") start stop
 
   where
-    fileSyllables = "syllables.txt"
     fileSyllablesNoParse = "syllables-noparse.txt"
     fileSyllablesAbbreviations = "syllables-abbreviations.txt"
     fileSyllablesMultiple = "syllables-multiple.txt"
@@ -135,9 +147,73 @@ syllables (OSylFile reset) = do
             ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
       renamePath tmpFileNoParse fileSyllablesNoParse
 
-stenoWords :: Bool -> IO ()
-stenoWords reset = do
-  putStrLn "Starting over ..."
+fileStenoWords :: FilePath
+fileStenoWords = "stenowords.txt"
+
+stenoWords :: OptionsStenoWords -> IO ()
+stenoWords (OStwArg str) =
+  case parseSeries str of
+    Left err -> print err
+    Right sd -> StrictIO.putStrLn $ showt sd
+
+stenoWords OStwStdin =
+  forever $ do
+    l <- Lazy.toStrict <$> getLine
+    case parseSeries l of
+      Left err -> print err
+      Right sd -> StrictIO.putStrLn $ showt sd
+
+stenoWords (OStwFile reset) = do
+
+    start <- getTime Monotonic
+
+    let lsFiles =
+          [ fileStenoWords
+          , fileStenoWordsNoParse
+          ]
+    when reset $
+      for_ lsFiles $ \file -> do
+        exists <- doesFileExist file
+        when exists $ removeFile file
+
+    existsStenoWordsNoParse <- doesFileExist fileStenoWordsNoParse
+    runStenoWords $ if existsStenoWordsNoParse
+      then fileStenoWordsNoParse
+      else fileSyllables
+
+    putStrLn ""
+    putStrLn "Number of lines in"
+
+    for_ lsFiles $ \file -> do
+      nl <- wcl file
+      putStrLn $ show nl <> "\t" <> file
+
+    putStrLn ""
+
+    stop <- getTime Monotonic
+    putStr "StenoWords runtime: "
+    fprint (timeSpecs % "\n") start stop
+  where
+    fileStenoWordsNoParse = "stenowords-noparse.txt"
+
+    runStenoWords file = do
+      syllables <- Lazy.lines <$> readFile file
+      putStrLn $ "Creating steno chords for " <> show (length syllables) <> " entries."
+
+      let tmpFileNoParse = "stenowords-noparse.tmp.txt"
+
+          acc :: HashMap Text SeriesData -> Lazy.Text -> IO (HashMap Text SeriesData)
+          acc m str =
+            let [word, hyphenated] = splitOn " " $ Lazy.toStrict str
+            in  case parseSeries hyphenated of
+                  Left err -> appendLine tmpFileNoParse str $> m
+                  Right sd -> pure $ HashMap.insert word sd m
+
+      m <- foldM acc HashMap.empty syllables
+      for_ (HashMap.toList m) $ \(word, sd) ->
+        appendLine fileStenoWords $ Lazy.fromStrict $ word <> " " <> showt sd
+
+      renamePath tmpFileNoParse fileStenoWordsNoParse
 
 partsDict :: Bool -> IO ()
 partsDict reset = do

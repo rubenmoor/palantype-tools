@@ -1,4 +1,6 @@
+{-# LANGUAGE DeriveGeneric    #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -50,6 +52,7 @@ import qualified Data.Trie                 as Trie
 import           Data.Tuple                (fst, snd)
 import           GHC.Err                   (error)
 import           GHC.Float                 (Double)
+import           GHC.Generics              (Generic)
 import           GHC.Num                   (Num ((-)), (+))
 import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
 import           Palantype.Common          (Chord (Chord), Finger (LeftPinky),
@@ -62,54 +65,87 @@ import qualified Palantype.DE.Keys         as DE
 import           Safe                      (headMay, lastMay)
 import           System.Environment        (getArgs)
 import           System.IO                 (IO)
-import           Text.Parsec               (ParseError, Parsec, char, eof,
-                                            evalParser, getInput, getState,
-                                            letter, many1, parse, parserFail,
-                                            runParser, sepBy1, setInput,
-                                            setState, string, try, anyChar, noneOf)
+import           Text.Parsec               (ParseError, Parsec, anyChar, char,
+                                            eof, evalParser, getInput, getState,
+                                            letter, many1, noneOf, parse,
+                                            parserFail, runParser, sepBy1,
+                                            setInput, setState, string, try)
+import           Text.Printf               (printf)
 import           Text.Show                 (Show (show))
-import           TextShow                  (TextShow (showb, showt), singleton)
+import           TextShow                  (TextShow (showb, showbPrec, showt),
+                                            fromText, singleton)
+import           TextShow.Generic          (genericShowbPrec)
 
-parseSeries :: Text -> Text
-parseSeries str =
-  case HashMap.lookup (replace "|" "" str) mapExceptions of
-    Just raw -> case Raw.parseWord raw of
-      Right chords -> Text.concat $ intersperse "/" $
-        showt @(Chord DE.Key) <$> chords
-      Left err     -> err
+data SeriesData = SeriesData
+  { sdHyphenated :: Text
+  , sdSeries     :: Series Key
+  , sdScore      :: Double
+  , sdPath       :: Path
+  }
+
+instance TextShow SeriesData where
+ showb SeriesData{..} = fromText $
+      sdHyphenated <> " "
+   <> Text.pack (printf "%.1f" sdScore) <> " "
+   <> showt sdPath <> " "
+   <> showt sdSeries
+
+data Path
+  = PathException
+  | PathOptimize
+  deriving (Generic)
+
+instance TextShow Path where
+  showbPrec = genericShowbPrec
+
+parseSeries :: Text -> Either ParseError SeriesData
+parseSeries hyphenated =
+  case HashMap.lookup (replace "|" "" hyphenated) mapExceptions of
+    Just raw ->
+      Raw.parseWord raw <&> \chords ->
+        let sdHyphenated = hyphenated
+            sdSeries = Series chords
+            sdScore = 0
+            sdPath = PathException
+        in SeriesData{..}
     Nothing ->
-      case optimizeStenoSeries $ splitOn "|" $ toLower str of
-        Right (scoreAcc, chords) ->
-          let -- the score of a series of chords for a given word is the average
-              -- chord score, i.e. the average number of letters per chord
-              score = (fromIntegral scoreAcc :: Double)
-                    / fromIntegral ( length chords)
-          in  showt (Series chords) <> " " <> showt score
-        Left  err   -> err
+      let str' = splitOn "|" $ toLower hyphenated
+      in  optimizeStenoSeries str' <&> \(scoreAcc, chords) ->
+            let -- the score of a series of chords for a given word is the average
+                -- chord score, i.e. the average number of letters per chord
+                sdHyphenated = hyphenated
+                sdScore = (fromIntegral scoreAcc :: Double)
+                      / fromIntegral ( length chords)
+                sdSeries = Series chords
+                sdPath = PathOptimize
+            in  SeriesData{..}
 
-optimizeStenoSeries :: [Text] -> Either Text (Int, [Chord Key])
+optimizeStenoSeries :: [Text] -> Either ParseError (Int, [Chord Key])
 optimizeStenoSeries [] = Right (0, [])
+  -- TODO: Quatsch
 optimizeStenoSeries parts =
-  maximum $
-    [1 .. (length parts)] <&> \i ->
-      let (front, back) = splitAt i parts
-      in  do
-            (scoreFront, cFront) <- parseChord $ intercalate "|" front
-            (scoreBack , cBack ) <- optimizeStenoSeries back
-            pure (scoreFront + scoreBack, cFront : cBack)
+    maximumBy (comparing score) $
+      [1 .. (length parts)] <&> \i ->
+        let (front, back) = splitAt i parts
+        in  do
+              (scoreFront, cFront) <- parseChord $ intercalate "|" front
+              (scoreBack , cBack ) <- optimizeStenoSeries back
+              pure (scoreFront + scoreBack, cFront : cBack)
+  where
+    score (Left _)       = 0
+    score (Right (s, _)) = s
 
-parseChord :: Text -> Either Text (Int, Chord Key)
+parseChord :: Text -> Either ParseError (Int, Chord Key)
 parseChord str =
     let strUtf8 = Text.encodeUtf8 str
-    in  case runParser chord Nothing "series" strUtf8 of
-          Left  err -> Left  $ Text.pack $ show err
-
+    in  runParser chord Nothing "series" strUtf8 <&> \ks ->
           -- the score of a chord is the number of letters it successfully
           -- encoded
-          Right ks  -> Right (Text.length str, Chord ks)
+          (Text.length str, Chord ks)
 
   where
     chord =
+      -- TODO: replace 'concat <$> many1 keys' by backtracking
       concat <$> sepBy1 (concat <$> many1 keys) pipe <* eof
 
     pipe = char '|' $> []
@@ -124,8 +160,7 @@ parseChord str =
       void $ noneOf "|"
 
       (consumed, result, rem) <-
-        -- TODO: if there are patterns that match but do not result
-        -- in parsable raw steno ("greedy"), we have to use Trie.matches
+        -- TODO: matches
         maybe (parserFail "no primitive match") pure $ Trie.match primitives str
 
       let primitive (RawSteno raw) =

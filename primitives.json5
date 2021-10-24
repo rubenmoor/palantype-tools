@@ -5,6 +5,7 @@
 , "ah" : ["AO"]
 , "ahr": ["AO"]
 // TODO: greedier: ah|r: ["AO"]
+, "ar" : ["AO"]
 , "arr": ["AO+"]
 , "aß" : ["AO+S"]
 , "ä"  : ["AI"]
@@ -41,9 +42,9 @@
 , "cia" : ["SJIA"]     // phonetic tsch: ciao, ciabatta
 , "ck"  : ["GD", "K"]
 , "d"   : ["D"]
-, "de"  : ["D"]
-, "di"  : ["D"]
-, "dt"  : ["-T"]
+, "de"  : ["D-"]
+, "di"  : ["D-"]
+, "dt"  : ["-D"]
 , "e"   : ["E", "e"]
 , "ee"  : ["Ee"]       // TODO: documentation for ee-rule
 , "eer" : ["Ee"]       //       ee, eer -> Ee
@@ -57,7 +58,7 @@
 , "f"   : ["F"]
 , "ff"  : ["F"]
 , "f|f" : ["F"]
-, "g"   : ["G"]
+, "g"   : ["G", "K"]
 , "ge"  : ["G"]
 , "gg"  : ["G"]
 , "g|g" : ["G"]
@@ -117,7 +118,7 @@
 , "s|s" : ["S"]
 , "st"  : ["SD"]
 , "t"   : ["DJ", "-D"]
-, "te"  : ["D-"]
+, "te"  : ["DJ"]
 , "tt"  : ["-D"]       // t|t isn't logically possible
 , "ts"  : ["SF", "+S"]
 , "tsch": ["SJ", "ʃD"]  // TODO: documentation: -tsch like -scht
@@ -139,5 +140,6 @@
 , "x"   : ["GDJ"]      // TODO: documentation
 , "y"   : ["J", "I"]
 , "z"   : ["SF", "-S"]
+, "-"   : ["HIFn"]
 // zt  : ["+SD"] -- default zt -> "SD"
 }

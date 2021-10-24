@@ -58,13 +58,15 @@ executable palantype-ops
 
     build-depends:
         base ^>=4.13.0.0
+      , clock
       , directory
+      , formatting
       , optparse-applicative
       , palantype-tools
       , streamly
       , text
       , text-show
-      , time
+      , unordered-containers
     default-extensions:
         LambdaCase
         NoImplicitPrelude
