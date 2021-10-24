@@ -8,18 +8,18 @@
 , "ar" : ["AO"]
 , "arr": ["AO+"]
 , "aß" : ["AO+S"]
-, "ä"  : ["AI"]
-, "äh" : ["AI"]
-, "ähr": ["AI"]
-, "är" : ["AI"]
-, "ärr": ["AI+"]
-, "äß" : ["AI+S"]
+, "ä"  : ["Ä"]
+, "äh" : ["ÄO"]
+, "ähr": ["ÄO"]
+, "är" : ["ÄO"]
+, "ärr": ["ÄO+"]
+, "äß" : ["ÄO+S"]
 , "b"  : ["B", "P"]
 , "bb" : ["P"]
 , "be" : ["B"]
 , "c"  : ["GD", "K"]
 , "ca" : ["GDA"]   // phonetic k
-, "cä" : ["SFAI"]  // phonetic z
+, "cä" : ["SFÄ"]  // phonetic z
 , "ce" : ["SJE", "Se"]  // onset: phonetic tsch: Cellist; coda: -ice
 // ch
 // complicated by a lot of international words
@@ -35,7 +35,7 @@
 , "chl" : ["GDL"]
 , "cho" : ["GDO"]
 , "chor": ["GD~O"]
-, "chör": ["GD^O"]     // chöre
+, "chör": ["GDÄO"]     // chöre
 , "chr" : ["GDR"]
 , "chs" : ["KS"]
 , "ci"  : ["SFI"]      // normal case
@@ -95,12 +95,12 @@
 , "or"  : ["~O"]
 , "orr" : ["~O+"]
 , "oß"  : ["~O+S"]
-, "ö"   : ["^O"]
-, "öh"  : ["^O"]
-, "öhr" : ["^O"]
-, "ör"  : ["^O"]
-, "örr" : ["^O+"]
-, "öß"  : ["^O+S"]
+, "ö"   : ["ÄO"]
+, "öh"  : ["ÄO"]
+, "öhr" : ["ÄO"]
+, "ör"  : ["ÄO"]
+, "örr" : ["ÄO+"]
+, "öß"  : ["ÄO+S"]
 , "p"   : ["BD", "P"]
 , "pf"  : ["BF"]
 , "pp"  : ["P"]
@@ -129,12 +129,12 @@
 , "ur"  : ["~U"]
 , "urr" : ["~U+"]
 , "uß"  : ["~U+S"]
-, "ü"   : ["^U"]
-, "üh"  : ["^U"]
-, "ür"  : ["^U"]
-, "ühr" : ["^U"]
-, "ürr" : ["^U+"]
-, "üß"  : ["^U+S"]
+, "ü"   : ["Ü"]
+, "üh"  : ["~Ü"]
+, "ür"  : ["~Ü"]
+, "ühr" : ["~Ü"]
+, "ürr" : ["~Ü+"]
+, "üß"  : ["~Ü+S"]
 , "v"   : ["F"]
 , "w"   : ["W", "-F"]
 , "x"   : ["GDJ"]      // TODO: documentation
