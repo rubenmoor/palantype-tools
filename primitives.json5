@@ -102,8 +102,10 @@
 , "ss"  : ["S"]
 , "s|s" : ["S"]
 , "st"  : ["SD"]
+, "ß"   : ["S"]       // TODO: ß in onset: probably collisions
 , "t"   : ["DJ", "-D"]
-, "te"  : ["DJ"]
+, "te"  : ["DJ"]      // TODO: maybe "-D"
+, "ti|on": ["DJON"]
 , "tt"  : ["-D"]       // t|t isn't logically possible
 , "ts"  : ["SF", "+S"]
 , "tsch": ["SJ", "ʃD"]  // TODO: documentation: -tsch like -scht
