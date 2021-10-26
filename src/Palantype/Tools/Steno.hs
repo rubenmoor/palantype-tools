@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveGeneric    #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TemplateHaskell  #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Palantype.Tools.Steno where
 
@@ -23,18 +23,18 @@ import           Data.Char                 (Char)
 import           Data.Either               (Either (..), either)
 import           Data.Eq                   (Eq ((==)))
 import           Data.FileEmbed            (embedFile)
-import           Data.Foldable             (Foldable (foldl, length, maximum, foldl', null),
+import           Data.Foldable             (Foldable (foldl, foldl', length, maximum, null),
                                             maximumBy)
-import           Data.Function             (($), const)
+import           Data.Function             (const, ($))
 import           Data.Functor              (Functor (fmap), void, ($>), (<$>),
                                             (<&>))
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.Hashable             (Hashable)
 import           Data.Int                  (Int)
-import           Data.List                 (concat, dropWhile,
-                                            intersperse, last, splitAt, (!!),
-                                            (++), head, reverse)
+import           Data.List                 (concat, dropWhile, head,
+                                            intersperse, last, reverse, splitAt,
+                                            (!!), (++))
 import           Data.List.NonEmpty        (NonEmpty)
 import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
@@ -43,18 +43,19 @@ import           Data.Monoid               (Monoid (mconcat, mempty), (<>))
 import           Data.Ord                  (Ord ((>=)), comparing)
 import           Data.String               (String)
 import           Data.Text                 (Text, intercalate, replace, splitOn,
-                                            toLower, tail)
+                                            tail, toLower)
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.IO              (interact, putStrLn)
-import           Data.Traversable          (for, Traversable (sequence))
+import           Data.Traversable          (Traversable (sequence), for)
 import           Data.Trie                 (Trie)
 import qualified Data.Trie                 as Trie
 import           Data.Tuple                (fst, snd)
+import           Data.Word                 (Word8)
 import           GHC.Err                   (error)
 import           GHC.Float                 (Double)
 import           GHC.Generics              (Generic)
-import           GHC.Num                   (Num ((-), fromInteger), (+))
+import           GHC.Num                   (Num (fromInteger, (-)), (+))
 import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
 import           Palantype.Common          (Chord (Chord), Finger (LeftPinky),
                                             Palantype (toFinger),
@@ -66,17 +67,18 @@ import qualified Palantype.DE.Keys         as DE
 import           Safe                      (headMay, lastMay)
 import           System.Environment        (getArgs)
 import           System.IO                 (IO)
-import           Text.Parsec               (ParseError, Parsec, anyChar, char,
-                                            eof, evalParser, getInput, getState,
-                                            letter, many1, noneOf, parse,
+import qualified Text.ParserCombinators.Parsec.Error as Parsec
+import           Text.Parsec               (Parsec, anyChar, char, eof,
+                                            evalParser, getInput, getState,
+                                            letter, many1, noneOf, oneOf, parse,
                                             parserFail, runParser, sepBy1,
-                                            setInput, setState, string, try, oneOf)
+                                            setInput, setState, string, try, SourcePos (..))
 import           Text.Printf               (printf)
 import           Text.Show                 (Show (show))
 import           TextShow                  (TextShow (showb, showbPrec, showt),
-                                            fromText, singleton)
+                                            fromText, singleton, fromString)
 import           TextShow.Generic          (genericShowbPrec)
-import Data.Word (Word8)
+import Text.Parsec.Pos (initialPos)
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
@@ -100,7 +102,16 @@ data Path
 instance TextShow Path where
   showbPrec = genericShowbPrec
 
-parseSeries :: Text -> Either Text SeriesData
+data ParseError
+  = PEMissingPrimitives Text
+  | PEParsec Parsec.ParseError
+  | PEExceptionTable Text
+  deriving (Show)
+
+instance TextShow ParseError where
+  showb = fromString . show
+
+parseSeries :: Text -> Either ParseError SeriesData
 parseSeries hyphenated =
   case HashMap.lookup (replace "|" "" hyphenated) mapExceptions of
     Just raw ->
@@ -112,8 +123,8 @@ parseSeries hyphenated =
               sdPath = PathException
           in Right SeriesData{..}
         Left err ->
-          Left $ "Parse error in exception table: "
-            <> hyphenated
+          Left $ PEExceptionTable $
+               hyphenated
             <> "; " <> Text.pack (show err)
     Nothing ->
       let str' = Text.encodeUtf8 $ toLower hyphenated
@@ -123,10 +134,8 @@ parseSeries hyphenated =
             , stNChords = 1
             , stMFinger = Nothing
             }
-          result = optimizeStenoSeries st str'
-      in  case result of
-            Left err ->
-              Left $ "Encountered missing primitive when parsing: " <> err
+      in  case optimizeStenoSeries st str' of
+            Left err -> Left $ PEMissingPrimitives err
             Right result -> case result of
               Success State{..} ->
                 let -- the score of a series of chords for a given word is the average
@@ -136,7 +145,7 @@ parseSeries hyphenated =
                     sdSeries = Series $ toChords stSteno
                     sdPath = PathOptimize
                 in  Right SeriesData{..}
-              Failure -> Left "Parsing failed"
+              Failure err -> Left $ PEParsec err
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving (Num)
@@ -171,17 +180,17 @@ toChords ls =
       -> ([Chord Key], [Key])
     acc (chords, keys) = \case
       (KoSKeys ks) -> (chords, keys ++ ks)
-      KoSSlash    -> (mkChord keys : chords, [])
+      KoSSlash     -> (mkChord keys : chords, [])
 
 data Result a
   = Success a
-  | Failure
+  | Failure Parsec.ParseError
 
 data State = State
-  { stSteno :: [KeysOrSlash]
+  { stSteno    :: [KeysOrSlash]
   , stNLetters :: CountLetters
-  , stNChords :: CountChords
-  , stMFinger :: Maybe Finger
+  , stNChords  :: CountChords
+  , stMFinger  :: Maybe Finger
   }
 
 bsPipe :: Word8
@@ -194,6 +203,11 @@ score (Success State{..}) =
   fromIntegral (unCountLetters stNLetters) / fromIntegral (unCountChords stNChords)
 score _ = 0
 
+-- | Try to fit as many letters as possible into a steno
+--   chord (a chord contains keys that can be typed all at once).
+--   The score of a chord is the number of letters it successfully
+--   encoded, w/o the hyphenation symbol.
+--
 -- | look at next character:
 --     '|' -> do
 --       consume character
@@ -224,8 +238,8 @@ optimizeStenoSeries st str =
         then  Left $ Text.decodeUtf8 str
         else let lsEResult = ms <&> \(consumed, result, rem) ->
                    case parseKey result (stMFinger st) of
-                     Nothing -> Right Failure
-                     Just (mFinger, ks) ->
+                     Left  err           -> Right $ Failure err
+                     Right (mFinger, ks) ->
                        let newState = State
                              { stSteno = KoSKeys ks : stSteno st
                              , stNLetters = stNLetters st + countLetters consumed
@@ -238,61 +252,15 @@ optimizeStenoSeries st str =
   where
     parseKey ls mFinger =
       let primitive str =
-            either (const Nothing) Just $
-              evalParser (Raw.keys <* eof) mFinger "" str
+            evalParser (Raw.keys <* eof) mFinger "" str
 
           acc parser (RawSteno str) =
-            parser <|> primitive str
+            case (parser, primitive str) of
+              (Right result, _)      -> Right result
+              (Left _, Right result) -> Right result
+              (Left _, Left err)     -> Left err
 
-      in  foldl' acc Nothing ls
-
-    -- maximumBy (comparing score) $
-    --   [1 .. (length parts)] <&> \i ->
-    --     let (front, back) = splitAt i parts
-    --     in  do
-    --           (scoreFront, cFront) <- parseChord $ intercalate "|" front
-    --           (scoreBack , cBack ) <- optimizeStenoSeries back
-    --           pure (scoreFront + scoreBack, cFront : cBack)
-
--- | A chord tries to fit as many letters as possible into a steno
---   expression that can be typed all at once.
---   The score of a chord is the number of letters it successfully
---   encoded, w/o the hyphenation symbol.
-parseChord :: Text -> Either ParseError (Int, Chord Key)
-parseChord str =
-    let strUtf8 = Text.encodeUtf8 str
-    in  runParser chord Nothing "series" strUtf8 <&> \ks ->
-          (Text.length $ replace "|" "" str, Chord ks)
-
-  where
-    chord =
-      -- TODO: replace 'concat <$> many1 keys' by backtracking
-      concat <$> many1 keys <* eof
-
-    keys = do
-
-      mFinger <- getState
-      str <- getInput
-
-      -- I don't know why this is necessary, but apparently 'setInput'
-      -- is not enough, i.e. setInput "" creates a weird error
-      void $ noneOf "|"
-
-      (consumed, result, rem) <-
-        -- TODO: matches
-        maybe (parserFail "no primitive match") pure $ Trie.match primitives str
-
-      let primitive (RawSteno raw) =
-            case evalParser (Raw.keys <* eof) mFinger "trie" raw of
-              Left  err           -> fail $ show err
-              Right (mFinger, ks) -> setState mFinger $> ks
-
-          acc parser raw =
-            parser <|> primitive raw
-
-      ks <- foldl acc (fail "primitives no parse") result
-      setInput rem
-      pure ks
+      in  foldl' acc (Left $ Parsec.newErrorUnknown (initialPos "")) ls
 
 stripComments :: ByteString -> ByteString
 stripComments content =
@@ -320,31 +288,3 @@ primitives =
              Left err -> error $ "Could not decode primitives.json5: " <> err
       lsByteString = first Text.encodeUtf8 <$> Map.toList m
   in  Trie.fromList lsByteString
-
--- TODO: input can have
---         '-', '/'
---         digits
---         ? other special characters?
---       otherwise:
---         a-zäüöß
---         international: é è, à, ê, ...
-
-
--- chord :: Parsec Text ParserState Chord
--- chord = inner <* (eof <|> char '|')
---   where
---     inner = many1 key
---     key =
-
--- probably useless:
-
-newtype Part = Part { unPart :: Text }
-
-parseParts
-  :: Text
-  -> Either ParseError [Part]
-parseParts = parse parts "command line input"
-  where
-    parts = sepBy1 part $ char '|'
-    part = Part . Text.pack <$> letters
-    letters = many1 letter

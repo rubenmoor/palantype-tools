@@ -51,7 +51,7 @@ import           Options.Applicative       (Parser, argument, command,
                                             execParser, idm, info, progDesc,
                                             str, subparser)
 import           Palantype.Tools.Steno     (SeriesData (SeriesData, sdScore),
-                                            parseSeries)
+                                            parseSeries, ParseError (..))
 import           Palantype.Tools.Syllables (Exception (..), Result (..),
                                             parseSyllables, SyllableData (SyllableData))
 import           System.Clock              (Clock (Monotonic), getTime)
@@ -171,6 +171,12 @@ fileStenoWordsScores time =
 fileStenoWordsDuplicates :: FilePath
 fileStenoWordsDuplicates = "stenowords-duplicates.txt"
 
+fileStenoWordsMissingPrimitives :: FilePath
+fileStenoWordsMissingPrimitives = "stenoword-missingprimitives.txt"
+
+fileStenoWordsParsecErrors :: FilePath
+fileStenoWordsParsecErrors = "stenoword-parsecerrors.txt"
+
 readDouble
   :: Lazy.Text -> Double
 readDouble str =
@@ -186,16 +192,12 @@ readScores file = do
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwArg str) =
-  case parseSeries str of
-    Left err -> StrictIO.putStrLn $ "Missing primitive: " <> err
-    Right sd -> StrictIO.putStrLn $ showt sd
+    StrictIO.putStrLn $ showt $ parseSeries str
 
 stenoWords OStwStdin =
   forever $ do
     l <- Lazy.toStrict <$> getLine
-    case parseSeries l of
-      Left err -> StrictIO.putStrLn $ "Missing primitive: " <> err
-      Right sd -> StrictIO.putStrLn $ showt sd
+    StrictIO.putStrLn $ showt $ parseSeries l
 
 stenoWords OStwShowChart = do
   now <- getCurrentTime
@@ -214,6 +216,8 @@ stenoWords (OStwFile reset showChart) = do
           [ fileStenoWords
           , fileStenoWordsNoParse
           , fileStenoWordsDuplicates
+          , fileStenoWordsMissingPrimitives
+          , fileStenoWordsParsecErrors
           ]
     when reset $
       for_ lsFiles $ \file -> do
@@ -250,7 +254,7 @@ stenoWords (OStwFile reset showChart) = do
   where
     fileStenoWordsNoParse = "stenowords-noparse.txt"
 
-    runStenoWords time (file, bCountDuplicates) = do
+    runStenoWords time (file, bFirstPass) = do
       syllables <- Lazy.lines <$> readFile file
       putStrLn $ "Creating steno chords for " <> show (length syllables) <> " entries."
 
@@ -260,10 +264,19 @@ stenoWords (OStwFile reset showChart) = do
           acc m str =
             let [word, hyphenated] = splitOn " " $ Lazy.toStrict str
             in  case parseSeries hyphenated of
-                  Left err  -> appendLine tmpFileNoParse str $> m
+                  Left err  -> do
+                    case err of
+                      PEMissingPrimitives orig ->
+                        when bFirstPass $
+                          appendLine fileStenoWordsMissingPrimitives $ Lazy.fromStrict orig
+                      PEExceptionTable orig -> print $ "Error in exception table for: " <> orig
+                      PEParsec pe ->
+                        when bFirstPass $
+                          appendLine fileStenoWordsParsecErrors $ Lazy.fromStrict $ Text.pack $ show pe
+                    appendLine tmpFileNoParse str $> m
                   Right sd  ->
                     if word `member` m
-                      then do when bCountDuplicates $
+                      then do when bFirstPass $
                                 appendLine fileStenoWordsDuplicates str
                               pure m
                       else pure $ HashMap.insert word sd m

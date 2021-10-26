@@ -21,22 +21,7 @@
 , "ca" : ["GDA"]   // phonetic k
 , "cä" : ["SFÄ"]  // phonetic z
 , "ce" : ["SJE", "Se"]  // onset: phonetic tsch: Cellist; coda: -ice
-// ch
-// complicated by a lot of international words
-// https://www.ids-mannheim.de/lexik/fremdwort/stichwortauswahl/lemmalisten/c/
 , "ch"  : ["SJ", "Kʃ"]  // normal case
-, "cha" : ["GDA"]       // normal case: phonetic ka
-, "chaise": ["SJAISe"]
-, "cham": ["SJAM"]      // chambre
-// , ("champ", "SJAMP") // redundant, see "cham"; champion, champignon
-, "chan": ["SJAN"]      // chanson
-, "chau": ["SJAU"]
-, "charg": ["SJAOʃ"]    // charge
-, "chl" : ["GDL"]
-, "cho" : ["GDO"]
-, "chor": ["GD~O"]
-, "chör": ["GDÄO"]     // chöre
-, "chr" : ["GDR"]
 , "chs" : ["KS"]
 , "ci"  : ["SFI"]      // normal case
 , "cia" : ["SJIA"]     // phonetic tsch: ciao, ciabatta

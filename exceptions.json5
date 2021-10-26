@@ -1,12 +1,4 @@
-{ "archaisch" : "AO/SJAIʃ"
-, "Abchase"   : "AP/SJASe"     // ch "tsch" -> SJ
-, "Abchasien" : "AP/SJA/SIn"   // ch "tsch" -> SJ
-, "Abchasin"  : "AP/SJA/SIN"   // ch "tsch" -> SJ
-, "abchasisch": "AP/SJA/SIʃ"   // ch "tsch" -> SJ
-, "Chassis"   : "SJAS/SIS"
-, "charmant"  : "SJAO/MAND"
-, "chopin"    : "SJO/BDIN"
-, "Düne"      : "D^U/NE"       // < Dünne
+{ "Düne"      : "DÜO/NE"       // < Dünne
 , "Egge"      : "EK/G"         // < Ecke
 , "Haken"     : "HAO/Kn"       // < hacken
 , "knabber"   : "GDNAP/BR"     // < knapper
