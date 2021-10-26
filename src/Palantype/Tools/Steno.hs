@@ -8,7 +8,7 @@
 module Palantype.Tools.Steno where
 
 import           Control.Applicative       (Alternative ((<|>)),
-                                            Applicative (pure, (<*)))
+                                            Applicative (pure, (<*), (*>)))
 import           Control.Category          (Category (id, (.)))
 import           Control.Monad             (Monad ((>>=)), MonadPlus (mzero),
                                             foldM, join, when)
@@ -23,9 +23,9 @@ import           Data.Char                 (Char)
 import           Data.Either               (Either (..), either)
 import           Data.Eq                   (Eq ((==)))
 import           Data.FileEmbed            (embedFile)
-import           Data.Foldable             (Foldable (foldl, foldl', length, maximum, null),
+import           Data.Foldable             (Foldable (foldl, foldl', length, maximum, null, sum, foldr),
                                             maximumBy)
-import           Data.Function             (const, ($))
+import           Data.Function             (const, ($), flip)
 import           Data.Functor              (Functor (fmap), void, ($>), (<$>),
                                             (<&>))
 import           Data.HashMap.Strict       (HashMap)
@@ -79,6 +79,8 @@ import           TextShow                  (TextShow (showb, showbPrec, showt),
                                             fromText, singleton, fromString)
 import           TextShow.Generic          (genericShowbPrec)
 import Text.Parsec.Pos (initialPos)
+import GHC.Fingerprint.Type (Fingerprint(Fingerprint))
+import Data.List (filter)
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
@@ -154,10 +156,19 @@ countLetters
   :: ByteString
   -> CountLetters
 countLetters str =
-  CountLetters $ BS.length str
+  CountLetters $ sum $ BS.length <$> BS.split bsPipe str
 
 newtype CountChords = CountChords { unCountChords :: Int }
   deriving (Num)
+
+countChords
+  :: [KeysOrSlash]
+  -> CountChords
+countChords = foldl' acc 0
+  where
+    acc n = \case
+      KoSKeys _ -> n
+      KoSSlash -> n + 1
 
 -- | Optimize steno series
 
@@ -238,21 +249,29 @@ optimizeStenoSeries st str =
         then  Left $ Text.decodeUtf8 str
         else let lsEResult = ms <&> \(consumed, result, rem) ->
                    case parseKey result (stMFinger st) of
-                     Left  err           -> Right $ Failure err
-                     Right (mFinger, ks) ->
-                       let newState = State
-                             { stSteno = KoSKeys ks : stSteno st
+                     Left  err -> Right $ Failure err
+                     Right (mFinger, lsKoS) ->
+                       let newSteno = case lsKoS of
+                             [kos] -> kos : stSteno st
+                             _     -> foldl' (flip (:)) (stSteno st) lsKoS
+                           newState = State
+                             { stSteno = newSteno
                              , stNLetters = stNLetters st + countLetters consumed
-                             , stNChords = stNChords st
+                             , stNChords = stNChords st + countChords lsKoS
                              , stMFinger = mFinger
                              }
                        in  optimizeStenoSeries newState rem
              in  sequence lsEResult <&> \results ->
                    maximumBy (comparing score) results
   where
+    parseKey
+      :: [RawSteno]
+      -> Maybe Finger
+      -> Either Parsec.ParseError (Maybe Finger, [KeysOrSlash])
     parseKey ls mFinger =
       let primitive str =
-            evalParser (Raw.keys <* eof) mFinger "" str
+            let ePair = evalParser keysWithSlash mFinger "" str
+            in  second (intersperse KoSSlash . fmap KoSKeys) <$> ePair
 
           acc parser (RawSteno str) =
             case (parser, primitive str) of
@@ -261,6 +280,10 @@ optimizeStenoSeries st str =
               (Left _, Left err)     -> Left err
 
       in  foldl' acc (Left $ Parsec.newErrorUnknown (initialPos "")) ls
+
+    keysWithSlash :: Parsec Text (Maybe Finger) [[Key]]
+    keysWithSlash =
+      sepBy1 Raw.keys (char '/' *> setState Nothing) <* eof
 
 stripComments :: ByteString -> ByteString
 stripComments content =

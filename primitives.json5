@@ -16,7 +16,9 @@
 , "äß" : ["ÄO+S"]
 , "b"  : ["B", "P"]
 , "bb" : ["P"]
-, "be" : ["B"]
+//, "be" : ["B"] // TODO: greediness 1
+, "beau|ty" : ["BJU/DJI"]
+, "beef": ["BIF"]
 , "c"  : ["GD", "K"]
 , "ca" : ["GDA"]   // phonetic k
 , "cä" : ["SFÄ"]  // phonetic z
@@ -31,13 +33,18 @@
 , "di"  : ["D-"]
 , "dt"  : ["-D"]
 , "e"   : ["E", "e"]
+, "ea"  : ["I"]        // Angl. "beat" "beamer", "team"
+//, "eau"  : ["O"]       // Frnz. Chateau
 , "ee"  : ["Ee"]       // TODO: documentation for ee-rule
 , "eer" : ["Ee"]       //       ee, eer -> Ee
 , "eh"  : ["EO"]
 , "ehr" : ["EO"]
 , "en"  : ["N-", "n"]  // TODO: greedier: "ren" -> n
+// TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
+// maybe BDN for ent^ (works already implicitly)
 , "ent" : ["BDN"]      // ent = "tn" -> BDN
-, "er"  : ["EO", "R"]    
+, "er"  : ["EO"]    
+// "er"  : ["R", "EO"] // TODO: efficiency for "er" in onset
 , "err" : ["EO+"]
 , "eß"  : ["EO+S"]
 , "f"   : ["F"]
@@ -67,6 +74,7 @@
 , "mm"  : ["-M"]
 , "m|m" : ["-M"]
 , "me"  : ["M-"]
+// TODO: "un" N
 , "n"   : ["N"]
 , "nch" : ["Nʃ"]     // TODO: documentation, ch is Kʃ
 , "ng"  : ["+N"]
@@ -93,7 +101,8 @@
 , "ps"  : ["SDJ"]     // TODO: documentation
 , "qu"  : ["GDW"]
 , "r"   : ["R"]
-// , "ren"  : ["n"]  // TODO: too greedy?
+// "re" TODO: more efficiency
+// , "ren"  : ["e"]  // TODO: too greedy?
 , "s"   : ["S"]
 , "sch" : ["SJ", "ʃ"]
 , "schw": ["SW"]
@@ -102,10 +111,11 @@
 , "ss"  : ["S"]
 , "s|s" : ["S"]
 , "st"  : ["SD"]
+, "steak": ["SDÄK"]   // TODO: syllable exception?
 , "ß"   : ["S"]       // TODO: ß in onset: probably collisions
 , "t"   : ["DJ", "-D"]
 , "te"  : ["DJ"]      // TODO: maybe "-D"
-, "ti|on": ["DJON"]
+, "ti|o": ["DJO"]
 , "tt"  : ["-D"]       // t|t isn't logically possible
 , "ts"  : ["SF", "+S"]
 , "tsch": ["SJ", "ʃD"]  // TODO: documentation: -tsch like -scht

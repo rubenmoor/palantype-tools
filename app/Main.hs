@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
@@ -15,7 +16,7 @@ import           Data.Bool                 (Bool (..), (&&))
 import           Data.Char                 (Char)
 import           Data.Either               (Either (..))
 import           Data.Eq                   (Eq ((==)))
-import           Data.Foldable             (Foldable (foldl, length, maximum),
+import           Data.Foldable             (Foldable (foldl, length, maximum, foldl'),
                                             for_, maximumBy, traverse_)
 import           Data.Function             (($), flip)
 import           Data.Functor              (Functor (fmap, (<$)), void, ($>), (<$>),
@@ -46,7 +47,7 @@ import           Formatting.Clock          (timeSpecs)
 import           GHC.Err                   (error)
 import           GHC.Float                 (Double)
 import           GHC.Num                   (Num ((-)), (+))
-import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
+import           GHC.Real                  (Fractional ((/)), fromIntegral, (^), Real, realToFrac)
 import           Options.Applicative       (Parser, argument, command,
                                             execParser, idm, info, progDesc,
                                             str, subparser)
@@ -189,6 +190,13 @@ readScores
 readScores file = do
   fmap readDouble . Lazy.lines <$> readFile file
 
+average
+  :: (Real a, Foldable t)
+  => t a
+  -> Double
+average ls =
+  let (t, n) = foldl' (\(!b,!c) a -> (a + b, c + 1)) (0, 0) ls
+  in  realToFrac t / realToFrac n
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwArg str) =
@@ -249,8 +257,13 @@ stenoWords (OStwFile reset showChart) = do
     let newScores = ls <&> \line -> readDouble $ Lazy.words line !! 2
 
     let scores = newZeroScores <> newScores
+        meanScore = average scores
     writeFile (fileStenoWordsScores now) $ Lazy.unlines $ Lazy.fromStrict . showt <$> scores
-    plotScoresShow scores
+
+    putStrLn ""
+    StrictIO.putStrLn $ "Average score: " <> showt meanScore
+
+    when showChart $ plotScoresShow scores
   where
     fileStenoWordsNoParse = "stenowords-noparse.txt"
 
