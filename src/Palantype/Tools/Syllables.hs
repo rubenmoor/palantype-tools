@@ -1,40 +1,48 @@
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Palantype.Tools.Syllables where
 
-import           Control.Category (Category ((.)))
-import           Control.Monad    (Monad ((>>), (>>=)), MonadPlus (mzero), when, unless, guard)
-import           Data.Char        (Char, isLetter)
-import           Data.Either      (Either (..), isRight)
-import           Data.Function    (($))
-import           Data.Functor     (Functor (fmap), void, (<$>))
-import           Data.List        (intersperse, intercalate)
-import           Data.Semigroup   (Semigroup ((<>)))
-import           Data.String      (String)
-import           Data.Text        (Text, replace)
-import qualified Data.Text        as Text
-import           Prelude          (Applicative (pure, (<*), (*>)), Foldable (null),
-                                   Monoid (mconcat), Eq ((/=)))
-import           Text.Parsec      (ParseError, Parsec, anyChar, char, getState,
-                                   letter, many1, manyTill, notFollowedBy,
-                                   runParser, sepBy1, setState, string, try, evalParser, many, getInput, noneOf, parserTrace, spaces, space, satisfy, oneOf, parse)
-import           TextShow         (TextShow (..), fromText)
-import Control.Applicative (Alternative((<|>)))
-import Data.Eq ((==))
-import Data.Maybe (Maybe (..), isNothing, catMaybes)
-import Control.Exception.Base (mapException)
-import Data.Bool ((&&), not, (||), otherwise)
-import TextShow.Generic (genericShowbPrec)
-import GHC.Generics (Generic)
-import Text.Show (Show(show))
-import Data.Foldable (Foldable(elem))
-import Debug.Trace (traceShow)
+import           Control.Applicative    (Alternative ((<|>)))
+import           Control.Category       (Category ((.)))
+import           Control.Exception.Base (mapException)
+import           Control.Monad          (Monad ((>>), (>>=)), MonadPlus (mzero),
+                                         guard, unless, when)
+import           Data.Bool              (not, otherwise, (&&), (||))
+import           Data.Char              (Char, isLetter)
+import           Data.Either            (Either (..), isRight)
+import           Data.Eq                ((==))
+import           Data.Foldable          (Foldable (elem))
+import           Data.Function          (($))
+import           Data.Functor           (Functor (fmap), void, (<$>))
+import           Data.List              (intercalate, intersperse)
+import           Data.Maybe             (Maybe (..), catMaybes, isNothing)
+import           Data.Semigroup         (Semigroup ((<>)))
+import           Data.String            (String)
+import           Data.Text              (Text, replace)
+import qualified Data.Text              as Text
+import           Debug.Trace            (traceShow)
+import           GHC.Generics           (Generic)
+import           Prelude                (Applicative (pure, (*>), (<*)),
+                                         Eq ((/=)), Foldable (null),
+                                         Monoid (mconcat))
+import           Text.Parsec            (ParseError, Parsec, anyChar, char,
+                                         evalParser, getInput, getState, letter,
+                                         many, many1, manyTill, noneOf,
+                                         notFollowedBy, oneOf, parse,
+                                         parserTrace, runParser, satisfy,
+                                         sepBy1, setState, space, spaces,
+                                         string, try)
+import           Text.Show              (Show (show))
+import           TextShow               (TextShow (..), fromText)
+import           TextShow.Generic       (genericShowbPrec)
+import Data.Bool (Bool(False))
 
 data SyllableData = SyllableData
   { sdWord      :: Text
   , sdSyllables :: [Text]
   }
+  deriving (Eq)
 
 instance TextShow SyllableData where
   showb SyllableData {..} =
@@ -46,10 +54,14 @@ data Result
   | Exception Exception
   deriving (Generic)
 
+instance Eq Result where
+  Success sd1 == Success sd2 = sd1 == sd2
+  _ == _ = False
+
 instance TextShow Result where
   showb = \case
-    Success sd  -> fromText "Success: " <> showb sd
-    Failure err -> fromText $ "Failure: " <> Text.pack (show err)
+    Success sd    -> fromText "Success: " <> showb sd
+    Failure err   -> fromText $ "Failure: " <> Text.pack (show err)
     Exception exc -> fromText "Exception: " <> showb exc
 
 data Exception
@@ -64,7 +76,8 @@ instance TextShow Exception where
   showbPrec = genericShowbPrec
 
 parseSyllables :: Text -> [Result]
-parseSyllables = fmap parseSyllables' . parseOptionalChars
+parseSyllables =
+    fmap parseSyllables' . parseOptionalChars
   where
     parseSyllables' :: Text -> Result
     parseSyllables' str =

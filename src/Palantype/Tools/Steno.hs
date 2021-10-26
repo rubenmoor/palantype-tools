@@ -69,7 +69,7 @@ import           Text.Parsec               (ParseError, Parsec, anyChar, char,
                                             eof, evalParser, getInput, getState,
                                             letter, many1, noneOf, parse,
                                             parserFail, runParser, sepBy1,
-                                            setInput, setState, string, try)
+                                            setInput, setState, string, try, oneOf)
 import           Text.Printf               (printf)
 import           Text.Show                 (Show (show))
 import           TextShow                  (TextShow (showb, showbPrec, showt),
@@ -135,20 +135,20 @@ optimizeStenoSeries parts =
     score (Left _)       = 0
     score (Right (s, _)) = s
 
+-- | A chord tries to fit as many letters as possible into a steno
+--   expression that can be typed all at once.
+--   The score of a chord is the number of letters it successfully
+--   encoded, w/o the hyphenation symbol.
 parseChord :: Text -> Either ParseError (Int, Chord Key)
 parseChord str =
     let strUtf8 = Text.encodeUtf8 str
     in  runParser chord Nothing "series" strUtf8 <&> \ks ->
-          -- the score of a chord is the number of letters it successfully
-          -- encoded
-          (Text.length str, Chord ks)
+          (Text.length $ replace "|" "" str, Chord ks)
 
   where
     chord =
       -- TODO: replace 'concat <$> many1 keys' by backtracking
-      concat <$> sepBy1 (concat <$> many1 keys) pipe <* eof
-
-    pipe = char '|' $> []
+      concat <$> many1 keys <* eof
 
     keys = do
 

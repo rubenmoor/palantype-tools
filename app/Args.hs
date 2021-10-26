@@ -20,9 +20,10 @@ data OptionsSyllables
   | OSylArg Text
 
 data OptionsStenoWords
-  = OStwFile Bool
+  = OStwFile Bool Bool
   | OStwArg Text
   | OStwStdin
+  | OStwShowChart
 
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
@@ -67,11 +68,18 @@ syllablesInfo =
            \to \"syllables-noparse.txt.\" When the file \"syllables-noparse.txt\" \
            \exists already, ignore \"entries.txt\" and work on the remainder, only."
 
+switchShowChart = switch
+  (  long "show-chart"
+  <> short 's'
+  <> help "Show the histogram of scores after the computation."
+  )
+
 optsStenoWords :: Parser OptionsStenoWords
 optsStenoWords =
-      (OStwFile <$> switchReset)
+      (OStwFile <$> switchReset <*> switchShowChart)
   <|> (OStwArg  <$> arg hlp)
   <|> stdin
+  <|> showChart
   where
     hlp = "Parse one word into a series of steno chords. The format is: \
           \\"Di|rek|ti|ve\"."
@@ -79,6 +87,11 @@ optsStenoWords =
       (  long "stdin"
       <> help "Read input from stdin. The format for each line is: \
               \\"Sil|ben|tren|nung\"."
+      )
+    showChart = flag' OStwShowChart
+      (  long "show-chart-only"
+      <> short 'c'
+      <> help "Don't compute chords. Only show the chart of the latest scores."
       )
 
 stenoWordsInfo =

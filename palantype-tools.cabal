@@ -23,6 +23,7 @@ extra-source-files: CHANGELOG.md
 
 library
     exposed-modules:
+        Palantype.Tools.Statistics
         Palantype.Tools.Steno
         Palantype.Tools.Syllables
 
@@ -31,9 +32,14 @@ library
       , aeson
       , bytestring
       , bytestring-trie
+      , Chart
+      , Chart-cairo
+      , Chart-gtk3
       , containers
+      , data-default
       , file-embed
       , hashable
+      , lens
       , my-palantype
       , parsec
       , safe
@@ -60,12 +66,15 @@ executable palantype-ops
         base ^>=4.13.0.0
       , clock
       , directory
+      , filepath
       , formatting
       , optparse-applicative
       , palantype-tools
+      , parsec
       , streamly
       , text
       , text-show
+      , time
       , unordered-containers
     default-extensions:
         LambdaCase
