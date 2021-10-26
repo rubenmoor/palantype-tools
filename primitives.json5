@@ -16,8 +16,9 @@
 , "äß" : ["ÄO+S"]
 , "b"  : ["B", "P"]
 , "bb" : ["P"]
-//, "be" : ["B"] // TODO: greediness 1
-, "beau|ty" : ["BJU/DJI"]
+, "be" : ["B"] // TODO: greediness 1
+// , "beau|ty" : ["BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
+//                              pattern eau, thus: exception
 , "beef": ["BIF"]
 , "c"  : ["GD", "K"]
 , "ca" : ["GDA"]   // phonetic k

@@ -1,78 +1,81 @@
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
-import           Args                      (OptionsStenoWords (..),
-                                            OptionsSyllables (OSylArg, OSylFile),
-                                            Task (..), argOpts)
-import           Control.Applicative       (Alternative ((<|>)),
-                                            Applicative (pure, (*>), (<*>)))
-import           Control.Category          (Category ((.)))
-import           Control.Monad             (Monad ((>>=)), MonadPlus (mzero),
-                                            foldM, forever, join, when, foldM_, unless)
-import           Data.Bifunctor            (Bifunctor (first, second))
-import           Data.Bool                 (Bool (..), (&&))
-import           Data.Char                 (Char)
-import           Data.Either               (Either (..))
-import           Data.Eq                   (Eq ((==)))
-import           Data.Foldable             (Foldable (foldl, length, maximum, foldl'),
-                                            for_, maximumBy, traverse_)
-import           Data.Function             (($), flip)
-import           Data.Functor              (Functor (fmap, (<$)), void, ($>), (<$>),
-                                            (<&>))
-import           Data.HashMap.Strict       (HashMap, member)
-import qualified Data.HashMap.Strict       as HashMap
-import           Data.Int                  (Int)
-import           Data.List                 (concat, dropWhile, head,
-                                            intersperse, last, splitAt, (!!),
-                                            (++), replicate)
-import           Data.List.NonEmpty        (NonEmpty)
-import           Data.Maybe                (Maybe (..), fromMaybe, maybe)
-import           Data.Monoid               (Monoid (mconcat, mempty), (<>))
-import           Data.Ord                  (Ord ((>=)), comparing)
-import           Data.String               (String)
-import           Data.Text                 (Text, intercalate, replace, splitOn,
-                                            toLower)
-import qualified Data.Text                 as Text
-import qualified Data.Text.Encoding        as Text
-import qualified Data.Text.IO              as StrictIO
-import qualified Data.Text.Lazy            as Lazy
-import           Data.Text.Lazy.IO         (appendFile, getLine, hGetContents,
-                                            readFile)
-import           Data.Traversable          (for, Traversable (traverse))
-import           Data.Tuple                (fst, snd)
-import           Formatting                (fprint, (%))
-import           Formatting.Clock          (timeSpecs)
-import           GHC.Err                   (error)
-import           GHC.Float                 (Double)
-import           GHC.Num                   (Num ((-)), (+))
-import           GHC.Real                  (Fractional ((/)), fromIntegral, (^), Real, realToFrac)
-import           Options.Applicative       (Parser, argument, command,
-                                            execParser, idm, info, progDesc,
-                                            str, subparser)
-import           Palantype.Tools.Steno     (SeriesData (SeriesData, sdScore),
-                                            parseSeries, ParseError (..))
-import           Palantype.Tools.Syllables (Exception (..), Result (..),
-                                            parseSyllables, SyllableData (SyllableData))
-import           System.Clock              (Clock (Monotonic), getTime)
-import           System.Directory          (doesFileExist, removeFile,
-                                            renamePath, listDirectory)
-import           System.Environment        (getArgs)
-import           System.IO                 (FilePath, IO, IOMode (ReadMode),
-                                            hSetNewlineMode, openFile, print,
-                                            putStr, putStrLn,
-                                            universalNewlineMode)
-import           Text.Show                 (Show (show))
-import           TextShow                  (TextShow (showt))
-import           WCL                       (wcl)
-import Data.Time.Clock (UTCTime, getCurrentTime)
-import Data.Time.Format (formatTime, defaultTimeLocale)
-import Palantype.Tools.Statistics (plotScoresShow)
-import Text.Read (read)
-import Data.Text.Lazy.Read (double)
-import System.FilePath (takeDirectory, (</>))
-import Data.Text.Lazy.IO (writeFile)
+import           Args                       (OptionsStenoWords (..),
+                                             OptionsSyllables (OSylArg, OSylFile),
+                                             Task (..), argOpts)
+import           Control.Applicative        (Alternative ((<|>)),
+                                             Applicative (pure, (*>), (<*>)))
+import           Control.Category           (Category ((.)))
+import           Control.Monad              (Monad ((>>=)), MonadPlus (mzero),
+                                             foldM, foldM_, forever, join,
+                                             unless, when)
+import           Data.Bifunctor             (Bifunctor (first, second))
+import           Data.Bool                  (Bool (..), (&&))
+import           Data.Char                  (Char)
+import           Data.Either                (Either (..))
+import           Data.Eq                    (Eq ((==)))
+import           Data.Foldable              (Foldable (foldl, foldl', length, maximum),
+                                             for_, maximumBy, traverse_)
+import           Data.Function              (flip, ($))
+import           Data.Functor               (Functor (fmap, (<$)), void, ($>),
+                                             (<$>), (<&>))
+import           Data.HashMap.Strict        (HashMap, member)
+import qualified Data.HashMap.Strict        as HashMap
+import           Data.Int                   (Int)
+import           Data.List                  (concat, dropWhile, head,
+                                             intersperse, last, replicate,
+                                             splitAt, (!!), (++))
+import           Data.List.NonEmpty         (NonEmpty)
+import           Data.Maybe                 (Maybe (..), fromMaybe, maybe)
+import           Data.Monoid                (Monoid (mconcat, mempty), (<>))
+import           Data.Ord                   (Ord ((>=)), comparing)
+import           Data.String                (String)
+import           Data.Text                  (Text, intercalate, replace,
+                                             splitOn, toLower)
+import qualified Data.Text                  as Text
+import qualified Data.Text.Encoding         as Text
+import qualified Data.Text.IO               as StrictIO
+import qualified Data.Text.Lazy             as Lazy
+import           Data.Text.Lazy.IO          (appendFile, getLine, hGetContents,
+                                             readFile, writeFile)
+import           Data.Text.Lazy.Read        (double)
+import           Data.Time.Clock            (UTCTime, getCurrentTime)
+import           Data.Time.Format           (defaultTimeLocale, formatTime)
+import           Data.Traversable           (Traversable (traverse), for)
+import           Data.Tuple                 (fst, snd)
+import           Formatting                 (fprint, (%))
+import           Formatting.Clock           (timeSpecs)
+import           GHC.Err                    (error)
+import           GHC.Float                  (Double)
+import           GHC.Num                    (Num ((-)), (+))
+import           GHC.Real                   (Fractional ((/)), Real,
+                                             fromIntegral, realToFrac, (^))
+import           Options.Applicative        (Parser, argument, command,
+                                             execParser, idm, info, progDesc,
+                                             str, subparser)
+import           Palantype.Tools.Statistics (plotScoresShow)
+import           Palantype.Tools.Steno      (ParseError (..),
+                                             SeriesData (SeriesData, sdScore),
+                                             parseSeries)
+import           Palantype.Tools.Syllables  (Exception (..), Result (..),
+                                             SyllableData (SyllableData),
+                                             parseSyllables)
+import           System.Clock               (Clock (Monotonic), getTime)
+import           System.Directory           (doesFileExist, listDirectory,
+                                             removeFile, renamePath)
+import           System.Environment         (getArgs)
+import           System.FilePath            (takeDirectory, (</>))
+import           System.IO                  (FilePath, IO, IOMode (ReadMode),
+                                             hSetNewlineMode, openFile, print,
+                                             putStr, putStrLn,
+                                             universalNewlineMode)
+import           Text.Read                  (read)
+import           Text.Show                  (Show (show))
+import           TextShow                   (TextShow (showt))
+import           WCL                        (wcl)
 
 main :: IO ()
 main =
@@ -173,10 +176,10 @@ fileStenoWordsDuplicates :: FilePath
 fileStenoWordsDuplicates = "stenowords-duplicates.txt"
 
 fileStenoWordsMissingPrimitives :: FilePath
-fileStenoWordsMissingPrimitives = "stenoword-missingprimitives.txt"
+fileStenoWordsMissingPrimitives = "stenowords-missingprimitives.txt"
 
 fileStenoWordsParsecErrors :: FilePath
-fileStenoWordsParsecErrors = "stenoword-parsecerrors.txt"
+fileStenoWordsParsecErrors = "stenowords-parsecerrors.txt"
 
 readDouble
   :: Lazy.Text -> Double
@@ -282,10 +285,16 @@ stenoWords (OStwFile reset showChart) = do
                       PEMissingPrimitives orig ->
                         when bFirstPass $
                           appendLine fileStenoWordsMissingPrimitives $ Lazy.fromStrict orig
-                      PEExceptionTable orig -> print $ "Error in exception table for: " <> orig
-                      PEParsec pe ->
+                      PEExceptionTable orig ->
+                        print $ "Error in exception table for: " <> orig
+                      PEParsec raw pe ->
                         when bFirstPass $
-                          appendLine fileStenoWordsParsecErrors $ Lazy.fromStrict $ Text.pack $ show pe
+                          appendLine fileStenoWordsParsecErrors $
+                            Lazy.fromStrict $
+                                 showt word <> " "
+                              <> showt hyphenated <> " "
+                              <> showt raw <> " "
+                              <> replace "\n" "" (Text.pack $ show pe)
                     appendLine tmpFileNoParse str $> m
                   Right sd  ->
                     if word `member` m

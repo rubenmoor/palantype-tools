@@ -7,80 +7,92 @@
 
 module Palantype.Tools.Steno where
 
-import           Control.Applicative       (Alternative ((<|>)),
-                                            Applicative (pure, (<*), (*>)))
-import           Control.Category          (Category (id, (.)))
-import           Control.Monad             (Monad ((>>=)), MonadPlus (mzero),
-                                            foldM, join, when)
-import           Control.Monad.Fail        (MonadFail (fail))
-import qualified Data.Aeson                as Aeson
-import           Data.Bifunctor            (Bifunctor (first, second))
-import           Data.Bool                 (Bool (False))
-import           Data.ByteString           (ByteString)
-import qualified Data.ByteString           as BS
-import qualified Data.ByteString.Lazy      as LBS
-import           Data.Char                 (Char)
-import           Data.Either               (Either (..), either)
-import           Data.Eq                   (Eq ((==)))
-import           Data.FileEmbed            (embedFile)
-import           Data.Foldable             (Foldable (foldl, foldl', length, maximum, null, sum, foldr),
-                                            maximumBy)
-import           Data.Function             (const, ($), flip)
-import           Data.Functor              (Functor (fmap), void, ($>), (<$>),
-                                            (<&>))
-import           Data.HashMap.Strict       (HashMap)
-import qualified Data.HashMap.Strict       as HashMap
-import           Data.Hashable             (Hashable)
-import           Data.Int                  (Int)
-import           Data.List                 (concat, dropWhile, head,
-                                            intersperse, last, reverse, splitAt,
-                                            (!!), (++))
-import           Data.List.NonEmpty        (NonEmpty)
-import           Data.Map                  (Map)
-import qualified Data.Map                  as Map
-import           Data.Maybe                (Maybe (..), fromMaybe, maybe)
-import           Data.Monoid               (Monoid (mconcat, mempty), (<>))
-import           Data.Ord                  (Ord ((>=)), comparing)
-import           Data.String               (String)
-import           Data.Text                 (Text, intercalate, replace, splitOn,
-                                            tail, toLower)
-import qualified Data.Text                 as Text
-import qualified Data.Text.Encoding        as Text
-import           Data.Text.IO              (interact, putStrLn)
-import           Data.Traversable          (Traversable (sequence), for)
-import           Data.Trie                 (Trie)
-import qualified Data.Trie                 as Trie
-import           Data.Tuple                (fst, snd)
-import           Data.Word                 (Word8)
-import           GHC.Err                   (error)
-import           GHC.Float                 (Double)
-import           GHC.Generics              (Generic)
-import           GHC.Num                   (Num (fromInteger, (-)), (+))
-import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
-import           Palantype.Common          (Chord (Chord), Finger (LeftPinky),
-                                            Palantype (toFinger),
-                                            Series (Series), mkChord)
-import           Palantype.Common.RawSteno (RawSteno (RawSteno))
-import qualified Palantype.Common.RawSteno as Raw
-import           Palantype.DE.Keys         (Key)
-import qualified Palantype.DE.Keys         as DE
-import           Safe                      (headMay, lastMay)
-import           System.Environment        (getArgs)
-import           System.IO                 (IO)
+import           Control.Applicative                 (Alternative ((<|>)),
+                                                      Applicative (pure, (*>), (<*)))
+import           Control.Category                    (Category (id, (.)))
+import           Control.Monad                       (Monad ((>>=)),
+                                                      MonadPlus (mzero), foldM,
+                                                      join, when)
+import           Control.Monad.Fail                  (MonadFail (fail))
+import qualified Data.Aeson                          as Aeson
+import           Data.Bifunctor                      (Bifunctor (first, second))
+import           Data.Bool                           (Bool (False))
+import           Data.ByteString                     (ByteString)
+import qualified Data.ByteString                     as BS
+import qualified Data.ByteString.Lazy                as LBS
+import           Data.Char                           (Char)
+import           Data.Either                         (Either (..), either)
+import           Data.Eq                             (Eq ((==)))
+import           Data.FileEmbed                      (embedFile)
+import           Data.Foldable                       (Foldable (foldl, foldl', foldr, length, maximum, null, sum),
+                                                      maximumBy)
+import           Data.Function                       (const, flip, ($))
+import           Data.Functor                        (Functor (fmap), void,
+                                                      ($>), (<$>), (<&>))
+import           Data.HashMap.Strict                 (HashMap)
+import qualified Data.HashMap.Strict                 as HashMap
+import           Data.Hashable                       (Hashable)
+import           Data.Int                            (Int)
+import           Data.List                           (concat, dropWhile, filter,
+                                                      head, intersperse, last,
+                                                      reverse, splitAt, (!!),
+                                                      (++))
+import           Data.List.NonEmpty                  (NonEmpty)
+import           Data.Map                            (Map)
+import qualified Data.Map                            as Map
+import           Data.Maybe                          (Maybe (..), fromMaybe,
+                                                      maybe)
+import           Data.Monoid                         (Monoid (mconcat, mempty),
+                                                      (<>))
+import           Data.Ord                            (Ord ((>=)), comparing)
+import           Data.String                         (String)
+import           Data.Text                           (Text, intercalate,
+                                                      replace, splitOn, tail,
+                                                      toLower)
+import qualified Data.Text                           as Text
+import qualified Data.Text.Encoding                  as Text
+import           Data.Text.IO                        (interact, putStrLn)
+import           Data.Traversable                    (Traversable (sequence),
+                                                      for)
+import           Data.Trie                           (Trie)
+import qualified Data.Trie                           as Trie
+import           Data.Tuple                          (fst, snd)
+import           Data.Word                           (Word8)
+import           GHC.Err                             (error)
+import           GHC.Fingerprint.Type                (Fingerprint (Fingerprint))
+import           GHC.Float                           (Double)
+import           GHC.Generics                        (Generic)
+import           GHC.Num                             (Num (fromInteger, (-)),
+                                                      (+))
+import           GHC.Real                            (Fractional ((/)),
+                                                      fromIntegral, (^))
+import           Palantype.Common                    (Chord (Chord),
+                                                      Finger (LeftPinky),
+                                                      Palantype (toFinger),
+                                                      Series (Series), mkChord)
+import           Palantype.Common.RawSteno           (RawSteno (RawSteno, unRawSteno))
+import qualified Palantype.Common.RawSteno           as Raw
+import           Palantype.DE.Keys                   (Key)
+import qualified Palantype.DE.Keys                   as DE
+import           Safe                                (headMay, lastMay)
+import           System.Environment                  (getArgs)
+import           System.IO                           (IO)
+import           Text.Parsec                         (Parsec, SourcePos (..),
+                                                      anyChar, char, eof,
+                                                      evalParser, getInput,
+                                                      getState, letter, many1,
+                                                      noneOf, oneOf, parse,
+                                                      parserFail, runParser,
+                                                      sepBy1, setInput,
+                                                      setState, string, try)
+import           Text.Parsec.Pos                     (initialPos)
 import qualified Text.ParserCombinators.Parsec.Error as Parsec
-import           Text.Parsec               (Parsec, anyChar, char, eof,
-                                            evalParser, getInput, getState,
-                                            letter, many1, noneOf, oneOf, parse,
-                                            parserFail, runParser, sepBy1,
-                                            setInput, setState, string, try, SourcePos (..))
-import           Text.Printf               (printf)
-import           Text.Show                 (Show (show))
-import           TextShow                  (TextShow (showb, showbPrec, showt),
-                                            fromText, singleton, fromString)
-import           TextShow.Generic          (genericShowbPrec)
-import Text.Parsec.Pos (initialPos)
-import GHC.Fingerprint.Type (Fingerprint(Fingerprint))
-import Data.List (filter)
+import           Text.Printf                         (printf)
+import           Text.Show                           (Show (show))
+import           TextShow                            (TextShow (showb, showbPrec, showt),
+                                                      fromString, fromText,
+                                                      singleton)
+import           TextShow.Generic                    (genericShowbPrec)
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
@@ -106,7 +118,7 @@ instance TextShow Path where
 
 data ParseError
   = PEMissingPrimitives Text
-  | PEParsec Parsec.ParseError
+  | PEParsec [RawSteno] Parsec.ParseError
   | PEExceptionTable Text
   deriving (Show)
 
@@ -115,39 +127,41 @@ instance TextShow ParseError where
 
 parseSeries :: Text -> Either ParseError SeriesData
 parseSeries hyphenated =
-  case HashMap.lookup (replace "|" "" hyphenated) mapExceptions of
-    Just raw ->
-      case Raw.parseWord raw of
-        Right chords ->
-          let sdHyphenated = hyphenated
-              sdSeries = Series chords
-              sdScore = 0
-              sdPath = PathException
-          in Right SeriesData{..}
-        Left err ->
-          Left $ PEExceptionTable $
-               hyphenated
-            <> "; " <> Text.pack (show err)
-    Nothing ->
-      let str' = Text.encodeUtf8 $ toLower hyphenated
-          st = State
-            { stSteno = []
-            , stNLetters = 0
-            , stNChords = 1
-            , stMFinger = Nothing
-            }
-      in  case optimizeStenoSeries st str' of
-            Left err -> Left $ PEMissingPrimitives err
-            Right result -> case result of
-              Success State{..} ->
-                let -- the score of a series of chords for a given word is the average
-                    -- chord score, i.e. the average number of letters per chord
-                    sdHyphenated = hyphenated
-                    sdScore = score result
-                    sdSeries = Series $ toChords stSteno
-                    sdPath = PathOptimize
-                in  Right SeriesData{..}
-              Failure err -> Left $ PEParsec err
+  let unhyphenated = replace "|" "" hyphenated
+  in case HashMap.lookup unhyphenated mapExceptions of
+      Just raw ->
+        case Raw.parseWord raw of
+          Right chords ->
+            let sdHyphenated = hyphenated
+                sdSeries = Series chords
+                sdScore = fromIntegral (Text.length unhyphenated) / fromIntegral (length chords)
+                sdPath = PathException
+            in Right SeriesData{..}
+          Left err ->
+            Left $ PEExceptionTable $
+                 unhyphenated
+              <> ": " <> unRawSteno raw
+              <> "; " <> Text.pack (show err)
+      Nothing ->
+        let str = Text.encodeUtf8 $ toLower hyphenated
+            st = State
+              { stSteno = []
+              , stNLetters = 0
+              , stNChords = 1
+              , stMFinger = Nothing
+              }
+        in  case optimizeStenoSeries st str of
+              Left err -> Left $ PEMissingPrimitives err
+              Right result -> case result of
+                Success State{..} ->
+                  let -- the score of a series of chords for a given word is the average
+                      -- chord score, i.e. the average number of letters per chord
+                      sdHyphenated = hyphenated
+                      sdScore = score result
+                      sdSeries = Series $ toChords stSteno
+                      sdPath = PathOptimize
+                  in  Right SeriesData{..}
+                Failure raw err -> Left $ PEParsec raw err
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving (Num)
@@ -168,7 +182,7 @@ countChords = foldl' acc 0
   where
     acc n = \case
       KoSKeys _ -> n
-      KoSSlash -> n + 1
+      KoSSlash  -> n + 1
 
 -- | Optimize steno series
 
@@ -195,7 +209,7 @@ toChords ls =
 
 data Result a
   = Success a
-  | Failure Parsec.ParseError
+  | Failure [RawSteno] Parsec.ParseError
 
 data State = State
   { stSteno    :: [KeysOrSlash]
@@ -249,7 +263,7 @@ optimizeStenoSeries st str =
         then  Left $ Text.decodeUtf8 str
         else let lsEResult = ms <&> \(consumed, result, rem) ->
                    case parseKey result (stMFinger st) of
-                     Left  err -> Right $ Failure err
+                     Left  err -> Right $ Failure result err
                      Right (mFinger, lsKoS) ->
                        let newSteno = case lsKoS of
                              [kos] -> kos : stSteno st

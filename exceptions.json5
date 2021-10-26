@@ -1,10 +1,12 @@
-{ "Düne"      : "DÜO/NE"       // < Dünne
+{ "Beautyfarm": "BJU/DJI/FAOM" // more efficient, but wrong BO
+, "Beautycase": "BJU/DJI/GDASe"// more efficient, but wrong BO
+, "Düne"      : "DÜ/NE"       // < Dünne
 , "Egge"      : "EK/G"         // < Ecke
 , "Haken"     : "HAO/Kn"       // < hacken
 , "knabber"   : "GDNAP/BR"     // < knapper
 , "Knigge"    : "GDNIK/G"      // < knicke
 , "Moor"      : "MO/~O"        // < Mohr
-, "Pils"      : "BDI+LS"       // < Pilz
+, "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
 , "Robbe"     : "ROP/B"        // < Robe
 , "spuken"    : "BF~U/Kn"      // < spucken
