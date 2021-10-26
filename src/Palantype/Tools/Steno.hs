@@ -64,7 +64,7 @@ import           GHC.Float                           (Double)
 import           GHC.Generics                        (Generic)
 import           GHC.Num                             (Num (fromInteger, (-)),
                                                       (+))
-import           GHC.Real                            (Fractional ((/)),
+import           GHC.Real                            (Fractional ((/), fromRational),
                                                       fromIntegral, (^))
 import           Palantype.Common                    (Chord (Chord),
                                                       Finger (LeftPinky),
@@ -93,20 +93,32 @@ import           TextShow                            (TextShow (showb, showbPrec
                                                       fromString, fromText,
                                                       singleton)
 import           TextShow.Generic                    (genericShowbPrec)
+import Data.Ratio (Ratio, (%), Rational)
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
   , sdSeries     :: Series Key
-  , sdScore      :: Double
+  , sdScore      :: Score
   , sdPath       :: Path
   }
 
 instance TextShow SeriesData where
  showb SeriesData{..} = fromText $
       sdHyphenated <> " "
-   <> Text.pack (printf "%.1f" sdScore) <> " "
+   <> showt sdScore <> " "
    <> showt sdPath <> " "
    <> showt sdSeries
+
+data Score = Score
+  { scorePrimary :: Rational
+  , scoreSecondary :: Int
+  } deriving (Eq, Ord)
+
+instance TextShow Score where
+  showb Score{..} = fromString (printf "%.1f" $ fromRational @Double scorePrimary)
+
+instance Show Score where
+  show = Text.unpack . showt
 
 data Path
   = PathException
@@ -134,7 +146,7 @@ parseSeries hyphenated =
           Right chords ->
             let sdHyphenated = hyphenated
                 sdSeries = Series chords
-                sdScore = fromIntegral (Text.length unhyphenated) / fromIntegral (length chords)
+                sdScore = Score (fromIntegral (Text.length unhyphenated) % fromIntegral (length chords)) $ sum (length <$> chords)
                 sdPath = PathException
             in Right SeriesData{..}
           Left err ->
@@ -192,6 +204,16 @@ data KeysOrSlash
   = KoSKeys [Key]
   | KoSSlash
 
+countKeys
+  :: [KeysOrSlash]
+  -> Int
+countKeys =
+    foldl' acc 0
+  where
+    acc n = \case
+      KoSKeys ks -> n + length ks
+      KoSSlash   -> n
+
 toChords
   :: [KeysOrSlash]
   -> [Chord Key]
@@ -221,12 +243,22 @@ data State = State
 bsPipe :: Word8
 bsPipe = 0x7C
 
+-- | The score has two values, a primary score and a secondary score.
+--   The primary score is the number of letters per chord.
+--   A high number of letters per chords means high typing efficiency.
+--   The secondary score is used, when two series achieve the same score.
+--   The secondary score is the number of steno keys.
+--   A lower number is preferred.
 score
   :: Result State
-  -> Double
+  -> Score
 score (Success State{..}) =
-  fromIntegral (unCountLetters stNLetters) / fromIntegral (unCountChords stNChords)
-score _ = 0
+  let scorePrimary =
+          fromIntegral (unCountLetters stNLetters)
+        / fromIntegral (unCountChords stNChords)
+      scoreSecondary = countKeys stSteno
+  in  Score{..}
+score _ = Score 0 0
 
 -- | Try to fit as many letters as possible into a steno
 --   chord (a chord contains keys that can be typed all at once).
