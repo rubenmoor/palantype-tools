@@ -1,143 +1,180 @@
 // apart from the single-line comments '//', this is valid json
-{ "a"  : ["A"]
-, "aa" : ["AO"]
-, "aar": ["AO"]
-, "ah" : ["AO"]
-, "ahr": ["AO"]
-// TODO: greedier: ah|r: ["AO"]
-, "ar" : ["AO"]
-, "arr": ["AO+"]
-, "aß" : ["AO+S"]
-, "ä"  : ["Ä"]
-, "äh" : ["ÄO"]
-, "ähr": ["ÄO"]
-, "är" : ["ÄO"]
-, "ärr": ["ÄO+"]
-, "äß" : ["ÄO+S"]
-, "b"  : ["B", "P"]
-, "bb" : ["P"]
-, "be" : ["B"] // TODO: greediness 1
-// , "beau|ty" : ["BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
+[ [ "a"   , [0, "A"]]
+, [ "á"   , [0, "A"]]
+, [ "à"   , [0, "A"]]
+, [ "â"   , [0, "A"]]
+, [ "å"   , [0, "A"]]          // Ux00E5
+, [ "aa"  , [0, "AO"]]
+, [ "aar" , [0, "AO"]]
+, [ "ah"  , [0, "AO"]]
+, [ "ahr" , [0, "AO"]]
+// TODO: greedier: ah|r: [0, "AO"]
+, [ "ar"  , [0, "AO"]]
+, [ "arr" , [0, "AO+"]]
+, [ "aß"  , [0, "AO+S"]]
+, [ "ä"   , [0, "Ä"]]
+, [ "äh"  , [0, "ÄO"]]
+, [ "ähr" , [0, "ÄO"]]
+, [ "är"  , [0, "ÄO"]]
+, [ "ärr" , [0, "ÄO+"]]
+, [ "äß"  , [0, "ÄO+S"]]
+, [ "b"   , [0, "B"]]
+, [ "b"   , [0, "P"]]
+, [ "be"  , [1, "B"]] // TODO: greediness 1
+// , "beau|ty" : [0, "BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
 //                              pattern eau, thus: exception
-, "beef": ["BIF"]
-, "c"  : ["GD", "K"]
-, "ca" : ["GDA"]   // phonetic k
-, "cä" : ["SFÄ"]  // phonetic z
-, "ce" : ["SJE", "Se"]  // onset: phonetic tsch: Cellist; coda: -ice
-, "ch"  : ["SJ", "Kʃ"]  // normal case
-, "chs" : ["KS"]
-, "ci"  : ["SFI"]      // normal case
-, "cia" : ["SJIA"]     // phonetic tsch: ciao, ciabatta
-, "ck"  : ["GD", "K"]
-, "d"   : ["D"]
-, "de"  : ["D-"]
-, "di"  : ["D-"]
-, "dt"  : ["-D"]
-, "e"   : ["E", "e"]
-, "ea"  : ["I"]        // Angl. "beat" "beamer", "team"
-//, "eau"  : ["O"]       // Frnz. Chateau
-, "ee"  : ["Ee"]       // TODO: documentation for ee-rule
-, "eer" : ["Ee"]       //       ee, eer -> Ee
-, "eh"  : ["EO"]
-, "ehr" : ["EO"]
-, "en"  : ["N-", "n"]  // TODO: greedier: "ren" -> n
+, [ "beef", [0, "BIF"]]
+, [ "c"   , [0, "GD"]]
+, [ "c"   , [0, "K"]]
+, [ "ç"   , [0, "SF"]]          // U+00E7
+, [ "ca"  , [0, "GDA"]]   // phonetic k
+, [ "cä"  , [0, "SFÄ"]]  // phonetic z
+, [ "ce"  , [0, "SJE"]]  // onset: phonetic tsch: Cellist; coda: -ice
+, [ "ce"  , [1, "Se"]]
+, [ "ch"  , [0, "SJ"]]  // normal case
+, [ "ch"  , [0, "Kʃ"]]
+, [ "ci"  , [0, "SFI"]]      // normal case
+, [ "cia" , [0, "SJIA"]]     // phonetic tsch: ciao, ciabatta
+, [ "ck"  , [0, "GD"]]
+, [ "ck"  , [0, "K"]]
+, [ "d"   , [0, "D"]]
+, [ "de"  , [1, "D-"]]
+, [ "di"  , [1, "D-"]]
+, [ "dt"  , [1, "-D"]]
+, [ "d|d" , [1, "D"]]
+, [ "e"   , [0, "E"]]
+, [ "e"   , [1, "s"]]
+// , "e"   : [0, "e"] // TODO: greedier: -e
+, [ "é"   , [0, "E"]]
+, [ "è"   , [0, "E"]]
+, [ "ê"   , [0, "E"]]
+, [ "ë"   , [0, "E"]]        // U+00EB
+, [ "ea"  , [0, "I"]]        // Angl. "beat" "beamer", "team"
+//, "eau"  : [0, "O"]        // Frnz. Chateau
+, [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
+, [ "eer" , [0, "Es"]]       //       ee, eer -> Es
+, [ "eh"  , [0, "EO"]]
+, [ "ehr" , [0, "EO"]]
+, [ "en"  , [1, "N-"]] 
+, [ "en"  , [0, "n"]]        // TODO: greedier: "ren" -> n
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
 // maybe BDN for ent^ (works already implicitly)
-, "ent" : ["BDN"]      // ent = "tn" -> BDN
-, "er"  : ["EO"]    
-// "er"  : ["R", "EO"] // TODO: efficiency for "er" in onset
-, "err" : ["EO+"]
-, "eß"  : ["EO+S"]
-, "f"   : ["F"]
-, "ff"  : ["F"]
-, "f|f" : ["F"]
-, "g"   : ["G", "K"]
-, "ge"  : ["G"]
-, "gg"  : ["G"]
-, "g|g" : ["G"]
-, "h"   : ["H"]
-, "i"   : ["I"]
-, "ie"  : ["~I"]
-, "ier" : ["~I"]
-, "ih"  : ["~I"]
-, "ihr" : ["~I"]
-, "irr" : ["~I+"]
-, "iß"  : ["~I+S"]
-, "iv"  : ["-F"]       // TODO: documentation
-, "j"   : ["J"]
-, "k"   : ["GD", "K"] 
+, [ "ent" , [1, "BDN"]]     // ent = "tn" -> BDN
+, [ "er"  , [0, "EO"]]   
+// "er"  : [0, "R", "EO"] // TODO: efficiency for "er" in onset
+, [ "err" , [0, "EO+"]]
+, [ "eß"  , [0, "EO+S"]]
+, [ "f"   , [0, "F"]]
+, [ "ff"  , [0, "F"]]
+, [ "f|f" , [1, "F"]]
+, [ "g"   , [0, "G"]]
+, [ "g"   , [0, "K"]]
+, [ "ge"  , [1, "G"]]
+, [ "g|g" , [1, "G"]]
+, [ "h"   , [0, "H"]]
+, [ "i"   , [0, "I"]]
+, [ "í"   , [0, "I"]]
+, [ "ie"  , [0, "~I"]]
+, [ "ier" , [0, "~I"]]
+, [ "ih"  , [0, "~I"]]
+, [ "ihr" , [0, "~I"]]
+, [ "ir"  , [0, "~I"]]
+, [ "irr" , [0, "~I+"]]
+, [ "iß"  , [0, "~I+S"]]
+, [ "iv"  , [0, "-F"]]       // TODO: documentation
+, [ "j"   , [0, "J"]]
+, [ "k"   , [0, "GD"]] 
+, [ "k"   , [0, "K"]]
 // TODO: fe -> F maybe?
-// TODO: greedier: er : ["e"]
-, "l"   : ["L"]
-, "ll"  : ["-L"]
-, "l|l" : ["-L"]
-, "m"   : ["M"]
-, "mm"  : ["-M"]
-, "m|m" : ["-M"]
-, "me"  : ["M-"]
+// TODO: greedier: er : [0, "e"]
+, [ "l"   , [0, "L"]]
+, [ "ll"  , [0, "-L"]]
+, [ "l|l" , [1, "-L"]]
+, [ "m"   , [0, "M"]]
+, [ "mm"  , [0, "-M"]]
+, [ "m|m" , [1, "-M"]]
+, [ "me"  , [1, "M-"]]
 // TODO: "un" N
-, "n"   : ["N"]
-, "nch" : ["Nʃ"]     // TODO: documentation, ch is Kʃ
-, "ng"  : ["+N"]
-, "nk"  : ["+N"]
-, "nn"  : ["-N"]
-, "n|n" : ["-N"]
-, "o"   : ["O"]
-, "oh"  : ["~O"]
-, "ohr" : ["~O"]
-, "oo"  : ["~O"]
-, "or"  : ["~O"]
-, "orr" : ["~O+"]
-, "oß"  : ["~O+S"]
-, "ö"   : ["ÄO"]
-, "öh"  : ["ÄO"]
-, "öhr" : ["ÄO"]
-, "ör"  : ["ÄO"]
-, "örr" : ["ÄO+"]
-, "öß"  : ["ÄO+S"]
-, "p"   : ["BD", "P"]
-, "pf"  : ["BF"]
-, "pp"  : ["P"]
-, "p|p" : ["P"]
-, "ps"  : ["SDJ"]     // TODO: documentation
-, "qu"  : ["GDW"]
-, "r"   : ["R"]
+, [ "n"   , [0, "N"]]
+, [ "ñ"   , [0, "N"]]
+, [ "nch" , [0, "Nʃ"]]     // TODO: documentation, ch is Kʃ
+, [ "ng"  , [0, "+N"]]
+, [ "nk"  , [0, "+N"]]
+, [ "nn"  , [0, "-N"]]
+, [ "n|n" , [1, "-N"]]
+, [ "o"   , [0, "O"]]
+, [ "ó"   , [0, "O"]]
+, [ "ô"   , [0, "O"]]
+, [ "ø"   , [0, "ÄO"]]
+, [ "oh"  , [0, "~O"]]
+, [ "ohr" , [0, "~O"]]
+, [ "oo"  , [0, "~O"]]
+, [ "or"  , [0, "~O"]]
+, [ "orr" , [0, "~O+"]]
+, [ "oß"  , [0, "~O+S"]]
+, [ "ö"   , [0, "ÄO"]]
+, [ "öh"  , [0, "ÄO"]]
+, [ "öhr" , [0, "ÄO"]]
+, [ "ör"  , [0, "ÄO"]]
+, [ "örr" , [0, "ÄO+"]]
+, [ "öß"  , [0, "ÄO+S"]]
+, [ "p"   , [0, "P"]]
+, [ "p"   , [0, "BD"]]
+, [ "pf"  , [0, "BF"]]
+, [ "pp"  , [0, "P"]]
+, [ "p|p" , [1, "P"]]
+, [ "ps"  , [0, "SDJ"]]     // TODO: documentation
+, [ "qi"  , [0, "SJI"]]
+, [ "qu"  , [0, "GDW"]]
+, [ "r"   , [0, "R"]]
 // "re" TODO: more efficiency
-// , "ren"  : ["e"]  // TODO: too greedy?
-, "s"   : ["S"]
-, "sch" : ["SJ", "ʃ"]
-, "schw": ["SW"]
-, "sh"  : ["SJ", "ʃ"] // cash, auscashen
-, "sp"  : ["BF"]      // TODO: documentation
-, "ss"  : ["S"]
-, "s|s" : ["S"]
-, "st"  : ["SD"]
-, "steak": ["SDÄK"]   // TODO: syllable exception?
-, "ß"   : ["S"]       // TODO: ß in onset: probably collisions
-, "t"   : ["DJ", "-D"]
-, "te"  : ["DJ"]      // TODO: maybe "-D"
-, "ti|o": ["DJO"]
-, "tt"  : ["-D"]       // t|t isn't logically possible
-, "ts"  : ["SF", "+S"]
-, "tsch": ["SJ", "ʃD"]  // TODO: documentation: -tsch like -scht
-, "tz"  : ["+S"]
-, "u"   : ["U"]
-, "uh"  : ["~U"]
-, "uhr" : ["~U"]
-, "ur"  : ["~U"]
-, "urr" : ["~U+"]
-, "uß"  : ["~U+S"]
-, "ü"   : ["Ü"]
-, "üh"  : ["~Ü"]
-, "ür"  : ["~Ü"]
-, "ühr" : ["~Ü"]
-, "ürr" : ["~Ü+"]
-, "üß"  : ["~Ü+S"]
-, "v"   : ["F"]
-, "w"   : ["W", "-F"]
-, "x"   : ["GDJ"]      // TODO: documentation
-, "y"   : ["J", "I"]
-, "z"   : ["SF", "-S"]
-, "-"   : ["HIFn"]
-// zt  : ["+SD"] -- default zt -> "SD"
-}
+// , "ren"  : [0, "e"]  // TODO: too greedy?
+, [ "s"   , [0, "S"]]
+, [ "s"   , [0, "s"]]
+, [ "sch" , [0, "SJ"]]
+, [ "sch" , [0, "ʃ"]]
+, [ "schw", [0, "SW"]]
+, [ "sh"  , [0, "SJ"]]      // cash, auscashen
+, [ "sh"  , [0, "ʃ"]]       // cash, auscashen
+, [ "sp"  , [0, "BF"]]      // TODO: documentation
+, [ "ss"  , [0, "S"]]
+, [ "s|s" , [1, "S"]]
+, [ "st"  , [0, "SD"]]
+, [ "steak", [0, "SDÄK"]]   // TODO: syllable exception?
+, [ "ß"   , [0, "S"]]       // TODO: ß in onset: probably collisions
+, [ "t"   , [0, "DJ"]]
+, [ "t"   , [0, "-D"]]
+, [ "te"  , [1, "DJ"]]     // TODO: maybe "-D"
+, [ "ti|o", [1, "DJO"]]
+, [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
+, [ "ts"  , [0, "SF"]]
+, [ "ts"  , [0, "s"]]
+, [ "tsch", [0, "SJ"]]      // TODO: documentation: -tsch like -scht
+, [ "tsch", [0, "ʃD"]]      // TODO: documentation: -tsch like -scht
+, [ "tz"  , [0, "+S"]]
+, [ "u"   , [0, "U"]]
+, [ "û"   , [0, "U"]]
+, [ "uh"  , [0, "~U"]]
+, [ "uhr" , [0, "~U"]]
+, [ "ur"  , [0, "~U"]]
+, [ "urr" , [0, "~U+"]]
+, [ "uß"  , [0, "~U+S"]]
+, [ "ü"   , [0, "Ü"]]
+, [ "üh"  , [0, "~Ü"]]
+, [ "ür"  , [0, "~Ü"]]
+, [ "ühr" , [0, "~Ü"]]
+, [ "ürr" , [0, "~Ü+"]]
+, [ "üß"  , [0, "~Ü+S"]]
+, [ "v"   , [0, "F"]]
+, [ "ver" , [2, "F"]]
+, [ "w"   , [0, "W"]]
+, [ "w"   , [0, "-F"]]
+, [ "x"   , [0, "GDJ"]]      // TODO: documentation
+, [ "x"   , [0, "KS"]]
+, [ "y"   , [0, "J"]]
+, [ "y"   , [0, "I"]]
+, [ "z"   , [0, "SF"]]
+, [ "z"   , [0, "+S"]]
+, [ "-"   , [0, "HIFn"]]
+// zt  : [0, "+SD"] -- default zt -> "SD"
+]

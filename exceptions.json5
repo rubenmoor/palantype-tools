@@ -1,6 +1,6 @@
 { "Beautyfarm": "BJU/DJI/FAOM" // more efficient, but wrong BO
-, "Beautycase": "BJU/DJI/GDASe"// more efficient, but wrong BO
-, "Düne"      : "DÜ/NE"       // < Dünne
+, "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
+, "Düne"      : "DÜ/NE"        // < Dünne
 , "Egge"      : "EK/G"         // < Ecke
 , "Haken"     : "HAO/Kn"       // < hacken
 , "knabber"   : "GDNAP/BR"     // < knapper

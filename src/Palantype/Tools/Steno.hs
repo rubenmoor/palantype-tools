@@ -14,6 +14,9 @@ import           Control.Monad                       (Monad ((>>=)),
                                                       MonadPlus (mzero), foldM,
                                                       join, when)
 import           Control.Monad.Fail                  (MonadFail (fail))
+import           Data.Aeson                          (FromJSON (parseJSON),
+                                                      Value (Object, Array),
+                                                      withObject)
 import qualified Data.Aeson                          as Aeson
 import           Data.Bifunctor                      (Bifunctor (first, second))
 import           Data.Bool                           (Bool (False))
@@ -25,7 +28,7 @@ import           Data.Either                         (Either (..), either)
 import           Data.Eq                             (Eq ((==)))
 import           Data.FileEmbed                      (embedFile)
 import           Data.Foldable                       (Foldable (foldl, foldl', foldr, length, maximum, null, sum),
-                                                      maximumBy)
+                                                      maximumBy, minimumBy)
 import           Data.Function                       (const, flip, ($))
 import           Data.Functor                        (Functor (fmap), void,
                                                       ($>), (<$>), (<&>))
@@ -45,6 +48,7 @@ import           Data.Maybe                          (Maybe (..), fromMaybe,
 import           Data.Monoid                         (Monoid (mconcat, mempty),
                                                       (<>))
 import           Data.Ord                            (Ord ((>=)), comparing)
+import           Data.Ratio                          (Ratio, Rational, (%))
 import           Data.String                         (String)
 import           Data.Text                           (Text, intercalate,
                                                       replace, splitOn, tail,
@@ -64,7 +68,7 @@ import           GHC.Float                           (Double)
 import           GHC.Generics                        (Generic)
 import           GHC.Num                             (Num (fromInteger, (-)),
                                                       (+))
-import           GHC.Real                            (Fractional ((/), fromRational),
+import           GHC.Real                            (Fractional (fromRational, (/)),
                                                       fromIntegral, (^))
 import           Palantype.Common                    (Chord (Chord),
                                                       Finger (LeftPinky),
@@ -93,7 +97,9 @@ import           TextShow                            (TextShow (showb, showbPrec
                                                       fromString, fromText,
                                                       singleton)
 import           TextShow.Generic                    (genericShowbPrec)
-import Data.Ratio (Ratio, (%), Rational)
+import Debug.Trace (traceShow)
+
+type Greediness = Int
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
@@ -110,7 +116,7 @@ instance TextShow SeriesData where
    <> showt sdSeries
 
 data Score = Score
-  { scorePrimary :: Rational
+  { scorePrimary   :: Rational
   , scoreSecondary :: Int
   } deriving (Eq, Ord)
 
@@ -294,8 +300,8 @@ optimizeStenoSeries st str =
   in  if null ms
         then  Left $ Text.decodeUtf8 str
         else let lsEResult = ms <&> \(consumed, result, rem) ->
-                   case parseKey result (stMFinger st) of
-                     Left  err -> Right $ Failure result err
+                   case parseKey (snd <$> result) (stMFinger st) of
+                     Left  err -> Right $ Failure (snd <$> result) err
                      Right (mFinger, lsKoS) ->
                        let newSteno = case lsKoS of
                              [kos] -> kos : stSteno st
@@ -321,7 +327,8 @@ optimizeStenoSeries st str =
 
           acc parser (RawSteno str) =
             case (parser, primitive str) of
-              (Right result, _)      -> Right result
+              (Right r1, Right r2)   -> Right $ minimumBy (comparing fst) [r1, r2]
+              (Right result, Left _) -> Right result
               (Left _, Right result) -> Right result
               (Left _, Left err)     -> Left err
 
@@ -348,12 +355,24 @@ mapExceptions =
              Right ls  -> ls
              Left  err -> error $ "Could not decode exceptions.json5: " <> err
 
+newtype PrimMap = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno)] }
+
+instance FromJSON PrimMap where
+  parseJSON (Array v) = do
+      m <- foldM acc Map.empty v
+      pure $ PrimMap m
+    where
+      acc m pair = do
+        (k, v) <- parseJSON pair
+        let key = Text.encodeUtf8 k
+        pure $ Map.insertWith (++) key [v] m
+  parseJSON _ = mzero
+
 -- | the primitives as defined in "primitives.json" parsed to a TRIE
-primitives :: Trie [RawSteno]
+primitives :: Trie [(Greediness, RawSteno)]
 primitives =
   let str = stripComments $(embedFile "primitives.json5")
-      m = case Aeson.eitherDecodeStrict str of
-             Right ls -> ls
-             Left err -> error $ "Could not decode primitives.json5: " <> err
-      lsByteString = first Text.encodeUtf8 <$> Map.toList m
-  in  Trie.fromList lsByteString
+      primMap = case Aeson.eitherDecodeStrict str of
+        Right m -> m :: PrimMap
+        Left err -> error $ "Could not decode primitives.json5: " <> err
+  in  Trie.fromList $ Map.toList $ unPrimMap primMap
