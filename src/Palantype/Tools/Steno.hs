@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE TemplateHaskell  #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Palantype.Tools.Steno where
 
@@ -16,24 +17,24 @@ import qualified Data.Aeson                as Aeson
 import           Data.Bifunctor            (Bifunctor (first, second))
 import           Data.Bool                 (Bool (False))
 import           Data.ByteString           (ByteString)
-import qualified Data.ByteString           as ByteString
+import qualified Data.ByteString           as BS
 import qualified Data.ByteString.Lazy      as LBS
 import           Data.Char                 (Char)
-import           Data.Either               (Either (..))
-import           Data.Eq                   (Eq)
+import           Data.Either               (Either (..), either)
+import           Data.Eq                   (Eq ((==)))
 import           Data.FileEmbed            (embedFile)
-import           Data.Foldable             (Foldable (foldl, length, maximum),
+import           Data.Foldable             (Foldable (foldl, length, maximum, foldl', null),
                                             maximumBy)
-import           Data.Function             (($))
+import           Data.Function             (($), const)
 import           Data.Functor              (Functor (fmap), void, ($>), (<$>),
                                             (<&>))
 import           Data.HashMap.Strict       (HashMap)
 import qualified Data.HashMap.Strict       as HashMap
 import           Data.Hashable             (Hashable)
 import           Data.Int                  (Int)
-import           Data.List                 (concat, dropWhile, head,
+import           Data.List                 (concat, dropWhile,
                                             intersperse, last, splitAt, (!!),
-                                            (++))
+                                            (++), head, reverse)
 import           Data.List.NonEmpty        (NonEmpty)
 import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
@@ -42,18 +43,18 @@ import           Data.Monoid               (Monoid (mconcat, mempty), (<>))
 import           Data.Ord                  (Ord ((>=)), comparing)
 import           Data.String               (String)
 import           Data.Text                 (Text, intercalate, replace, splitOn,
-                                            toLower)
+                                            toLower, tail)
 import qualified Data.Text                 as Text
 import qualified Data.Text.Encoding        as Text
 import           Data.Text.IO              (interact, putStrLn)
-import           Data.Traversable          (for)
+import           Data.Traversable          (for, Traversable (sequence))
 import           Data.Trie                 (Trie)
 import qualified Data.Trie                 as Trie
 import           Data.Tuple                (fst, snd)
 import           GHC.Err                   (error)
 import           GHC.Float                 (Double)
 import           GHC.Generics              (Generic)
-import           GHC.Num                   (Num ((-)), (+))
+import           GHC.Num                   (Num ((-), fromInteger), (+))
 import           GHC.Real                  (Fractional ((/)), fromIntegral, (^))
 import           Palantype.Common          (Chord (Chord), Finger (LeftPinky),
                                             Palantype (toFinger),
@@ -75,6 +76,7 @@ import           Text.Show                 (Show (show))
 import           TextShow                  (TextShow (showb, showbPrec, showt),
                                             fromText, singleton)
 import           TextShow.Generic          (genericShowbPrec)
+import Data.Word (Word8)
 
 data SeriesData = SeriesData
   { sdHyphenated :: Text
@@ -98,42 +100,159 @@ data Path
 instance TextShow Path where
   showbPrec = genericShowbPrec
 
-parseSeries :: Text -> Either ParseError SeriesData
+parseSeries :: Text -> Either Text SeriesData
 parseSeries hyphenated =
   case HashMap.lookup (replace "|" "" hyphenated) mapExceptions of
     Just raw ->
-      Raw.parseWord raw <&> \chords ->
-        let sdHyphenated = hyphenated
-            sdSeries = Series chords
-            sdScore = 0
-            sdPath = PathException
-        in SeriesData{..}
+      case Raw.parseWord raw of
+        Right chords ->
+          let sdHyphenated = hyphenated
+              sdSeries = Series chords
+              sdScore = 0
+              sdPath = PathException
+          in Right SeriesData{..}
+        Left err ->
+          Left $ "Parse error in exception table: "
+            <> hyphenated
+            <> "; " <> Text.pack (show err)
     Nothing ->
-      let str' = splitOn "|" $ toLower hyphenated
-      in  optimizeStenoSeries str' <&> \(scoreAcc, chords) ->
-            let -- the score of a series of chords for a given word is the average
-                -- chord score, i.e. the average number of letters per chord
-                sdHyphenated = hyphenated
-                sdScore = (fromIntegral scoreAcc :: Double)
-                      / fromIntegral ( length chords)
-                sdSeries = Series chords
-                sdPath = PathOptimize
-            in  SeriesData{..}
+      let str' = Text.encodeUtf8 $ toLower hyphenated
+          st = State
+            { stSteno = []
+            , stNLetters = 0
+            , stNChords = 1
+            , stMFinger = Nothing
+            }
+          result = optimizeStenoSeries st str'
+      in  case result of
+            Left err ->
+              Left $ "Encountered missing primitive when parsing: " <> err
+            Right result -> case result of
+              Success State{..} ->
+                let -- the score of a series of chords for a given word is the average
+                    -- chord score, i.e. the average number of letters per chord
+                    sdHyphenated = hyphenated
+                    sdScore = score result
+                    sdSeries = Series $ toChords stSteno
+                    sdPath = PathOptimize
+                in  Right SeriesData{..}
+              Failure -> Left "Parsing failed"
 
-optimizeStenoSeries :: [Text] -> Either ParseError (Int, [Chord Key])
-optimizeStenoSeries [] = Right (0, [])
-  -- TODO: Quatsch
-optimizeStenoSeries parts =
-    maximumBy (comparing score) $
-      [1 .. (length parts)] <&> \i ->
-        let (front, back) = splitAt i parts
-        in  do
-              (scoreFront, cFront) <- parseChord $ intercalate "|" front
-              (scoreBack , cBack ) <- optimizeStenoSeries back
-              pure (scoreFront + scoreBack, cFront : cBack)
+newtype CountLetters = CountLetters { unCountLetters :: Int }
+  deriving (Num)
+
+countLetters
+  :: ByteString
+  -> CountLetters
+countLetters str =
+  CountLetters $ BS.length str
+
+newtype CountChords = CountChords { unCountChords :: Int }
+  deriving (Num)
+
+-- | Optimize steno series
+
+-- | a series is a list of steno keys, interspersed with slashes ('/') to mark
+--   a new chord
+data KeysOrSlash
+  = KoSKeys [Key]
+  | KoSSlash
+
+toChords
+  :: [KeysOrSlash]
+  -> [Chord Key]
+toChords ls =
+    let (cs, ks) = foldl' acc ([], []) ls
+    in  mkChord ks : cs
   where
-    score (Left _)       = 0
-    score (Right (s, _)) = s
+    acc
+      :: ([Chord Key], [Key])
+      -> KeysOrSlash
+      -> ([Chord Key], [Key])
+    acc (chords, keys) = \case
+      (KoSKeys ks) -> (chords, keys ++ ks)
+      KoSSlash    -> (mkChord keys : chords, [])
+
+data Result a
+  = Success a
+  | Failure
+
+data State = State
+  { stSteno :: [KeysOrSlash]
+  , stNLetters :: CountLetters
+  , stNChords :: CountChords
+  , stMFinger :: Maybe Finger
+  }
+
+bsPipe :: Word8
+bsPipe = 0x7C
+
+score
+  :: Result State
+  -> Double
+score (Success State{..}) =
+  fromIntegral (unCountLetters stNLetters) / fromIntegral (unCountChords stNChords)
+score _ = 0
+
+-- | look at next character:
+--     '|' -> do
+--       consume character
+--       (steno1, score1) = append '/', recursion with increased chord count and
+--       (steno2, score2) = recursion
+--       return steno with highest score
+--     otherwise -> get matches from primtive trie
+--       for every match:
+--         consume and recursion with remaining string ...
+--         ... increase letter count by match length
+--       return steno with highest score
+optimizeStenoSeries :: State -> ByteString -> Either Text (Result State)
+optimizeStenoSeries st "" = Right $ Success st
+optimizeStenoSeries st str | BS.head str == bsPipe =
+  let newState = State
+        { stSteno = KoSSlash : stSteno st
+        , stNLetters = stNLetters st
+        , stNChords = stNChords st + 1
+        , stMFinger = Nothing
+        }
+      r1 = optimizeStenoSeries newState $ BS.tail str
+      r2 = optimizeStenoSeries st $ BS.tail str
+  in  sequence [r1, r2] <&> \results ->
+        maximumBy (comparing score) results
+optimizeStenoSeries st str =
+  let ms = Trie.matches primitives str
+  in  if null ms
+        then  Left $ Text.decodeUtf8 str
+        else let lsEResult = ms <&> \(consumed, result, rem) ->
+                   case parseKey result (stMFinger st) of
+                     Nothing -> Right Failure
+                     Just (mFinger, ks) ->
+                       let newState = State
+                             { stSteno = KoSKeys ks : stSteno st
+                             , stNLetters = stNLetters st + countLetters consumed
+                             , stNChords = stNChords st
+                             , stMFinger = mFinger
+                             }
+                       in  optimizeStenoSeries newState rem
+             in  sequence lsEResult <&> \results ->
+                   maximumBy (comparing score) results
+  where
+    parseKey ls mFinger =
+      let primitive str =
+            either (const Nothing) Just $
+              evalParser (Raw.keys <* eof) mFinger "" str
+
+          acc parser (RawSteno str) =
+            parser <|> primitive str
+
+      in  foldl' acc Nothing ls
+
+    -- maximumBy (comparing score) $
+    --   [1 .. (length parts)] <&> \i ->
+    --     let (front, back) = splitAt i parts
+    --     in  do
+    --           (scoreFront, cFront) <- parseChord $ intercalate "|" front
+    --           (scoreBack , cBack ) <- optimizeStenoSeries back
+    --           pure (scoreFront + scoreBack, cFront : cBack)
 
 -- | A chord tries to fit as many letters as possible into a steno
 --   expression that can be typed all at once.

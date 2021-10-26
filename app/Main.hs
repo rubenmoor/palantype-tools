@@ -187,14 +187,14 @@ readScores file = do
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwArg str) =
   case parseSeries str of
-    Left err -> print err
+    Left err -> StrictIO.putStrLn $ "Missing primitive: " <> err
     Right sd -> StrictIO.putStrLn $ showt sd
 
 stenoWords OStwStdin =
   forever $ do
     l <- Lazy.toStrict <$> getLine
     case parseSeries l of
-      Left err -> print err
+      Left err -> StrictIO.putStrLn $ "Missing primitive: " <> err
       Right sd -> StrictIO.putStrLn $ showt sd
 
 stenoWords OStwShowChart = do
