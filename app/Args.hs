@@ -1,14 +1,19 @@
 module Args where
 
 import           Data.Bool           (Bool)
+import           Data.Maybe          (Maybe)
 import           Data.Monoid         (Monoid (mempty))
 import           Data.Semigroup      ((<>))
+import           Data.String         (String)
 import           Data.Text           (Text)
-import           Options.Applicative (Applicative ((<*>), (<*)), Parser, ParserInfo,
-                                      argument, command, help, helper, info,
-                                      long, progDesc, str, subparser, switch,
-                                      (<$>), Alternative ((<|>)), strOption, short, flag')
-import Data.String (String)
+import           Options.Applicative (Alternative ((<|>)),
+                                      Applicative ((<*), (<*>)), Parser,
+                                      ParserInfo, argument, command, flag',
+                                      help, helper, info, long, progDesc, short,
+                                      str, strOption, subparser, switch, (<$>), metavar, optional, option, auto)
+import           System.IO           (FilePath)
+import Data.Function (($))
+import Data.Int (Int)
 
 data Task
   = TaskSyllables OptionsSyllables
@@ -20,10 +25,13 @@ data OptionsSyllables
   | OSylArg Text
 
 data OptionsStenoWords
-  = OStwFile Bool Bool
+  = OStwRun Int OptionsStenoWordsRun
+  | OStwShowChart
+
+data OptionsStenoWordsRun
+  = OStwFile Bool Bool (Maybe FilePath)
   | OStwArg Text
   | OStwStdin
-  | OStwShowChart
 
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
@@ -74,12 +82,36 @@ switchShowChart = switch
   <> help "Show the histogram of scores after the computation."
   )
 
+mOutputFile = optional $ strOption
+  (  long "output-file"
+  <> short 'f'
+  <> help "Addiontally write results into the provided file."
+  <> metavar "FILE"
+  )
+
+greediness = option auto
+  (   long "greediness"
+  <> short 'g'
+  <> help "Greediness 0: use the minimal set of primitive patterns. greediness \
+          \3: use all available patterns."
+  )
+
 optsStenoWords :: Parser OptionsStenoWords
 optsStenoWords =
-      (OStwFile <$> switchReset <*> switchShowChart)
+      (OStwRun <$> greediness <*> optsStenoWordsRun)
+  <|> showChart
+  where
+    showChart = flag' OStwShowChart
+      (  long "show-chart-only"
+      <> short 'c'
+      <> help "Don't compute chords. Only show the chart of the latest scores."
+      )
+
+optsStenoWordsRun :: Parser OptionsStenoWordsRun
+optsStenoWordsRun =
+      (OStwFile <$> switchReset <*> switchShowChart <*> mOutputFile)
   <|> (OStwArg  <$> arg hlp)
   <|> stdin
-  <|> showChart
   where
     hlp = "Parse one word into a series of steno chords. The format is: \
           \\"Di|rek|ti|ve\"."
@@ -87,11 +119,6 @@ optsStenoWords =
       (  long "stdin"
       <> help "Read input from stdin. The format for each line is: \
               \\"Sil|ben|tren|nung\"."
-      )
-    showChart = flag' OStwShowChart
-      (  long "show-chart-only"
-      <> short 'c'
-      <> help "Don't compute chords. Only show the chart of the latest scores."
       )
 
 stenoWordsInfo =

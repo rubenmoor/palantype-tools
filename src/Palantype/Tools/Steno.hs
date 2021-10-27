@@ -47,7 +47,7 @@ import           Data.Maybe                          (Maybe (..), fromMaybe,
                                                       maybe)
 import           Data.Monoid                         (Monoid (mconcat, mempty),
                                                       (<>))
-import           Data.Ord                            (Ord ((>=)), comparing)
+import           Data.Ord                            (Ord ((>=), (<=)), comparing)
 import           Data.Ratio                          (Ratio, Rational, (%))
 import           Data.String                         (String)
 import           Data.Text                           (Text, intercalate,
@@ -98,6 +98,7 @@ import           TextShow                            (TextShow (showb, showbPrec
                                                       singleton)
 import           TextShow.Generic                    (genericShowbPrec)
 import Debug.Trace (traceShow)
+import Graphics.Rendering.Chart.Easy (levels)
 
 type Greediness = Int
 
@@ -106,14 +107,17 @@ data SeriesData = SeriesData
   , sdSeries     :: Series Key
   , sdScore      :: Score
   , sdPath       :: Path
+  , sdGreediness :: Greediness
   }
 
 instance TextShow SeriesData where
  showb SeriesData{..} = fromText $
-      sdHyphenated <> " "
-   <> showt sdScore <> " "
-   <> showt sdPath <> " "
-   <> showt sdSeries
+      sdHyphenated
+   <> " " <> showt sdScore
+   <> " " <> showt sdPath
+   <> " G" <> showt sdGreediness
+   <> " " <> showt sdSeries
+
 
 data Score = Score
   { scorePrimary   :: Rational
@@ -143,8 +147,8 @@ data ParseError
 instance TextShow ParseError where
   showb = fromString . show
 
-parseSeries :: Text -> Either ParseError SeriesData
-parseSeries hyphenated =
+parseSeries :: Greediness -> Text -> Either ParseError SeriesData
+parseSeries greediness hyphenated =
   let unhyphenated = replace "|" "" hyphenated
   in case HashMap.lookup unhyphenated mapExceptions of
       Just raw ->
@@ -154,6 +158,7 @@ parseSeries hyphenated =
                 sdSeries = Series chords
                 sdScore = Score (fromIntegral (Text.length unhyphenated) % fromIntegral (length chords)) $ sum (length <$> chords)
                 sdPath = PathException
+                sdGreediness = greediness
             in Right SeriesData{..}
           Left err ->
             Left $ PEExceptionTable $
@@ -168,8 +173,8 @@ parseSeries hyphenated =
               , stNChords = 1
               , stMFinger = Nothing
               }
-        in  case optimizeStenoSeries st str of
-              Left err -> Left $ PEMissingPrimitives err
+        in  case optimizeStenoSeries greediness st str of
+              Left  err    -> Left $ PEMissingPrimitives err
               Right result -> case result of
                 Success State{..} ->
                   let -- the score of a series of chords for a given word is the average
@@ -178,6 +183,7 @@ parseSeries hyphenated =
                       sdScore = score result
                       sdSeries = Series $ toChords stSteno
                       sdPath = PathOptimize
+                      sdGreediness = greediness
                   in  Right SeriesData{..}
                 Failure raw err -> Left $ PEParsec raw err
 
@@ -282,25 +288,27 @@ score _ = Score 0 0
 --         consume and recursion with remaining string ...
 --         ... increase letter count by match length
 --       return steno with highest score
-optimizeStenoSeries :: State -> ByteString -> Either Text (Result State)
-optimizeStenoSeries st "" = Right $ Success st
-optimizeStenoSeries st str | BS.head str == bsPipe =
+optimizeStenoSeries :: Greediness -> State -> ByteString -> Either Text (Result State)
+optimizeStenoSeries _ st "" = Right $ Success st
+optimizeStenoSeries g st str | BS.head str == bsPipe =
   let newState = State
         { stSteno = KoSSlash : stSteno st
         , stNLetters = stNLetters st
         , stNChords = stNChords st + 1
         , stMFinger = Nothing
         }
-      r1 = optimizeStenoSeries newState $ BS.tail str
-      r2 = optimizeStenoSeries st $ BS.tail str
+      r1 = optimizeStenoSeries g newState $ BS.tail str
+      r2 = optimizeStenoSeries g st $ BS.tail str
   in  sequence [r1, r2] <&> \results ->
         maximumBy (comparing score) results
-optimizeStenoSeries st str =
+optimizeStenoSeries g st str =
   let ms = Trie.matches primitives str
   in  if null ms
         then  Left $ Text.decodeUtf8 str
         else let lsEResult = ms <&> \(consumed, result, rem) ->
-                   case parseKey (snd <$> result) (stMFinger st) of
+                   -- TODO: always run all greediness levels
+                   --       and check if higher greediness yields different result
+                   case parseKey (filterGreediness g result) (stMFinger st) of
                      Left  err -> Right $ Failure (snd <$> result) err
                      Right (mFinger, lsKoS) ->
                        let newSteno = case lsKoS of
@@ -312,10 +320,17 @@ optimizeStenoSeries st str =
                              , stNChords = stNChords st + countChords lsKoS
                              , stMFinger = mFinger
                              }
-                       in  optimizeStenoSeries newState rem
+                       in  optimizeStenoSeries g newState rem
              in  sequence lsEResult <&> \results ->
                    maximumBy (comparing score) results
   where
+    filterGreediness
+      :: Greediness
+      -> [(Greediness, RawSteno)]
+      -> [RawSteno]
+    filterGreediness maxG =
+      foldl' (\rs (g, r) -> if g <= maxG then r:rs else rs) []
+
     parseKey
       :: [RawSteno]
       -> Maybe Finger

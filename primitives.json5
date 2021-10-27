@@ -40,7 +40,7 @@
 , [ "d"   , [0, "D"]]
 , [ "de"  , [1, "D-"]]
 , [ "di"  , [1, "D-"]]
-, [ "dt"  , [1, "-D"]]
+, [ "dt"  , [0, "-D"]]
 , [ "d|d" , [1, "D"]]
 , [ "e"   , [0, "E"]]
 , [ "e"   , [1, "s"]]
@@ -55,8 +55,8 @@
 , [ "eer" , [0, "Es"]]       //       ee, eer -> Es
 , [ "eh"  , [0, "EO"]]
 , [ "ehr" , [0, "EO"]]
-, [ "en"  , [1, "N-"]] 
-, [ "en"  , [0, "n"]]        // TODO: greedier: "ren" -> n
+// , [ "en"  , [1, "N-"]] 
+, [ "en"  , [1, "n"]]        // TODO: greedier: "ren" -> n
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
 // maybe BDN for ent^ (works already implicitly)
 , [ "ent" , [1, "BDN"]]     // ent = "tn" -> BDN
@@ -105,7 +105,7 @@
 , [ "o"   , [0, "O"]]
 , [ "ó"   , [0, "O"]]
 , [ "ô"   , [0, "O"]]
-, [ "ø"   , [0, "ÄO"]]
+, [ "ø"   , [0, "ÄO"]]      // U+00F8
 , [ "oh"  , [0, "~O"]]
 , [ "ohr" , [0, "~O"]]
 , [ "oo"  , [0, "~O"]]

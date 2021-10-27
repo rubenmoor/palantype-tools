@@ -3,7 +3,7 @@
 
 module Palantype.Tools.Syllables where
 
-import           Control.Applicative    (Alternative ((<|>)))
+import           Control.Applicative    (Alternative ((<|>)), Applicative ((<*>)))
 import           Control.Category       (Category ((.)))
 import           Control.Exception.Base (mapException)
 import           Control.Monad          (Monad ((>>), (>>=)), MonadPlus (mzero),
@@ -12,10 +12,10 @@ import           Data.Bool              (not, otherwise, (&&), (||))
 import           Data.Char              (Char, isLetter)
 import           Data.Either            (Either (..), isRight)
 import           Data.Eq                ((==))
-import           Data.Foldable          (Foldable (elem))
+import           Data.Foldable          (Foldable (elem), notElem)
 import           Data.Function          (($))
-import           Data.Functor           (Functor (fmap), void, (<$>))
-import           Data.List              (intercalate, intersperse)
+import           Data.Functor           (Functor (fmap), void, (<$>), ($>))
+import           Data.List              (intercalate, intersperse, tail, (++))
 import           Data.Maybe             (Maybe (..), catMaybes, isNothing)
 import           Data.Semigroup         (Semigroup ((<>)))
 import           Data.String            (String)
@@ -25,14 +25,14 @@ import           Debug.Trace            (traceShow)
 import           GHC.Generics           (Generic)
 import           Prelude                (Applicative (pure, (*>), (<*)),
                                          Eq ((/=)), Foldable (null),
-                                         Monoid (mconcat))
+                                         Monoid (mconcat), error)
 import           Text.Parsec            (ParseError, Parsec, anyChar, char,
                                          evalParser, getInput, getState, letter,
                                          many, many1, manyTill, noneOf,
                                          notFollowedBy, oneOf, parse,
                                          parserTrace, runParser, satisfy,
                                          sepBy1, setState, space, spaces,
-                                         string, try)
+                                         string, try, updateState)
 import           Text.Show              (Show (show))
 import           TextShow               (TextShow (..), fromText)
 import           TextShow.Generic       (genericShowbPrec)
@@ -75,6 +75,10 @@ data Exception
 instance TextShow Exception where
   showbPrec = genericShowbPrec
 
+-- | turn "zusammenhang[s]los >>> zu|sam|men|hang[s]|los ..." into
+--   [ Success (SyllableData "zusammenhanglos" ["zu", "sam", "men", "hang", "los"])
+--   , Success (SyllableData "zusammenhangslos" ["zu", "sam", "men", "hangs", "los"])
+--   ]
 parseSyllables :: Text -> [Result]
 parseSyllables =
     fmap parseSyllables' . parseOptionalChars
@@ -82,14 +86,19 @@ parseSyllables =
     parseSyllables' :: Text -> Result
     parseSyllables' str =
       case evalParser word Nothing "" str of
-        Left err                -> Failure err
+        Left  err               -> Failure err
         Right (Just exc, _)     -> Exception exc
         Right (Nothing, (sdWord, rem)) ->
-          let st = Text.unpack $ replace "-" "" sdWord
+          let st = if Text.null sdWord
+                      then error $ Text.unpack $ "Empty state: " <> str
+                      else Text.unpack sdWord
+          -- let st = Text.unpack $ replace "-" "" sdWord
           in case runParser syllables st "" rem of
                Right sdSyllables -> Success $ SyllableData {..}
                Left  err         -> Failure err
 
+    -- | parse "zusammenhangslos >>> zu|sam|men|hangs|los ..." into
+    --   ("zusammenhangslos", "zu|sam|men|hangs|los ...")
     word :: Parsec Text (Maybe Exception) (Text, Text)
     word = do
         void $ many $ try (satisfy (not . isLetter) *> notFollowedBy sep)
@@ -118,22 +127,50 @@ parseSyllables =
                '®' -> Nothing
                _   -> Just c
 
+    -- | parse "zu|sam|men|hangs|los" into ["zu", "sam", "men", "hangs", "los"]
     syllables :: Parsec Text String [Text]
     syllables = do
         (x:_) <- getState
         void $ many $ satisfy (/= x)
-        mconcat <$> sepBy1 (intersperse "-" <$> sepByHyphen) (char '|')
-      where
-        sepByHyphen =
-          sepBy1 (Text.pack <$> many1 character) $ char '-'
+        mconcat <$> sepBy1 ((++) <$> syllable <*> hyphen) (oneOf "|")
 
-    character :: Parsec Text String Char
-    character =
-      getState >>= \case
-        []     -> mzero
-        (x:xs) -> do
-          setState xs
-          char x
+        -- mconcat <$> sepBy1 (intersperse "-" <$> sepByHyphen) (char '|')
+
+      where
+        syllable =
+          try pseudoSyllable <|> realSyllable
+
+        pseudoSyllable = do
+          v1 <- vowel
+          c <- consonant
+          v2 <- vowel
+          rem <- many1 character
+          pure [Text.singleton v1, Text.pack $ c : v2 : rem]
+
+        realSyllable = do
+          pure . Text.pack <$> many1 character
+
+        hyphen =
+          try (char '-' *> updateState tail $> ["-"]) <|> pure []
+
+        character :: Parsec Text String Char
+        character =
+          getState >>= \case
+            []     -> mzero
+            (x:xs) -> setState xs *> char x
+
+        vowel =
+          getState >>= \case
+            (x:xs) | x `elem` vowels -> setState xs *> char x
+            _                        -> mzero
+
+        consonant =
+          getState >>= \case
+            (x:xs) | x `notElem` vowels -> setState xs *> char x
+            _                              -> mzero
+
+vowels :: String
+vowels = "aeiouyäöüáàêâôåéèëíóôøû"
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str =

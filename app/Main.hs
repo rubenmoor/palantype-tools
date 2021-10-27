@@ -5,7 +5,7 @@ module Main where
 
 import           Args                       (OptionsStenoWords (..),
                                              OptionsSyllables (OSylArg, OSylFile),
-                                             Task (..), argOpts)
+                                             Task (..), argOpts, OptionsStenoWordsRun (..))
 import           Control.Applicative        (Alternative ((<|>)),
                                              Applicative (pure, (*>), (<*>)))
 import           Control.Category           (Category ((.)))
@@ -162,6 +162,8 @@ syllables (OSylFile reset) = do
                       ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
                 pure hyphenated
       foldM_ acc (Success $ SyllableData "" []) entries
+
+      appendLine tmpFileNoParse "END"
       renamePath tmpFileNoParse fileSyllablesNoParse
 
 fileStenoWords :: FilePath
@@ -202,23 +204,15 @@ average ls =
   in  realToFrac t / realToFrac n
 
 stenoWords :: OptionsStenoWords -> IO ()
-stenoWords (OStwArg str) =
-    StrictIO.putStrLn $ showt $ parseSeries str
+stenoWords (OStwRun greediness (OStwArg str)) =
+    StrictIO.putStrLn $ showt $ parseSeries greediness str
 
-stenoWords OStwStdin =
+stenoWords (OStwRun greediness OStwStdin) =
   forever $ do
     l <- Lazy.toStrict <$> getLine
-    StrictIO.putStrLn $ showt $ parseSeries l
+    StrictIO.putStrLn $ showt $ parseSeries greediness l
 
-stenoWords OStwShowChart = do
-  now <- getCurrentTime
-  let dir = takeDirectory $ fileStenoWordsScores now
-  files <- listDirectory dir
-  let latest = maximum files
-  scores <- readScores $ dir </> latest
-  plotScoresShow scores
-
-stenoWords (OStwFile reset showChart) = do
+stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
     start <- getTime Monotonic
     now <- getCurrentTime
@@ -236,7 +230,7 @@ stenoWords (OStwFile reset showChart) = do
         when exists $ removeFile file
 
     existsStenoWordsNoParse <- doesFileExist fileStenoWordsNoParse
-    runStenoWords now $ if existsStenoWordsNoParse
+    runStenoWords now mFileOutput $ if existsStenoWordsNoParse
       then (fileStenoWordsNoParse, False)
       else (fileSyllables, True)
 
@@ -270,7 +264,7 @@ stenoWords (OStwFile reset showChart) = do
   where
     fileStenoWordsNoParse = "stenowords-noparse.txt"
 
-    runStenoWords time (file, bFirstPass) = do
+    runStenoWords time mFileOutput (file, bFirstPass) = do
       syllables <- Lazy.lines <$> readFile file
       putStrLn $ "Creating steno chords for " <> show (length syllables) <> " entries."
 
@@ -279,7 +273,7 @@ stenoWords (OStwFile reset showChart) = do
           acc :: HashMap Text SeriesData -> Lazy.Text -> IO (HashMap Text SeriesData)
           acc m str =
             let [word, hyphenated] = splitOn " " $ Lazy.toStrict str
-            in  case parseSeries hyphenated of
+            in  case parseSeries greediness hyphenated of
                   Left err  -> do
                     case err of
                       PEMissingPrimitives orig ->
@@ -304,10 +298,21 @@ stenoWords (OStwFile reset showChart) = do
                       else pure $ HashMap.insert word sd m
 
       m <- foldM acc HashMap.empty syllables
-      for_ (HashMap.toList m) $ \(word, sd) ->
-        appendLine fileStenoWords $ Lazy.fromStrict $ word <> " " <> showt sd
+      for_ (HashMap.toList m) $ \(word, sd) -> do
+        let str = Lazy.fromStrict $ word <> " " <> showt sd
+        appendLine fileStenoWords str
+        maybe (pure ()) (`appendLine` str) mFileOutput
 
+      appendLine tmpFileNoParse "END"
       renamePath tmpFileNoParse fileStenoWordsNoParse
+
+stenoWords OStwShowChart = do
+  now <- getCurrentTime
+  let dir = takeDirectory $ fileStenoWordsScores now
+  files <- listDirectory dir
+  let latest = maximum files
+  scores <- readScores $ dir </> latest
+  plotScoresShow scores
 
 partsDict :: Bool -> IO ()
 partsDict reset = do
