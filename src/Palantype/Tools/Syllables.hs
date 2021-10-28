@@ -3,44 +3,56 @@
 
 module Palantype.Tools.Syllables where
 
-import           Control.Applicative    (Alternative ((<|>)), Applicative ((<*>)), optional)
-import           Control.Category       (Category ((.)))
-import           Control.Exception.Base (mapException)
-import           Control.Monad          (Monad ((>>), (>>=)), MonadPlus (mzero),
-                                         guard, unless, when)
-import           Data.Bool              (not, otherwise, (&&), (||))
-import           Data.Char              (Char, isLetter)
-import           Data.Either            (Either (..), isRight)
-import           Data.Eq                ((==))
-import           Data.Foldable          (Foldable (elem), notElem)
-import           Data.Function          (($))
-import           Data.Functor           (Functor (fmap), void, (<$>), ($>))
-import           Data.List              (intercalate, intersperse, tail, (++))
-import           Data.Maybe             (Maybe (..), catMaybes, isNothing, fromMaybe)
-import           Data.Semigroup         (Semigroup ((<>)))
-import           Data.String            (String)
-import           Data.Text              (Text, replace)
-import qualified Data.Text              as Text
-import           Debug.Trace            (traceShow)
-import           GHC.Generics           (Generic)
-import           Prelude                (Applicative (pure, (*>), (<*)),
-                                         Eq ((/=)), Foldable (null),
-                                         Monoid (mconcat), error)
-import           Text.Parsec            (ParseError, Parsec, anyChar, char,
-                                         evalParser, getInput, getState, letter,
-                                         many, many1, manyTill, noneOf,
-                                         notFollowedBy, oneOf, parse,
-                                         parserTrace, runParser, satisfy,
-                                         sepBy1, setState, space, spaces,
-                                         string, try, updateState, lookAhead)
-import           Text.Show              (Show (show))
-import           TextShow               (TextShow (..), fromText)
-import           TextShow.Generic       (genericShowbPrec)
-import Data.Bool (Bool(False))
-import Text.ParserCombinators.Parsec.Error (newErrorMessage)
-import Text.Parsec.Error (Message(Message))
-import Text.ParserCombinators.Parsec.Pos (initialPos)
-import GHC.Base (undefined)
+import           Control.Applicative                 (Alternative ((<|>)),
+                                                      Applicative ((<*>)),
+                                                      optional)
+import           Control.Category                    (Category ((.)))
+import           Control.Exception.Base              (mapException)
+import           Control.Monad                       (Monad ((>>), (>>=)),
+                                                      MonadPlus (mzero), guard,
+                                                      unless, when)
+import           Data.Bool                           (Bool (False), bool, not,
+                                                      otherwise, (&&), (||))
+import           Data.Char                           (Char, isLetter)
+import           Data.Either                         (Either (..), isRight)
+import           Data.Eq                             ((==))
+import           Data.Foldable                       (Foldable (elem), notElem)
+import           Data.Function                       (($))
+import           Data.Functor                        (Functor (fmap), void,
+                                                      ($>), (<$>))
+import           Data.List                           (intercalate, intersperse,
+                                                      tail, (++))
+import           Data.Maybe                          (Maybe (..), catMaybes,
+                                                      fromMaybe, isNothing)
+import           Data.Semigroup                      (Semigroup ((<>)))
+import           Data.String                         (String)
+import           Data.Text                           (Text, replace)
+import qualified Data.Text                           as Text
+import           Debug.Trace                         (traceShow)
+import           GHC.Base                            (undefined)
+import           GHC.Generics                        (Generic)
+import           Prelude                             (Applicative (pure, (*>), (<*)),
+                                                      Eq ((/=)),
+                                                      Foldable (null),
+                                                      Monoid (mconcat), error)
+import           Text.Parsec                         (ParseError, Parsec,
+                                                      anyChar, char, eof,
+                                                      evalParser, getInput,
+                                                      getState, letter,
+                                                      lookAhead, many, many1,
+                                                      manyTill, noneOf,
+                                                      notFollowedBy, oneOf,
+                                                      parse, parserTrace,
+                                                      runParser, satisfy,
+                                                      sepBy1, setState, space,
+                                                      spaces, string, try,
+                                                      updateState)
+import           Text.Parsec.Error                   (Message (Message))
+import           Text.ParserCombinators.Parsec.Error (newErrorMessage)
+import           Text.ParserCombinators.Parsec.Pos   (initialPos)
+import           Text.Show                           (Show (show))
+import           TextShow                            (TextShow (..), fromText)
+import           TextShow.Generic                    (genericShowbPrec)
 
 data SyllableData = SyllableData
   { sdWord      :: Text
@@ -60,7 +72,7 @@ data Result
 
 instance Eq Result where
   Success sd1 == Success sd2 = sd1 == sd2
-  _ == _ = False
+  _ == _                     = False
 
 instance TextShow Result where
   showb = \case
@@ -143,26 +155,46 @@ parseSyllables =
 
       where
         syllable =
-          try bio <|> try pseudoSyllable <|> realSyllable
+          try bmio <|> try pseudoSyllable <|> realSyllable
 
         pseudoSyllable = do
             v1 <- vowel
-            (v1 :) <$> (try bio <|> pseudoSyllable')
+            (v1 :) <$> (try bmio <|> pseudoSyllable')
           where
             pseudoSyllable' = do
-              c1 <- Text.pack <$> many1 consonant
+              c1 <- Text.pack <$> many1 consonantWOY
               v2 <- vowel
               rem <- Text.pack <$> many nextChar
               pure [c1 <> v2 <> rem]
 
-        bio = do
-          b <- next 'b'
+        bmio = do
+          bm <- try (next 'b') <|> next 'm'
           i <- next 'i'
           o <- next 'o'
-          pure [Text.pack [b, i], Text.singleton o]
+          pure [Text.pack [bm, i], Text.singleton o]
 
-        realSyllable = do
-          pure . Text.pack <$> many1 nextChar
+        realSyllable =
+            -- try hendl <|> (pure . Text.pack <$> many1 nextChar)
+            pure . Text.pack <$> many1 nextChar
+          where
+            -- TODO: doesn't work
+            hendl :: Parsec Text String [Text]
+            hendl = do
+
+              let syllableEnd =
+                    void (oneOf "|-") <|> (getState >>= bool mzero (pure ()) . null )
+
+                  consonantL = do
+                    c <- Text.singleton <$> consonant
+                    l <- Text.singleton <$> next 'l'
+                    syllableEnd
+                    pure (c, l)
+
+              chrs <- Text.pack <$> many (nextChar <* try (notFollowedBy $ try consonantL))
+              c1 <- Text.singleton <$> nextChar
+              (c2, l) <- consonantL
+              pure [chrs <> c1 <> c2, l]
+              -- pure [c1 <> c2, l]
 
         optionalHyphen =
           try (pure . Text.singleton <$> next '-') <|> pure []
@@ -185,11 +217,18 @@ parseSyllables =
               char x
             _      -> mzero
 
-        vowel =
+        vowel = do
           getState >>= \case
-            (x:xs) | x `elem` vowels -> do
+            (x:xs) | x `elem` ('y' : 'Y' : vowels) -> do
                        setState xs
                        Text.singleton <$> char x
+            _ -> mzero
+
+        consonantWOY =
+          getState >>= \case
+            (x:xs) | x `notElem` ('y' : 'Y' : '-' : vowels) -> do
+                       setState xs
+                       char x
             _ -> mzero
 
         consonant =
@@ -200,7 +239,7 @@ parseSyllables =
             _ -> mzero
 
 vowels :: String
-vowels = "AEIOUYÄÖÜÁÀÂÉÈÊÍÓÔÚaeiouyäöüáàâåéèêëíóôøû"
+vowels = "AEIOUÄÖÜÁÀÂÉÈÊÍÓÔÚaeiouäöüáàâåéèêëíóôøû"
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str =

@@ -69,6 +69,7 @@ executable palantype-ops
       , directory
       , filepath
       , formatting
+      , my-palantype
       , optparse-applicative
       , palantype-tools
       , parsec

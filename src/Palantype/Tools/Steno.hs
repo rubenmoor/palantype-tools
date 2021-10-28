@@ -24,7 +24,7 @@ import           Data.ByteString                     (ByteString)
 import qualified Data.ByteString                     as BS
 import qualified Data.ByteString.Lazy                as LBS
 import           Data.Char                           (Char)
-import           Data.Either                         (Either (..), either)
+import           Data.Either                         (Either (..), either, isLeft)
 import           Data.Eq                             (Eq ((==)))
 import           Data.FileEmbed                      (embedFile)
 import           Data.Foldable                       (Foldable (foldl, foldl', foldr, length, maximum, null, sum),
@@ -66,7 +66,7 @@ import           GHC.Err                             (error)
 import           GHC.Fingerprint.Type                (Fingerprint (Fingerprint))
 import           GHC.Float                           (Double)
 import           GHC.Generics                        (Generic)
-import           GHC.Num                             (Num (fromInteger, (-)),
+import           GHC.Num                             (Num (fromInteger, (-), (*)),
                                                       (+))
 import           GHC.Real                            (Fractional (fromRational, (/)),
                                                       fromIntegral, (^))
@@ -268,9 +268,9 @@ score (Success State{..}) =
   let scorePrimary =
           fromIntegral (unCountLetters stNLetters)
         / fromIntegral (unCountChords stNChords)
-      scoreSecondary = countKeys stSteno
+      scoreSecondary = (-1) * countKeys stSteno
   in  Score{..}
-score _ = Score 0 0
+score (Failure _ _) = Score 0 0
 
 -- | Try to fit as many letters as possible into a steno
 --   chord (a chord contains keys that can be typed all at once).
@@ -302,27 +302,30 @@ optimizeStenoSeries g st str | BS.head str == bsPipe =
   in  sequence [r1, r2] <&> \results ->
         maximumBy (comparing score) results
 optimizeStenoSeries g st str =
-  let ms = Trie.matches primitives str
-  in  if null ms
-        then  Left $ Text.decodeUtf8 str
-        else let lsEResult = ms <&> \(consumed, result, rem) ->
-                   -- TODO: always run all greediness levels
-                   --       and check if higher greediness yields different result
-                   case parseKey (filterGreediness g result) (stMFinger st) of
-                     Left  err -> Right $ Failure (snd <$> result) err
-                     Right (mFinger, lsKoS) ->
-                       let newSteno = case lsKoS of
-                             [kos] -> kos : stSteno st
-                             _     -> foldl' (flip (:)) (stSteno st) lsKoS
-                           newState = State
-                             { stSteno = newSteno
-                             , stNLetters = stNLetters st + countLetters consumed
-                             , stNChords = stNChords st + countChords lsKoS
-                             , stMFinger = mFinger
-                             }
-                       in  optimizeStenoSeries g newState rem
-             in  sequence lsEResult <&> \results ->
-                   maximumBy (comparing score) results
+    let matches = Trie.matches primitives str
+
+        matchToResult (consumed, result, rem) =
+          -- TODO: always run all greediness levels
+          --       and check if higher greediness yields different result
+          case parseKey (filterGreediness g result) (stMFinger st) of
+            Left  err -> Right $ Failure (snd <$> result) err
+            Right (mFinger, lsKoS) ->
+              let newSteno = case lsKoS of
+                    [kos] -> kos : stSteno st
+                    _     -> foldl' (flip (:)) (stSteno st) lsKoS
+                  newState = State
+                    { stSteno = newSteno
+                    , stNLetters = stNLetters st + countLetters consumed
+                    , stNChords = stNChords st + countChords lsKoS
+                    , stMFinger = mFinger
+                    }
+              in  optimizeStenoSeries g newState rem
+
+        eResults = case matches of
+              [] -> Left $ Text.decodeUtf8 str
+              ms -> sequence $ matchToResult <$> ms
+
+    in  maximumBy (comparing score) <$> eResults
   where
     filterGreediness
       :: Greediness
@@ -379,6 +382,8 @@ instance FromJSON PrimMap where
     where
       acc m pair = do
         (k, v) <- parseJSON pair
+        when (isLeft $ Raw.parseSteno @DE.Key $ snd v) $
+          fail $ "malformed raw steno: " <> Text.unpack k <> ": " <> show (snd v)
         let key = Text.encodeUtf8 k
         pure $ Map.insertWith (++) key [v] m
   parseJSON _ = mzero

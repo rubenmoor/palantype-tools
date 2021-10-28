@@ -1,11 +1,13 @@
 {-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Main where
 
 import           Args                       (OptionsStenoWords (..),
+                                             OptionsStenoWordsRun (..),
                                              OptionsSyllables (OSylArg, OSylFile),
-                                             Task (..), argOpts, OptionsStenoWordsRun (..))
+                                             Task (..), argOpts)
 import           Control.Applicative        (Alternative ((<|>)),
                                              Applicative (pure, (*>), (<*>)))
 import           Control.Category           (Category ((.)))
@@ -56,6 +58,9 @@ import           GHC.Real                   (Fractional ((/)), Real,
 import           Options.Applicative        (Parser, argument, command,
                                              execParser, idm, info, progDesc,
                                              str, subparser)
+import           Palantype.Common.RawSteno  (RawSteno (RawSteno))
+import qualified Palantype.Common.RawSteno  as RawSteno
+import qualified Palantype.DE.Keys          as DE
 import           Palantype.Tools.Statistics (plotScoresShow)
 import           Palantype.Tools.Steno      (ParseError (..),
                                              SeriesData (SeriesData, sdScore),
@@ -80,12 +85,19 @@ import           WCL                        (wcl)
 main :: IO ()
 main =
   execParser argOpts >>= \case
-    TaskSyllables opts  -> syllables opts
-    TaskStenoWords opts -> stenoWords opts
-    TaskPartsDict reset -> partsDict reset
+    TaskRawSteno   str   -> rawSteno   str
+    TaskSyllables  opts  -> syllables  opts
+    TaskStenoWords opts  -> stenoWords opts
+    TaskPartsDict  reset -> partsDict  reset
 
 fileSyllables :: FilePath
 fileSyllables = "syllables.txt"
+
+rawSteno
+  :: Text
+  -> IO ()
+rawSteno str =
+  StrictIO.putStrLn $ showt $ RawSteno.parseSteno @DE.Key (RawSteno str)
 
 syllables
   :: OptionsSyllables

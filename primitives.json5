@@ -30,7 +30,7 @@
 , [ "ca"  , [0, "GDA"]]   // phonetic k
 , [ "cä"  , [0, "SFÄ"]]  // phonetic z
 , [ "ce"  , [0, "SJE"]]  // onset: phonetic tsch: Cellist; coda: -ice
-, [ "ce"  , [1, "Se"]]
+, [ "ce"  , [1, "Ss"]]
 , [ "ch"  , [0, "SJ"]]  // normal case
 , [ "ch"  , [0, "Kʃ"]]
 , [ "chs" , [0, "KS"]]
@@ -44,6 +44,7 @@
 , [ "di"  , [1, "D-"]]
 , [ "dia" , [0, "DJA"]]
 , [ "ds"  , [0, "s"]]
+, [ "dsch", [0, "SDJ"]]      // note: also "ps" = SDJ TODO: documentation
 , [ "dt"  , [0, "-D"]]
 , [ "e"   , [0, "E"]]
 , [ "e"   , [1, "s"]]
@@ -57,6 +58,7 @@
 , [ "eer" , [0, "Es"]]       //       ee, eer -> Es
 , [ "eh"  , [0, "EO"]]
 , [ "ehr" , [0, "EO"]]
+, [ "eih" , [0, "EI"]]
 // , [ "en"  , [1, "N-"]] 
 , [ "en"  , [1, "n"]]        // TODO: greedier: "ren" -> n
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
@@ -91,10 +93,12 @@
 , [ "j"   , [0, "J"]]
 , [ "k"   , [0, "GD"]] 
 , [ "k"   , [0, "K"]]
+, [ "kh"  , [0, "K"]]       // Khmer
 // TODO: fe -> F maybe?
 // TODO: greedier: er : [0, "e"]
 , [ "l"   , [0, "L"]]
 , [ "lia" , [0, "JLA"]]     // think "lia"/"ila"
+, [ "lio" , [0, "JLO"]]     // think "lio"/"ilo"
 , [ "lg"  , [0, "LK"]]
 , [ "ll"  , [0, "-L"]]
 , [ "l|l" , [1, "-L"]]
@@ -109,7 +113,9 @@
 , [ "ñ"   , [0, "N"]]
 , [ "nch" , [0, "Nʃ"]]     // TODO: documentation, ch is Kʃ
 , [ "ng"  , [0, "+N"]]
+, [ "nia" , [0, "JNA"]]    // think "nia"/"ina"
 , [ "nk"  , [0, "+N"]]
+, [ "nck" , [0, "+N"]]     // Planck
 , [ "nn"  , [0, "-N"]]
 , [ "n|n" , [1, "-N"]]
 , [ "nz"  , [0, "+NS"]]
@@ -147,12 +153,13 @@
 // , "ren"  : [0, "e"]  // TODO: too greedy?
 , [ "s"   , [0, "S"]]
 , [ "s"   , [0, "s"]]
+, [ "sc"  , [0, "GDJ"]]     // scooter
 , [ "sch" , [0, "SJ"]]
-, [ "sch" , [0, "ʃ"]]
+, [ "sch" , [0, "ʃ"]]       // U+0283
 , [ "schm", [0, "SM"]]
-, [ "schl", [1, "Sl"]]
-, [ "schn", [1, "Sn"]]
-, [ "schr", [1, "Sr"]]
+, [ "schl", [1, "SL"]]
+, [ "schn", [1, "SN"]]
+, [ "schr", [1, "SR"]]
 , [ "schw", [0, "SW"]]
 , [ "sh"  , [0, "SJ"]]      // cash, auscashen
 , [ "sh"  , [0, "ʃ"]]       // cash, auscashen
@@ -167,13 +174,17 @@
 , [ "t"   , [0, "-D"]]
 , [ "te"  , [1, "DJ"]]     // TODO: maybe "-D"
 , [ "th"  , [0, "D"]]
+, [ "tia" , [0, "DJA"]]
+, [ "tja" , [0, "DJA"]]
 , [ "ti|o", [1, "DJO"]]
 , [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
+, [ "trio", [0, "DJRO"]]
 , [ "ts"  , [0, "SF"]]
 , [ "ts"  , [0, "s"]]
 , [ "tts" , [0, "s"]]
-, [ "tsch", [0, "SJ"]]      // TODO: documentation: -tsch like -scht
+, [ "tsch", [0, "SJ"]]      // TODO: documentation: tsch- like sch-
 , [ "tsch", [0, "ʃD"]]      // TODO: documentation: -tsch like -scht
+, [ "tscht", [0, "+ʃD"]]
 , [ "tz"  , [0, "+S"]]
 , [ "u"   , [0, "U"]]
 , [ "û"   , [0, "U"]]
@@ -183,6 +194,7 @@
 , [ "urr" , [0, "~U+"]]
 , [ "uß"  , [0, "~U+S"]]
 , [ "ü"   , [0, "Ü"]]
+, [ "üe"  , [0, "Ü"]]       // Bircher-Müesli
 , [ "üh"  , [0, "~Ü"]]
 , [ "ür"  , [0, "~Ü"]]
 , [ "ühr" , [0, "~Ü"]]
@@ -201,23 +213,64 @@
 , [ "-"   , [0, "HIFn"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
 // english
-, [ "dd"   , [0, "D"]]
 , [ "air"  , [0, "ÄO"]]       // think "är"
+, [ "ake"  , [0, "ÄIK"]]
+, [ "boiled", [0, "BEULD"]]
+, [ "byte" , [0, "BEID"]]
+, [ "code" , [0, "GDOD"]]
+, [ "kode" , [0, "GDOD"]]
+, [ "ate"  , [0, "ÄID"]]
+, [ "dd"   , [0, "D"]]
+, [ "dressed", [0, "DRESD"]]
+, [ "feed" , [0, "F~ID"]]
+, [ "hedge", [0, "HEʃD"]]     // like heschd (like hedsch)
+, [ "kee"  , [0, "GDI"]]      // barkeeper
+, [ "kite" , [0, "GDEID"]]
 , [ "oar"  , [0, "~O"]]       // e.g. board
+, [ "oor"  , [0, "~O"]]       // e.g. outdoor
 , [ "ou"   , [0, "AU"]]       // not pretty but efficient: french "ou" is AU, too (jour)
+, [ "our"  , [0, "AU"]]
+, [ "ride" , [0, "REID"]]
+, [ "road" , [0, "ROD"]]
 , [ "sales", [0, "SÄILS"]]
 , [ "shave", [0, "SJÄIF"]]
+, [ "speech", [0, "BFIʃD"]]  // speech, like spitsch (like spischt)
+, [ "suit" , [0, "SUD"]]
+, [ "own" , [0, "AUN"]]       // town, clown
+, [ "tch"  , [0, "ʃD"]]       // e.g. batch, tch like tsch, like scht
+, [ "tweet", [0, "BDW~ID"]]
+, [ "ue"   , [0, "U"]]       // e.g. blues
+, [ "whistle", [0, "WIS/SEL"]]
+, [ "white", [0, "WEID"]]
 // french
 , [ "aide" , [0, "ÄD"]]
+, [ "ance" , [0, "A+NS"]]     // think "onz"
 , [ "carte", [0, "GDAOD"]]    // think "kart"
 , [ "eau"  , [0, "O"]]        // Chateau
 , [ "ence" , [0, "O+NS"]]     // think "onz"
 , [ "ette" , [0, "ED"]]
-, [ "ueule" , [0, "EU"]]      // amuse-gueule
+, [ "ique" , [0, "IK"]]
+, [ "guette" , [0, "GED"]]
+, [ "eur"  , [0, "ÄO"]]       // think "ör"
 , [ "oire" , [0, "~O"]]
+, [ "ouil|le", [0, "U/~I"]]
+, [ "ueule", [0, "EU"]]      // amuse-gueule
+, [ "sieur" , [0, "SJÄO"]]    // Monsieur, think sjö
 // syllable exceptions
-, [ "tion", [0, "SJEN"]]      // think "schen" like in action; "ti|o" is dealt with regularly
-, [ "beef", [0, "BIF"]]
-, [ "count", [0, "GDAUND"]]
-, [ "steak", [0, "SDÄK"]]
+, [ "beef"  , [0, "BIF"]]
+, [ "guide" , [0, "GEID"]]
+, [ "hawaii", [0, "HA/WAI"]]
+, [ "heia"  , [0, "HEI/A"]]
+, [ "holtz" , [0, "HOLs"]]
+, [ "kuit"  , [0, "GDWID"]]     // Biskuit
+, [ "oa|se" , [0, "O/A/SE"]]
+, [ "screen", [0, "GDJRIN"]]
+, [ "seel"  , [0, "SEOL"]]
+, [ "side"  , [0, "SEID"]]
+, [ "steak" , [0, "SDÄK"]]
+, [ "taur"  , [0, "GDAU"]]       // Minotaur
+, [ "tion"  , [0, "SJEN"]]      // think "schen" like in action; "ti|o" is dealt with regularly
+, [ "wide"  , [0, "WEID"]]
+// common abbreviations
+, [ "kfz"   , [0, "GFS"]]
 ]

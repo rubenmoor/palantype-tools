@@ -16,7 +16,8 @@ import Data.Function (($))
 import Data.Int (Int)
 
 data Task
-  = TaskSyllables OptionsSyllables
+  = TaskRawSteno Text
+  | TaskSyllables OptionsSyllables
   | TaskStenoWords OptionsStenoWords
   | TaskPartsDict Bool
 
@@ -38,10 +39,15 @@ argOpts = info (helper <*> task) mempty
 
 task :: Parser Task
 task = subparser
-  (  command "syllables"  (info (TaskSyllables  <$> optsSyllables  <* helper) syllablesInfo)
-  <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords <* helper) stenoWordsInfo)
-  <> command "stenoDict"  (info (TaskPartsDict  <$> switchReset    <* helper) stenoDictInfo)
+  (  command "rawSteno"   (info (TaskRawSteno   <$> arg rawStenoHelp <* helper) syllablesInfo)
+  <> command "syllables"  (info (TaskSyllables  <$> optsSyllables    <* helper) syllablesInfo)
+  <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords   <* helper) stenoWordsInfo)
+  <> command "stenoDict"  (info (TaskPartsDict  <$> switchReset      <* helper) stenoDictInfo)
   )
+  where
+    rawStenoHelp =
+      "Parse raw steno like \"A/HIFn/LA/HIFn/GDAOD\" into a steno chord to \
+      \validate it."
 
 switchReset :: Parser Bool
 switchReset = switch
