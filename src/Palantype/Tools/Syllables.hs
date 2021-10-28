@@ -3,7 +3,7 @@
 
 module Palantype.Tools.Syllables where
 
-import           Control.Applicative    (Alternative ((<|>)), Applicative ((<*>)))
+import           Control.Applicative    (Alternative ((<|>)), Applicative ((<*>)), optional)
 import           Control.Category       (Category ((.)))
 import           Control.Exception.Base (mapException)
 import           Control.Monad          (Monad ((>>), (>>=)), MonadPlus (mzero),
@@ -16,7 +16,7 @@ import           Data.Foldable          (Foldable (elem), notElem)
 import           Data.Function          (($))
 import           Data.Functor           (Functor (fmap), void, (<$>), ($>))
 import           Data.List              (intercalate, intersperse, tail, (++))
-import           Data.Maybe             (Maybe (..), catMaybes, isNothing)
+import           Data.Maybe             (Maybe (..), catMaybes, isNothing, fromMaybe)
 import           Data.Semigroup         (Semigroup ((<>)))
 import           Data.String            (String)
 import           Data.Text              (Text, replace)
@@ -32,11 +32,14 @@ import           Text.Parsec            (ParseError, Parsec, anyChar, char,
                                          notFollowedBy, oneOf, parse,
                                          parserTrace, runParser, satisfy,
                                          sepBy1, setState, space, spaces,
-                                         string, try, updateState)
+                                         string, try, updateState, lookAhead)
 import           Text.Show              (Show (show))
 import           TextShow               (TextShow (..), fromText)
 import           TextShow.Generic       (genericShowbPrec)
 import Data.Bool (Bool(False))
+import Text.ParserCombinators.Parsec.Error (newErrorMessage)
+import Text.Parsec.Error (Message(Message))
+import Text.ParserCombinators.Parsec.Pos (initialPos)
 
 data SyllableData = SyllableData
   { sdWord      :: Text
@@ -93,9 +96,10 @@ parseSyllables =
                       then error $ Text.unpack $ "Empty state: " <> str
                       else Text.unpack sdWord
           -- let st = Text.unpack $ replace "-" "" sdWord
-          in case runParser syllables st "" rem of
-               Right sdSyllables -> Success $ SyllableData {..}
-               Left  err         -> Failure err
+          in case evalParser syllables st "" rem of
+               Right ("", sdSyllables) -> Success $ SyllableData {..}
+               Right (str, _)          -> Failure $ newErrorMessage (Message $ "Failed to parse syllalbes; remaining state: " <> str) (initialPos "")
+               Left  err               -> Failure err
 
     -- | parse "zusammenhangslos >>> zu|sam|men|hangs|los ..." into
     --   ("zusammenhangslos", "zu|sam|men|hangs|los ...")
@@ -132,9 +136,9 @@ parseSyllables =
     syllables = do
         (x:_) <- getState
         void $ many $ satisfy (/= x)
-        mconcat <$> sepBy1 ((++) <$> syllable <*> hyphen) (oneOf "|")
-
-        -- mconcat <$> sepBy1 (intersperse "-" <$> sepByHyphen) (char '|')
+        mconcat <$>
+          sepBy1 ((++) <$> optionalHyphen <*> syllable)
+                 (try (char '|') <|> lookAhead hyphen)
 
       where
         syllable =
@@ -142,35 +146,49 @@ parseSyllables =
 
         pseudoSyllable = do
           v1 <- vowel
-          c <- consonant
+          c1 <- consonant
+          c2 <- fromMaybe "" <$> optional (try consonant)
           v2 <- vowel
-          rem <- many1 character
-          pure [Text.singleton v1, Text.pack $ c : v2 : rem]
+          rem <- Text.pack <$> many character
+          pure [v1, c1 <> c2 <> v2 <> rem]
 
         realSyllable = do
           pure . Text.pack <$> many1 character
 
-        hyphen =
-          try (char '-' *> updateState tail $> ["-"]) <|> pure []
+        optionalHyphen =
+          try (pure . Text.singleton <$> hyphen) <|> pure []
 
         character :: Parsec Text String Char
         character =
           getState >>= \case
-            []     -> mzero
-            (x:xs) -> setState xs *> char x
+            (x:xs) | x /= '-' -> do
+                       setState xs
+                       char x
+            _ -> mzero
 
         vowel =
           getState >>= \case
-            (x:xs) | x `elem` vowels -> setState xs *> char x
-            _                        -> mzero
+            (x:xs) | x `elem` vowels -> do
+                       setState xs
+                       Text.singleton <$> char x
+            _ -> mzero
 
         consonant =
           getState >>= \case
-            (x:xs) | x `notElem` vowels -> setState xs *> char x
-            _                              -> mzero
+            (x:xs) | x `notElem` vowels -> do
+                       setState xs
+                       Text.singleton <$> char x
+            _ -> mzero
+
+        hyphen =
+          getState >>= \case
+            ('-':xs) -> do
+              setState xs
+              char '-'
+            _ -> mzero
 
 vowels :: String
-vowels = "aeiouyäöüáàêâôåéèëíóôøû"
+vowels = "AEIOUYÄÖÜÁÀÂÉÈÊÍÓÔÚaeiouyäöüáàâåéèêëíóôøû"
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str =

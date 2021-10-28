@@ -10,7 +10,7 @@ import           Options.Applicative (Alternative ((<|>)),
                                       Applicative ((<*), (<*>)), Parser,
                                       ParserInfo, argument, command, flag',
                                       help, helper, info, long, progDesc, short,
-                                      str, strOption, subparser, switch, (<$>), metavar, optional, option, auto)
+                                      str, strOption, subparser, switch, (<$>), metavar, optional, option, auto, value)
 import           System.IO           (FilePath)
 import Data.Function (($))
 import Data.Int (Int)
@@ -92,6 +92,7 @@ mOutputFile = optional $ strOption
 greediness = option auto
   (   long "greediness"
   <> short 'g'
+  <> value 3
   <> help "Greediness 0: use the minimal set of primitive patterns. greediness \
           \3: use all available patterns."
   )

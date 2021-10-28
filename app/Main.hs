@@ -224,7 +224,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
           , fileStenoWordsMissingPrimitives
           , fileStenoWordsParsecErrors
           ]
-    when reset $
+    when reset $ do
+      StrictIO.putStrLn $ "Deleting files: " <> Text.unwords (showt <$> lsFiles)
       for_ lsFiles $ \file -> do
         exists <- doesFileExist file
         when exists $ removeFile file
@@ -272,7 +273,10 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
           acc :: HashMap Text SeriesData -> Lazy.Text -> IO (HashMap Text SeriesData)
           acc m str =
-            let [word, hyphenated] = splitOn " " $ Lazy.toStrict str
+            let [word, hyphenated] =
+                  case splitOn " " $ Lazy.toStrict str of
+                    [w, h] -> [w, h]
+                    _      -> error $ Text.unpack $ Lazy.toStrict $ "illegal entry: " <> str
             in  case parseSeries greediness hyphenated of
                   Left err  -> do
                     case err of
@@ -303,7 +307,6 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
         appendLine fileStenoWords str
         maybe (pure ()) (`appendLine` str) mFileOutput
 
-      appendLine tmpFileNoParse "END"
       renamePath tmpFileNoParse fileStenoWordsNoParse
 
 stenoWords OStwShowChart = do

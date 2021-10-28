@@ -90,6 +90,7 @@
 , [ "l"   , [0, "L"]]
 , [ "ll"  , [0, "-L"]]
 , [ "l|l" , [1, "-L"]]
+, [ "lz"  , [0, "-LS"]]
 , [ "m"   , [0, "M"]]
 , [ "mm"  , [0, "-M"]]
 , [ "m|m" , [1, "-M"]]
@@ -148,6 +149,7 @@
 , [ "ti|o", [1, "DJO"]]
 , [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
 , [ "ts"  , [0, "SF"]]
+, [ "ds"  , [0, "s"]]
 , [ "ts"  , [0, "s"]]
 , [ "tsch", [0, "SJ"]]      // TODO: documentation: -tsch like -scht
 , [ "tsch", [0, "ʃD"]]      // TODO: documentation: -tsch like -scht
