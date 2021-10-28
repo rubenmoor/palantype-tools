@@ -1,4 +1,6 @@
-{ "Beautyfarm": "BJU/DJI/FAOM" // more efficient, but wrong BO
+{ "Aorta"     : "A/~O/DJA"
+, "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
+, "Beautyfarm": "BJU/DJI/FAOM" // more efficient, but wrong BO
 , "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
 , "Düne"      : "DÜ/NE"        // < Dünne
 , "Egge"      : "EK/G"         // < Ecke

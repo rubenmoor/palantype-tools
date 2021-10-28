@@ -22,8 +22,8 @@
 , [ "b"   , [0, "P"]]
 , [ "be"  , [1, "B"]] // TODO: greediness 1
 // , "beau|ty" : [0, "BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
-//                              pattern eau, thus: exception
-, [ "beef", [0, "BIF"]]
+//                              pattern eau, thus: full word exception
+, [ "bi|o", [1, "BJO"]]
 , [ "c"   , [0, "GD"]]
 , [ "c"   , [0, "K"]]
 , [ "ç"   , [0, "SF"]]          // U+00E7
@@ -33,15 +33,18 @@
 , [ "ce"  , [1, "Se"]]
 , [ "ch"  , [0, "SJ"]]  // normal case
 , [ "ch"  , [0, "Kʃ"]]
+, [ "chs" , [0, "KS"]]
 , [ "ci"  , [0, "SFI"]]      // normal case
-, [ "cia" , [0, "SJIA"]]     // phonetic tsch: ciao, ciabatta
+, [ "cia" , [0, "SJA"]]      // phonetic tsch: ciao, ciabatta
 , [ "ck"  , [0, "GD"]]
 , [ "ck"  , [0, "K"]]
 , [ "d"   , [0, "D"]]
+, [ "d|d" , [1, "D"]]
 , [ "de"  , [1, "D-"]]
 , [ "di"  , [1, "D-"]]
+, [ "dia" , [0, "DJA"]]
+, [ "ds"  , [0, "s"]]
 , [ "dt"  , [0, "-D"]]
-, [ "d|d" , [1, "D"]]
 , [ "e"   , [0, "E"]]
 , [ "e"   , [1, "s"]]
 // , "e"   : [0, "e"] // TODO: greedier: -e
@@ -50,7 +53,6 @@
 , [ "ê"   , [0, "E"]]
 , [ "ë"   , [0, "E"]]        // U+00EB
 , [ "ea"  , [0, "I"]]        // Angl. "beat" "beamer", "team"
-//, "eau"  : [0, "O"]        // Frnz. Chateau
 , [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
 , [ "eer" , [0, "Es"]]       //       ee, eer -> Es
 , [ "eh"  , [0, "EO"]]
@@ -71,13 +73,17 @@
 , [ "g"   , [0, "K"]]
 , [ "ge"  , [1, "G"]]
 , [ "g|g" , [1, "G"]]
+, [ "gui" , [0, "GI"]]
 , [ "h"   , [0, "H"]]
 , [ "i"   , [0, "I"]]
 , [ "í"   , [0, "I"]]
+, [ "ia"  , [0, "JA"]]
 , [ "ie"  , [0, "~I"]]
+, [ "ieh" , [0, "~I"]]
 , [ "ier" , [0, "~I"]]
 , [ "ih"  , [0, "~I"]]
 , [ "ihr" , [0, "~I"]]
+, [ "io"  , [0, "JO"]]      // TODO: doesn't solve mio, wio, lio, nio, rio, note: i|o is addressed by syllable parser
 , [ "ir"  , [0, "~I"]]
 , [ "irr" , [0, "~I+"]]
 , [ "iß"  , [0, "~I+S"]]
@@ -88,8 +94,11 @@
 // TODO: fe -> F maybe?
 // TODO: greedier: er : [0, "e"]
 , [ "l"   , [0, "L"]]
+, [ "lia" , [0, "JLA"]]     // think "lia"/"ila"
+, [ "lg"  , [0, "LK"]]
 , [ "ll"  , [0, "-L"]]
 , [ "l|l" , [1, "-L"]]
+, [ "lm"  , [0, "+"]]
 , [ "lz"  , [0, "-LS"]]
 , [ "m"   , [0, "M"]]
 , [ "mm"  , [0, "-M"]]
@@ -103,12 +112,14 @@
 , [ "nk"  , [0, "+N"]]
 , [ "nn"  , [0, "-N"]]
 , [ "n|n" , [1, "-N"]]
+, [ "nz"  , [0, "+NS"]]
 , [ "o"   , [0, "O"]]
 , [ "ó"   , [0, "O"]]
 , [ "ô"   , [0, "O"]]
 , [ "ø"   , [0, "ÄO"]]      // U+00F8
 , [ "oh"  , [0, "~O"]]
 , [ "ohr" , [0, "~O"]]
+, [ "oi"  , [0, "EU"]]
 , [ "oo"  , [0, "~O"]]
 , [ "or"  , [0, "~O"]]
 , [ "orr" , [0, "~O+"]]
@@ -122,35 +133,45 @@
 , [ "p"   , [0, "P"]]
 , [ "p"   , [0, "BD"]]
 , [ "pf"  , [0, "BF"]]
+, [ "ph"  , [0, "F"]]     // TODO: documentation
 , [ "pp"  , [0, "P"]]
 , [ "p|p" , [1, "P"]]
 , [ "ps"  , [0, "SDJ"]]     // TODO: documentation
 , [ "qi"  , [0, "SJI"]]
 , [ "qu"  , [0, "GDW"]]
 , [ "r"   , [0, "R"]]
+, [ "rh"  , [0, "R"]]
+, [ "ria" , [0, "JRA"]]     // think "ria"/"ira"
+, [ "rio" , [0, "JRO"]]     // think "rio"/"iro"
 // "re" TODO: more efficiency
 // , "ren"  : [0, "e"]  // TODO: too greedy?
 , [ "s"   , [0, "S"]]
 , [ "s"   , [0, "s"]]
 , [ "sch" , [0, "SJ"]]
 , [ "sch" , [0, "ʃ"]]
+, [ "schm", [0, "SM"]]
+, [ "schl", [1, "Sl"]]
+, [ "schn", [1, "Sn"]]
+, [ "schr", [1, "Sr"]]
 , [ "schw", [0, "SW"]]
 , [ "sh"  , [0, "SJ"]]      // cash, auscashen
 , [ "sh"  , [0, "ʃ"]]       // cash, auscashen
 , [ "sp"  , [0, "BF"]]      // TODO: documentation
+, [ "sk"  , [0, "GDJ"]]     // TODO: documentation x, sk -> GDJ
+, [ "sk"  , [0, "KS"]]      // tink "sk"/"ks"
 , [ "ss"  , [0, "S"]]
 , [ "s|s" , [1, "S"]]
 , [ "st"  , [0, "SD"]]
-, [ "steak", [0, "SDÄK"]]   // TODO: syllable exception?
 , [ "ß"   , [0, "S"]]       // TODO: ß in onset: probably collisions
 , [ "t"   , [0, "DJ"]]
 , [ "t"   , [0, "-D"]]
 , [ "te"  , [1, "DJ"]]     // TODO: maybe "-D"
+, [ "th"  , [0, "D"]]
 , [ "ti|o", [1, "DJO"]]
 , [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
 , [ "ts"  , [0, "SF"]]
-, [ "ds"  , [0, "s"]]
 , [ "ts"  , [0, "s"]]
+, [ "tts" , [0, "s"]]
 , [ "tsch", [0, "SJ"]]      // TODO: documentation: -tsch like -scht
 , [ "tsch", [0, "ʃD"]]      // TODO: documentation: -tsch like -scht
 , [ "tz"  , [0, "+S"]]
@@ -179,4 +200,24 @@
 , [ "z"   , [0, "+S"]]
 , [ "-"   , [0, "HIFn"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
+// english
+, [ "dd"   , [0, "D"]]
+, [ "air"  , [0, "ÄO"]]       // think "är"
+, [ "oar"  , [0, "~O"]]       // e.g. board
+, [ "ou"   , [0, "AU"]]       // not pretty but efficient: french "ou" is AU, too (jour)
+, [ "sales", [0, "SÄILS"]]
+, [ "shave", [0, "SJÄIF"]]
+// french
+, [ "aide" , [0, "ÄD"]]
+, [ "carte", [0, "GDAOD"]]    // think "kart"
+, [ "eau"  , [0, "O"]]        // Chateau
+, [ "ence" , [0, "O+NS"]]     // think "onz"
+, [ "ette" , [0, "ED"]]
+, [ "ueule" , [0, "EU"]]      // amuse-gueule
+, [ "oire" , [0, "~O"]]
+// syllable exceptions
+, [ "tion", [0, "SJEN"]]      // think "schen" like in action; "ti|o" is dealt with regularly
+, [ "beef", [0, "BIF"]]
+, [ "count", [0, "GDAUND"]]
+, [ "steak", [0, "SDÄK"]]
 ]
