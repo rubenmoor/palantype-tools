@@ -4,8 +4,8 @@
 , [ "à"   , [0, "A"]]
 , [ "â"   , [0, "A"]]
 , [ "å"   , [0, "A"]]          // Ux00E5
-, [ "aa"  , [0, "AO"]]
-, [ "aar" , [0, "AO"]]
+, [ "aa"  , [0, "A/A"]]
+, [ "aar" , [0, "A/AO"]]
 , [ "ae"  , [0, "AI"]]         // e.g. aerodynamisch
 , [ "ah"  , [0, "AO"]]
 , [ "ahr" , [0, "AO"]]
@@ -57,6 +57,7 @@
 , [ "ea"  , [0, "I"]]        // Angl. "beat" "beamer", "team"
 , [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
 , [ "ee"  , [0, "E/E"]]      // 
+, [ "eer" , [0, "E/EO"]]
 , [ "ée"  , [0, "Es"]]
 , [ "eh"  , [0, "EO"]]
 , [ "ehr" , [0, "EO"]]
@@ -130,6 +131,7 @@
 , [ "ohr" , [0, "~O"]]
 , [ "oi"  , [0, "EU"]]
 , [ "oo"  , [0, "O/O"]]
+, [ "oor" , [0, "O/~O"]]
 , [ "or"  , [0, "~O"]]
 , [ "orr" , [0, "~O+"]]
 , [ "oß"  , [0, "~O+S"]]
@@ -314,7 +316,7 @@
 , [ "carte", [0, "GDAOD"]]    // think "kart"
 , [ "creme", [0, "GDREM"]]
 , [ "eau"  , [0, "O"]]        // Chateau
-, [ "elle" , [0, "EL]]
+, [ "elle" , [0, "EL"]]
 , [ "ence" , [0, "O+NS"]]     // think "onz"
 , [ "ette" , [0, "ED"]]
 , [ "eur"  , [0, "ÄO"]]       // think "ör"
