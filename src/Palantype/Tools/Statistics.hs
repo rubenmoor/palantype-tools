@@ -1,34 +1,31 @@
 module Palantype.Tools.Statistics where
 
 import           Control.Category                       (Category ((.)))
-import           Control.Lens.Getter                    ((^.))
 import           Control.Lens.Setter                    ((.~), (?~))
 import           Data.Default                           (Default (def))
+import           Data.Foldable                          (Foldable (length))
 import           Data.Function                          (($), (&))
 import           Data.Functor                           (void)
-import           Data.Int                               (Int)
-import           Data.Maybe                             (Maybe (Nothing, Just))
-import           Data.Text.IO                           (putStrLn)
+import           Data.Semigroup                         (Semigroup ((<>)))
 import           GHC.Float                              (Double)
-import           Graphics.Rendering.Chart               (Plot,
-                                                         Renderable (render),
+import           Graphics.Rendering.Chart               (Plot, Renderable,
                                                          defaultFloatPlotHist,
-                                                         histToPlot,
+                                                         histToPlot, la_nLabels,
+                                                         la_nTicks,
+                                                         laxis_generate,
                                                          layout_plots,
                                                          layout_title,
+                                                         layout_x_axis,
                                                          plot_hist_bins,
                                                          plot_hist_range,
+                                                         plot_hist_title,
                                                          plot_hist_values,
-                                                         plot_render,
-                                                         toRenderable, plot_hist_title, layout_x_axis, autoScaledAxis, laxis_generate, la_nLabels, la_nTicks, scaledAxis)
-import           Graphics.Rendering.Chart.Backend.Cairo (renderableToFile,
-                                                         toFile)
+                                                         scaledAxis,
+                                                         toRenderable)
+import           Graphics.Rendering.Chart.Backend.Cairo (renderableToFile)
 import           Graphics.Rendering.Chart.Gtk           (renderableToWindow)
-import           Graphics.Rendering.Chart.State         (plot)
 import           System.IO                              (FilePath, IO)
-import Text.Show (Show(show))
-import Data.Semigroup (Semigroup((<>)))
-import Data.Foldable (Foldable(length))
+import           Text.Show                              (Show (show))
 
 histogram
   :: [Double]

@@ -49,6 +49,7 @@ in
           oldAttrs.nativeBuildInputs ++ [
             easy-hls
             cabal-install
+            brittany
           ];
       });
     exec = drv;

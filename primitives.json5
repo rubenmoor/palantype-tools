@@ -1,11 +1,37 @@
 // apart from the single-line comments '//', this is valid json
+// the rules for each entry:
+//   * the whole file is a json array
+//   * each value is an array with two values
+//     * the first entry is the original text (written German)
+//     * the second entry is an array describing a steno pattern
+//   * the same input text can appear multiple times to allow multiple distinct steno patterns
+//   * e.g. "c" points to GD (in the onset) and K (in the coda of a syllable)
+//   * the arry describing the steno patterns has at least two values
+//     * the first value is the greediness (see below)
+//     * the second value is one or more steno keys
+//     * a / in the steno keys is allowed and marks a new chord
+//     * e.g. "Meer" maps to "ME/EO" due to the pattern for "eer"
+//     * the patterns containing / require part-length information
+//         * in patterns w/o / the part-length is equal to the length of the original text
+//         * in patterns with /, the part-length is given by a number
+//         * e.g. in "eer", [0, "E/EO", 1] the length of the first part is 1,
+//           corresponding to the first "e" in "eer"
+//         * the length of the second part is the length of the remaining text "er", 2
+//   * greediness is a number from 0 to the current maximum of 2
+//     * 0 corresponds to the minimum complete set of steno pattern
+//     * every letter of original text must be covered by at least one greediness-0-pattern (G0-patterns)
+//     * 1 corresponds to "greedier" patterns, e.g. patterns that make use of the steno key n
+//       to increase efficiency (less chords per letter)
+//     * ideally, G1-patterns don't cause any ambiguity or confusion (tbd.)
+//     * 2 should correspond to experimental patterns that, ideally, increase efficiency
+//       but might result in weird and impractical patterns
 [ [ "a"   , [0, "A"]]
 , [ "á"   , [0, "A"]]
 , [ "à"   , [0, "A"]]
 , [ "â"   , [0, "A"]]
 , [ "å"   , [0, "A"]]          // Ux00E5
-, [ "aa"  , [0, "A/A"]]
-, [ "aar" , [0, "A/AO"]]
+, [ "aa"  , [0, "A/A", 1]]
+, [ "aar" , [0, "A/AO", 1]]
 , [ "ae"  , [0, "AI"]]         // e.g. aerodynamisch
 , [ "ah"  , [0, "AO"]]
 , [ "ahr" , [0, "AO"]]
@@ -56,8 +82,8 @@
 , [ "ë"   , [0, "E"]]        // U+00EB
 , [ "ea"  , [0, "I"]]        // Angl. "beat" "beamer", "team"
 , [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
-, [ "ee"  , [0, "E/E"]]      // 
-, [ "eer" , [0, "E/EO"]]
+, [ "ee"  , [0, "E/E", 1]]      // 
+, [ "eer" , [0, "E/EO", 1]]
 , [ "ée"  , [0, "Es"]]
 , [ "eh"  , [0, "EO"]]
 , [ "ehr" , [0, "EO"]]
@@ -130,8 +156,8 @@
 , [ "oh"  , [0, "~O"]]
 , [ "ohr" , [0, "~O"]]
 , [ "oi"  , [0, "EU"]]
-, [ "oo"  , [0, "O/O"]]
-, [ "oor" , [0, "O/~O"]]
+, [ "oo"  , [0, "O/O", 1]]
+, [ "oor" , [0, "O/~O", 1]]
 , [ "or"  , [0, "~O"]]
 , [ "orr" , [0, "~O+"]]
 , [ "oß"  , [0, "~O+S"]]
@@ -231,7 +257,7 @@
 , [ "choice", [0, "SJEUS"]]
 , [ "code" , [0, "GDOD"]]
 , [ "come" , [0, "GDAM"]]
-, [ "con|ve|ni|e|nce", [0, "GDON/WE/NI/+NS"]]
+, [ "con|ve|ni|e|nce", [0, "GDON/WE/NI/+NS", 3, 2, 2]]
 , [ "core" , [0, "GD~O"]]
 , [ "dale" , [0, "DÄIL"]]
 , [ "dd"   , [0, "D"]]
@@ -240,7 +266,7 @@
 , [ "dressed", [0, "DRESD"]]
 , [ "drive", [0, "DREIF"]]
 , [ "duke" , [0, "DUK"]]
-, [ "em|pire", [0, "EM/BDEI/R"]] // TODO: documentation, very irregular
+, [ "em|pire", [0, "EM/BDEI/R", 2, 2]] // TODO: documentation, very irregular
 , [ "feed" , [0, "F~ID"]]
 , [ "file" , [0, "FEIL"]]
 , [ "frame" , [0, "FRÄIM"]]
@@ -252,7 +278,7 @@
 , [ "hype" , [0, "HEIP"]]
 , [ "ife"  , [0, "EIF"]]       // life
 , [ "ike" , [0, "EIK"]]
-, [ "i|mage", [0, "I/MÄʃD"]]
+, [ "i|mage", [0, "I/MÄʃD", 1]]
 , [ "ime"  , [0, "EIM"]]       // e.g. time, prime
 , [ "tive" , [0, "DJIF"]]     // e.g. incentive
 , [ "tube" , [0, "DJUP"]]     // youtube
@@ -272,7 +298,7 @@
 , [ "nage" , [0, "NÄʃD"]]     // ma|nage|ment
 , [ "nice" , [0, "NEIS"]]
 , [ "oar"  , [0, "~O"]]       // e.g. board
-, [ "of|fice", [0, "OF/FIS"]]
+, [ "of|fice", [0, "OF/FIS", 2]]
 , [ "one"  , [0, "ON"]]
 , [ "ou"   , [0, "AU"]]       // not pretty but efficient: french "ou" is AU, too (jour)
 , [ "our"  , [0, "AU"]]
@@ -287,7 +313,7 @@
 , [ "save" , [0, "SÄIF"]]
 , [ "safe" , [0, "SÄIF"]]
 , [ "scope" , [0, "GDJOP"]]
-, [ "ser|vice", [0, "SEO/FIS"]]
+, [ "ser|vice", [0, "SEO/FIS", 3]]
 , [ "share", [0, "SJÄO"]]
 , [ "shave", [0, "SJÄIF"]]
 , [ "shire", [0, "SJEO"]]
@@ -306,13 +332,13 @@
 , [ "ue"   , [0, "U"]]       // e.g. blues
 , [ "verse", [0, "FEOS"]]    // reverse
 , [ "ware" , [0, "WÄO"]]     // TODO: are as EO?
-, [ "whistle", [0, "WIS/SEL"]]
+, [ "whistle", [0, "WIS/SEL", 3]]
 , [ "white", [0, "WEID"]]
 // french
 , [ "aide" , [0, "ÄD"]]
 , [ "aire" , [0, "ÄO"]]
 , [ "ance" , [0, "A+NS"]]     // think "onz"
-, [ "beige" , [0, "BEʃ"]]
+, [ "beige", [0, "BEʃ"]]
 , [ "carte", [0, "GDAOD"]]    // think "kart"
 , [ "creme", [0, "GDREM"]]
 , [ "eau"  , [0, "O"]]        // Chateau
@@ -320,7 +346,7 @@
 , [ "ence" , [0, "O+NS"]]     // think "onz"
 , [ "ette" , [0, "ED"]]
 , [ "eur"  , [0, "ÄO"]]       // think "ör"
-, [ "guette" , [0, "GED"]]
+, [ "guette", [0, "GED"]]
 , [ "geoi" , [0, "J~O"]]      // bour|geoi|sie
 , [ "gime" , [0, "JIM"]]      // regime
 , [ "homme", [0, "HOM"]]
@@ -328,7 +354,7 @@
 , [ "mage" , [0, "MAʃ"]]      // hommage
 , [ "mousse", [0, "M~US"]]
 , [ "oire" , [0, "~O"]]
-, [ "ouil|le", [0, "U/~I"]]
+, [ "ouil|le", [0, "U/~I", 4]]
 , [ "pere"  , [0, "BDEO"]]    // ampere
 , [ "ueule", [0, "EU"]]       // amuse-gueule
 , [ "seille", [0, "SEI"]]     // Marseille
@@ -340,13 +366,13 @@
 , [ "beef"  , [0, "BIF"]]
 , [ "geest" , [0, "GEOSD"]]
 , [ "guide" , [0, "GEID"]]
-, [ "hawaii", [0, "HA/WAI"]]
-, [ "heia"  , [0, "HEI/A"]]
+, [ "hawaii", [0, "HA/WAI", 2]]
+, [ "heia"  , [0, "HEI/A", 3]]
 , [ "holtz" , [0, "HOLs"]]
 , [ "kuit"  , [0, "GDWID"]]     // Biskuit
-, [ "laie"  , [0, "LA/JE"]]
-, [ "oa|se" , [0, "O/A/SE"]]
-, [ "ral|lye", [0, "RAL/LI"]]
+, [ "laie"  , [0, "LA/JE", 2]]
+, [ "oa|se" , [0, "O/A/SE", 1, 1]]
+, [ "ral|lye", [0, "RAL/LI", 3]]
 , [ "screen", [0, "GDJRIN"]]
 , [ "seel"  , [0, "SEOL"]]
 , [ "side"  , [0, "SEID"]]

@@ -1,52 +1,43 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module Palantype.Tools.Syllables where
 
 import           Control.Applicative                 (Alternative ((<|>)),
-                                                      Applicative ((<*>)),
-                                                      optional)
+                                                      Applicative ((<*>)))
 import           Control.Category                    (Category ((.)))
-import           Control.Exception.Base              (mapException)
-import           Control.Monad                       (Monad ((>>), (>>=)),
-                                                      MonadPlus (mzero), guard,
-                                                      unless, when)
+import           Control.Monad                       (Monad ((>>=)),
+                                                      MonadPlus (mzero), when)
 import           Data.Bool                           (Bool (False), bool, not,
-                                                      otherwise, (&&), (||))
+                                                      otherwise, (||))
 import           Data.Char                           (Char, isLetter)
 import           Data.Either                         (Either (..), isRight)
 import           Data.Eq                             ((==))
 import           Data.Foldable                       (Foldable (elem), notElem)
 import           Data.Function                       (($))
-import           Data.Functor                        (Functor (fmap), void,
-                                                      ($>), (<$>))
-import           Data.List                           (intercalate, intersperse,
-                                                      tail, (++))
-import           Data.Maybe                          (Maybe (..), catMaybes,
-                                                      fromMaybe, isNothing)
+import           Data.Functor                        (Functor (fmap), void, (<$>))
+import           Data.List                           (intersperse, (++))
+import           Data.Maybe                          (Maybe (..), catMaybes, isNothing)
 import           Data.Semigroup                      (Semigroup ((<>)))
 import           Data.String                         (String)
-import           Data.Text                           (Text, replace)
+import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
-import           Debug.Trace                         (traceShow)
-import           GHC.Base                            (undefined)
 import           GHC.Generics                        (Generic)
 import           Prelude                             (Applicative (pure, (*>), (<*)),
                                                       Eq ((/=)),
                                                       Foldable (null),
                                                       Monoid (mconcat), error)
 import           Text.Parsec                         (ParseError, Parsec,
-                                                      anyChar, char, eof,
+                                                      anyChar, char,
                                                       evalParser, getInput,
                                                       getState, letter,
                                                       lookAhead, many, many1,
                                                       manyTill, noneOf,
                                                       notFollowedBy, oneOf,
-                                                      parse, parserTrace,
+                                                      parse,
                                                       runParser, satisfy,
-                                                      sepBy1, setState, space,
-                                                      spaces, string, try,
-                                                      updateState)
+                                                      sepBy1, setState, space, string, try)
 import           Text.Parsec.Error                   (Message (Message))
 import           Text.ParserCombinators.Parsec.Error (newErrorMessage)
 import           Text.ParserCombinators.Parsec.Pos   (initialPos)
@@ -54,11 +45,12 @@ import           Text.Show                           (Show (show))
 import           TextShow                            (TextShow (..), fromText)
 import           TextShow.Generic                    (genericShowbPrec)
 
-data SyllableData = SyllableData
-  { sdWord      :: Text
-  , sdSyllables :: [Text]
-  }
-  deriving (Eq)
+data SyllableData
+  = SyllableData
+    { sdWord      :: Text
+    , sdSyllables :: [Text]
+    }
+  deriving stock (Eq)
 
 instance TextShow SyllableData where
   showb SyllableData {..} =
@@ -68,7 +60,7 @@ data Result
   = Success SyllableData
   | Failure ParseError
   | Exception Exception
-  deriving (Generic)
+  deriving stock (Generic)
 
 instance Eq Result where
   Success sd1 == Success sd2 = sd1 == sd2
@@ -86,7 +78,7 @@ data Exception
   | ExceptionSpecialChar Char
   | ExceptionSingleLetter
   | ExceptionEllipsis
-  deriving (Generic)
+  deriving stock (Generic)
 
 instance TextShow Exception where
   showbPrec = genericShowbPrec
@@ -111,7 +103,10 @@ parseSyllables =
           -- let st = Text.unpack $ replace "-" "" sdWord
           in case evalParser syllables st "" rem of
                Right ("", sdSyllables) -> Success $ SyllableData {..}
-               Right (str, _)          -> Failure $ newErrorMessage (Message $ "Failed to parse syllalbes; remaining state: " <> str) (initialPos "")
+               Right (st', _)          ->
+                 let msg = Message $ "Failed to parse syllalbes; remaining state: " <> st'
+                     err = newErrorMessage msg $ initialPos ""
+                 in  Failure err
                Left  err               -> Failure err
 
     -- | parse "zusammenhangslos >>> zu|sam|men|hangs|los ..." into
@@ -137,7 +132,7 @@ parseSyllables =
         case c of
           '.' -> setState $ Just ExceptionAbbreviation
           ' ' -> setState $ Just ExceptionMultiple
-          c' | not (isLetter c || c `elem` ("-!®" :: String)) -> setState $ Just $ ExceptionSpecialChar c
+          _ | not (isLetter c || c `elem` ("-!®" :: String)) -> setState $ Just $ ExceptionSpecialChar c
           _ -> pure ()
       pure $ case c of
                '!' -> Nothing

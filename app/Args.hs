@@ -1,19 +1,20 @@
 module Args where
 
 import           Data.Bool           (Bool)
+import           Data.Function       (($))
+import           Data.Int            (Int)
 import           Data.Maybe          (Maybe)
 import           Data.Monoid         (Monoid (mempty))
 import           Data.Semigroup      ((<>))
 import           Data.String         (String)
 import           Data.Text           (Text)
 import           Options.Applicative (Alternative ((<|>)),
-                                      Applicative ((<*), (<*>)), Parser,
-                                      ParserInfo, argument, command, flag',
-                                      help, helper, info, long, progDesc, short,
-                                      str, strOption, subparser, switch, (<$>), metavar, optional, option, auto, value)
+                                      Applicative ((<*), (<*>)), InfoMod,
+                                      Parser, ParserInfo, auto, command, flag',
+                                      help, helper, info, long, metavar, option,
+                                      optional, progDesc, short, strOption,
+                                      subparser, switch, value, (<$>))
 import           System.IO           (FilePath)
-import Data.Function (($))
-import Data.Int (Int)
 
 data Task
   = TaskRawSteno Text
@@ -39,7 +40,7 @@ argOpts = info (helper <*> task) mempty
 
 task :: Parser Task
 task = subparser
-  (  command "rawSteno"   (info (TaskRawSteno   <$> arg rawStenoHelp <* helper) syllablesInfo)
+  (  command "rawSteno"   (info (TaskRawSteno   <$> arg rawStenoHelp <* helper) rawStenoInfo)
   <> command "syllables"  (info (TaskSyllables  <$> optsSyllables    <* helper) syllablesInfo)
   <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords   <* helper) stenoWordsInfo)
   <> command "stenoDict"  (info (TaskPartsDict  <$> switchReset      <* helper) stenoDictInfo)
@@ -48,6 +49,9 @@ task = subparser
     rawStenoHelp =
       "Parse raw steno like \"A/HIFn/LA/HIFn/GDAOD\" into a steno chord to \
       \validate it."
+
+    rawStenoInfo =
+      progDesc "Validate raw steno."
 
 switchReset :: Parser Bool
 switchReset = switch
@@ -64,10 +68,6 @@ arg hlp =
     <> help hlp
     )
 
-wordInfo =
-  progDesc "Parse a single word in the format \"Di|rek|to|ren\" into a series \
-           \of steno chords."
-
 optsSyllables :: Parser OptionsSyllables
 optsSyllables =
       (OSylFile <$> switchReset)
@@ -76,18 +76,21 @@ optsSyllables =
     hlp = "Extract syllable patterns from one single line of the format: \
           \Direktive >>> Di|rek|ti|ve, die; -, -n (Weisung; Verhaltensregel)"
 
+syllablesInfo :: InfoMod a
 syllablesInfo =
   progDesc "Read the file \"entries.txt\" and extract the syllable patterns. \
            \The result is written to \"syllables.txt\". The remainder is written \
            \to \"syllables-noparse.txt.\" When the file \"syllables-noparse.txt\" \
            \exists already, ignore \"entries.txt\" and work on the remainder, only."
 
+switchShowChart :: Parser Bool
 switchShowChart = switch
   (  long "show-chart"
   <> short 's'
   <> help "Show the histogram of scores after the computation."
   )
 
+mOutputFile :: Parser (Maybe FilePath)
 mOutputFile = optional $ strOption
   (  long "output-file"
   <> short 'f'
@@ -95,6 +98,7 @@ mOutputFile = optional $ strOption
   <> metavar "FILE"
   )
 
+greediness :: Parser Int
 greediness = option auto
   (   long "greediness"
   <> short 'g'
@@ -128,11 +132,13 @@ optsStenoWordsRun =
               \\"Sil|ben|tren|nung\"."
       )
 
+stenoWordsInfo :: InfoMod a
 stenoWordsInfo =
   progDesc "Read the file \"syllables.txt\" and parse every word into a series \
            \of steno chords. The result is written to \"steno-words.txt\". The \
            \remainder is written to \"steno-words-noparse.txt\"."
 
+stenoDictInfo :: InfoMod a
 stenoDictInfo =
   progDesc "Read the file \"steno-words.txt\" and reverse the mapping: \
            \Store for every steno chord a list of real-life word parts \
