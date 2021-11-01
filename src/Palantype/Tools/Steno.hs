@@ -24,11 +24,11 @@ import           Data.Either                         (Either (Left, Right),
                                                       isLeft)
 import           Data.Eq                             (Eq ((==)))
 import           Data.FileEmbed                      (embedFile)
-import           Data.Foldable                       (Foldable (foldl', length, sum),
+import           Data.Foldable                       (Foldable (foldl', length, sum, toList),
                                                       maximumBy, minimumBy)
 import           Data.Function                       (flip, ($))
 import           Data.Functor                        (Functor (fmap), ($>),
-                                                      (<$>), (<&>))
+                                                      (<$>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import           Data.Int                            (Int)
@@ -37,14 +37,14 @@ import           Data.List                           (head, intersperse, repeat,
 import           Data.Map                            (Map)
 import qualified Data.Map                            as Map
 import           Data.Maybe                          (Maybe (Just, Nothing))
-import           Data.Monoid                         ((<>))
+import           Data.Monoid                         ((<>), Monoid (mconcat))
 import           Data.Ord                            (Ord ((<=)), comparing)
 import           Data.Ratio                          (Rational, (%))
 import           Data.Text                           (Text, intercalate,
                                                       replace, toLower)
 import qualified Data.Text                           as Text
 import qualified Data.Text.Encoding                  as Text
-import           Data.Traversable                    (Traversable (sequence))
+import           Data.Traversable                    (Traversable (sequence), traverse)
 import           Data.Trie                           (Trie)
 import qualified Data.Trie                           as Trie
 import           Data.Tuple                          (fst, snd)
@@ -55,8 +55,7 @@ import           GHC.Generics                        (Generic)
 import           GHC.Num                             (Num ((*)), (+))
 import           GHC.Real                            (Fractional (fromRational, (/)),
                                                       fromIntegral)
-import           Palantype.Common                    (Chord, Finger,
-                                                      Series (Series), mkChord)
+import           Palantype.Common                    (Chord, Finger, mkChord)
 import           Palantype.Common.RawSteno           (RawSteno (RawSteno, unRawSteno))
 import qualified Palantype.Common.RawSteno           as Raw
 import           Palantype.DE.Keys                   (Key)
@@ -74,6 +73,7 @@ import           Text.Read                           (Read (readListPrec, readPr
 import           Text.Show                           (Show (show))
 import           TextShow                            (TextShow (showb, showt),
                                                       fromString, fromText)
+import Data.Aeson.Types (Parser)
 
 type Greediness = Int
 
@@ -148,7 +148,7 @@ parseSeries greediness hyphenated =
       Nothing ->
         let str = Text.encodeUtf8 $ toLower hyphenated
             st = State
-              { stSteno = []
+              { stPartsSteno = []
               , stNLetters = 0
               , stNChords = 1
               , stMFinger = Nothing
@@ -161,7 +161,7 @@ parseSeries greediness hyphenated =
                       -- chord score, i.e. the average number of letters per chord
                       sdHyphenated = hyphenated
                       sdScore = score result
-                      sdParts = toChords stSteno
+                      sdParts = toParts stPartsSteno
                       sdPath = PathOptimize greediness
                   in  Right SeriesData{..}
                 Failure raw err -> Left $ PEParsec raw err
@@ -184,15 +184,15 @@ countChords
 countChords = foldl' acc 0
   where
     acc n = \case
-      KoSKeys _ -> n
-      KoSSlash  -> n + 1
+      KoSKeys _ _ -> n
+      KoSSlash -> n + 1
 
 -- | Optimize steno series
 
 -- | a series is a list of steno keys, interspersed with slashes ('/') to mark
 --   a new chord
 data KeysOrSlash
-  = KoSKeys [Key]
+  = KoSKeys Text [Key]
   | KoSSlash
 
 countKeys
@@ -202,30 +202,30 @@ countKeys =
     foldl' acc 0
   where
     acc n = \case
-      KoSKeys ks -> n + length ks
-      KoSSlash   -> n
+      KoSKeys _ ks -> n + length ks
+      KoSSlash     -> n
 
-toChords
+toParts
   :: [KeysOrSlash]
-  -> [Chord Key]
-toChords ls =
-    let (cs, ks) = foldl' acc ([], []) ls
-    in  mkChord ks : cs
+  -> [(Text, Chord Key)]
+toParts ls =
+    let (lsParts, (str, keys)) = foldl' acc ([], ("", [])) ls
+    in  (str, mkChord keys) : lsParts
   where
     acc
-      :: ([Chord Key], [Key])
+      :: ([(Text, Chord Key)], (Text, [Key]))
       -> KeysOrSlash
-      -> ([Chord Key], [Key])
-    acc (chords, keys) = \case
-      (KoSKeys ks) -> (chords, keys ++ ks)
-      KoSSlash     -> (mkChord keys : chords, [])
+      -> ([(Text, Chord Key)], (Text, [Key]))
+    acc (chords, (str, keys)) = \case
+      (KoSKeys s ks) -> (chords, (str <> s, ks ++ keys))
+      KoSSlash       -> ((str, mkChord keys) : chords, ("", []))
 
 data Result a
   = Success a
   | Failure [RawSteno] Parsec.ParseError
 
 data State = State
-  { stSteno    :: [KeysOrSlash]
+  { stPartsSteno :: [KeysOrSlash]
   , stNLetters :: CountLetters
   , stNChords  :: CountChords
   , stMFinger  :: Maybe Finger
@@ -247,7 +247,7 @@ score (Success State{..}) =
   let scorePrimary =
           fromIntegral (unCountLetters stNLetters)
         / fromIntegral (unCountChords stNChords)
-      scoreSecondary = (-1) * countKeys stSteno
+      scoreSecondary = (-1) * countKeys stPartsSteno
   in  Score{..}
 score (Failure _ _) = Score 0 0
 
@@ -272,7 +272,7 @@ optimizeStenoSeries _ st "" = Right $ Success st
 optimizeStenoSeries g st str | BS.head str == bsPipe =
   let
     newState = State
-      { stSteno = KoSSlash : stSteno st
+      { stPartsSteno = KoSSlash : stPartsSteno st
       , stNLetters = stNLetters st
       , stNChords = stNChords st + 1
       , stMFinger = Nothing
@@ -292,10 +292,10 @@ optimizeStenoSeries maxG st str =
             Left  err -> Right $ Failure (snd <$> result) err
             Right (mFinger, lsKoS) ->
               let newSteno = case lsKoS of
-                    [kos] -> kos : stSteno st
-                    _     -> foldl' (flip (:)) (stSteno st) lsKoS
+                    [kos] -> kos : stPartsSteno st
+                    _     -> foldl' (flip (:)) (stPartsSteno st) lsKoS
                   newState = State
-                    { stSteno = newSteno
+                    { stPartsSteno = newSteno
                     , stNLetters = stNLetters st + countLetters consumed
                     , stNChords = stNChords st + countChords lsKoS
                     , stMFinger = mFinger
@@ -309,10 +309,10 @@ optimizeStenoSeries maxG st str =
     in  maximumBy (comparing score) <$> eResults
   where
     filterGreediness
-      :: [(Greediness, RawSteno)]
+      :: [(Greediness, RawSteno, [Int])]
       -> [RawSteno]
     filterGreediness =
-      foldl' (\rs (g, r) -> if g <= maxG then r:rs else rs) []
+      foldl' (\rs (g, r, _) -> if g <= maxG then r:rs else rs) []
 
     parseKey
       :: [RawSteno]
@@ -353,23 +353,44 @@ mapExceptions =
              Right ls  -> ls
              Left  err -> error $ "Could not decode exceptions.json5: " <> err
 
-newtype PrimMap = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno)] }
+newtype PrimMap = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno, [Int])] }
 
 instance FromJSON PrimMap where
-  parseJSON (Array vs) = do
-      m <- foldM acc Map.empty vs
-      pure $ PrimMap m
+
+  parseJSON (Array vs) =
+      PrimMap <$> foldM acc Map.empty vs
+
     where
-      acc m pair = do
-        (k, v) <- parseJSON pair
-        when (isLeft $ Raw.parseSteno @DE.Key $ snd v) $
-          fail $ "malformed raw steno: " <> Text.unpack k <> ": " <> show (snd v)
-        let key = Text.encodeUtf8 k
-        pure $ Map.insertWith (++) key [v] m
+
+      acc
+        :: Map ByteString [(Greediness, RawSteno, [Int])]
+        -> Value
+        -> Parser (Map ByteString [(Greediness, RawSteno, [Int])])
+
+      acc m jv@(Array vec) = do
+        (k, v) <- case toList vec of
+          [k, Array v] -> pure (k, v)
+          _      -> fail $ "malformed entry: " <> show jv
+        -- (k, v) <- parseJSON pair
+        key <- parseJSON k
+        (g, r, is) <- case toList v of
+              (vG:vRaw:vIs) -> do
+                g <- parseJSON vG
+                raw <- parseJSON vRaw
+                is <- traverse parseJSON vIs
+                pure (g, raw, is)
+              _        -> fail $ "malformed entry: " <> Text.unpack key <> ": " <> show v
+        when (isLeft $ Raw.parseSteno @DE.Key r) $
+          fail $ "malformed raw steno: " <> Text.unpack key <> ": " <> show r
+        let keyBs = Text.encodeUtf8 key
+        pure $ Map.insertWith (++) keyBs [(g, r, is)] m
+
+      acc _ other = fail $ "malformed: " <> show other
+
   parseJSON _ = mzero
 
 -- | the primitives as defined in "primitives.json" parsed to a TRIE
-primitives :: Trie [(Greediness, RawSteno)]
+primitives :: Trie [(Greediness, RawSteno, [Int])]
 primitives =
   let str = stripComments $(embedFile "primitives.json5")
       primMap = case Aeson.eitherDecodeStrict str of

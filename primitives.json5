@@ -25,6 +25,12 @@
 //     * ideally, G1-patterns don't cause any ambiguity or confusion (tbd.)
 //     * 2 should correspond to experimental patterns that, ideally, increase efficiency
 //       but might result in weird and impractical patterns
+//   * the order of the entries does not matter, but should stay lexicographic for readability
+//   * patterns for words (or syllables) of english or french origin,
+//     are at the bottom (this isn't a 100% accurate)
+//   * patterns that describe entire syllables (usually syllables that don't follow the common
+//     rules) are at the bottom ("whole syllable exceptions")
+//   * patterns that describe entire words have their own file (exceptions.json5)
 [ [ "a"   , [0, "A"]]
 , [ "á"   , [0, "A"]]
 , [ "à"   , [0, "A"]]
@@ -47,7 +53,7 @@
 , [ "äß"  , [0, "ÄO+S"]]
 , [ "b"   , [0, "B"]]
 , [ "b"   , [0, "P"]]
-, [ "be"  , [1, "B"]] // TODO: greediness 1
+, [ "be"  , [1, "B"]]
 // , "beau|ty" : [0, "BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
 //                              pattern eau, thus: full word exception
 , [ "bi|o", [1, "BJO"]]
@@ -80,7 +86,6 @@
 , [ "è"   , [0, "E"]]
 , [ "ê"   , [0, "E"]]
 , [ "ë"   , [0, "E"]]        // U+00EB
-, [ "ea"  , [0, "I"]]        // Angl. "beat" "beamer", "team"
 , [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
 , [ "ee"  , [0, "E/E", 1]]      // 
 , [ "eer" , [0, "E/EO", 1]]
@@ -266,6 +271,7 @@
 , [ "dressed", [0, "DRESD"]]
 , [ "drive", [0, "DREIF"]]
 , [ "duke" , [0, "DUK"]]
+, [ "ea"   , [0, "I"]]        // Angl. "beat" "beamer", "team"
 , [ "em|pire", [0, "EM/BDEI/R", 2, 2]] // TODO: documentation, very irregular
 , [ "feed" , [0, "F~ID"]]
 , [ "file" , [0, "FEIL"]]
