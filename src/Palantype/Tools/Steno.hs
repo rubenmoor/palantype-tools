@@ -24,7 +24,7 @@ import           Data.Either                         (Either (Left, Right),
                                                       isLeft)
 import           Data.Eq                             (Eq ((==)))
 import           Data.FileEmbed                      (embedFile)
-import           Data.Foldable                       (Foldable (foldl', length, sum, toList),
+import           Data.Foldable                       (Foldable (foldl', length, sum, toList, null),
                                                       maximumBy, minimumBy)
 import           Data.Function                       (flip, ($))
 import           Data.Functor                        (Functor (fmap), ($>),
@@ -47,7 +47,7 @@ import qualified Data.Text.Encoding                  as Text
 import           Data.Traversable                    (Traversable (sequence), traverse)
 import           Data.Trie                           (Trie)
 import qualified Data.Trie                           as Trie
-import           Data.Tuple                          (fst, snd)
+import           Data.Tuple                          (fst, snd, uncurry)
 import           Data.Word                           (Word8)
 import           GHC.Err                             (error)
 import           GHC.Float                           (Double)
@@ -74,6 +74,8 @@ import           Text.Show                           (Show (show))
 import           TextShow                            (TextShow (showb, showt),
                                                       fromString, fromText)
 import Data.Aeson.Types (Parser)
+import Control.Lens (view)
+import Control.Lens.Tuple (_2)
 
 type Greediness = Int
 
@@ -217,7 +219,7 @@ toParts ls =
       -> KeysOrSlash
       -> ([(Text, Chord Key)], (Text, [Key]))
     acc (chords, (str, keys)) = \case
-      (KoSKeys s ks) -> (chords, (str <> s, ks ++ keys))
+      (KoSKeys s ks) -> (chords, (s <> str, ks ++ keys))
       KoSSlash       -> ((str, mkChord keys) : chords, ("", []))
 
 data Result a
@@ -288,8 +290,8 @@ optimizeStenoSeries maxG st str =
         matchToResult (consumed, result, rem) =
           -- TODO: always run all greediness levels
           --       and check if higher greediness yields different result
-          case parseKey (filterGreediness result) (stMFinger st) of
-            Left  err -> Right $ Failure (snd <$> result) err
+          case parseKey consumed (filterGreediness result) (stMFinger st) of
+            Left  err -> Right $ Failure (view _2 <$> result) err
             Right (mFinger, lsKoS) ->
               let newSteno = case lsKoS of
                     [kos] -> kos : stPartsSteno st
@@ -310,27 +312,41 @@ optimizeStenoSeries maxG st str =
   where
     filterGreediness
       :: [(Greediness, RawSteno, [Int])]
-      -> [RawSteno]
+      -> [(RawSteno, [Int])]
     filterGreediness =
-      foldl' (\rs (g, r, _) -> if g <= maxG then r:rs else rs) []
+      foldl' (\rs (g, r, is) -> if g <= maxG then (r, is):rs else rs) []
 
     parseKey
-      :: [RawSteno]
+      :: ByteString
+      -> [(RawSteno, [Int])]
       -> Maybe Finger
       -> Either Parsec.ParseError (Maybe Finger, [KeysOrSlash])
-    parseKey ls mFinger =
-      let primitive s =
-            let ePair = evalParser keysWithSlash mFinger "" s
-            in  second (intersperse KoSSlash . fmap KoSKeys) <$> ePair
+    parseKey orig ls mFinger =
+      let
+        primitive s is =
+          let
+            ePair = evalParser keysWithSlash mFinger "" s
 
-          acc parser (RawSteno s) =
-            case (parser, primitive s) of
-              (Right r1, Right r2)   -> Right $ minimumBy (comparing fst) [r1, r2]
-              (Right result, Left _) -> Right result
-              (Left _, Right result) -> Right result
-              (Left _, Left err)     -> Left err
+            acc' (strs, strOrig) i =
+              let (begin, end) = Text.splitAt i strOrig
+              in  (strs ++ [begin], end)
 
-      in  foldl' acc (Left $ Parsec.newErrorUnknown (initialPos "")) ls
+            (origs, rem) = foldl' acc' ([], Text.decodeUtf8 orig) is
+            lsOrig = replace "|" "" <$> origs ++ [rem]
+
+            toKoS = intersperse KoSSlash . fmap (uncurry KoSKeys) . zip lsOrig
+          in
+            second toKoS <$> ePair
+
+        acc parser (RawSteno s, is) =
+          case (parser, primitive s is) of
+            (Right r1, Right r2)   -> Right $ minimumBy (comparing fst) [r1, r2]
+            (Right result, Left _) -> Right result
+            (Left _, Right result) -> Right result
+            (Left _, Left err)     -> Left err
+
+      in
+        foldl' acc (Left $ Parsec.newErrorUnknown (initialPos "")) ls
 
     keysWithSlash :: Parsec Text (Maybe Finger) [[Key]]
     keysWithSlash =

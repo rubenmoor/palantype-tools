@@ -360,7 +360,7 @@
 , [ "mage" , [0, "MAʃ"]]      // hommage
 , [ "mousse", [0, "M~US"]]
 , [ "oire" , [0, "~O"]]
-, [ "ouil|le", [0, "U/~I", 4]]
+, [ "ouil|le", [0, "U/~I", 2]]
 , [ "pere"  , [0, "BDEO"]]    // ampere
 , [ "ueule", [0, "EU"]]       // amuse-gueule
 , [ "seille", [0, "SEI"]]     // Marseille

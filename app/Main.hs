@@ -48,7 +48,7 @@ import           Palantype.Common.RawSteno  (RawSteno (RawSteno))
 import qualified Palantype.Common.RawSteno  as RawSteno
 import qualified Palantype.DE.Keys          as DE
 import           Palantype.Tools.Statistics (plotScoresShow)
-import           Palantype.Tools.Steno      (ParseError (..), Path, SeriesData,
+import           Palantype.Tools.Steno      (ParseError (..), Path, SeriesData (..),
                                              parseSeries)
 import           Palantype.Tools.Syllables  (Exception (..), Result (..),
                                              SyllableData (SyllableData),
@@ -213,7 +213,14 @@ data StenoWordsState
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwRun greediness (OStwArg str)) =
-    StrictIO.putStrLn $ showt $ parseSeries greediness str
+  case parseSeries greediness str of
+    Left err -> StrictIO.putStrLn $ showt err
+    Right SeriesData{..} ->
+      StrictIO.putStrLn $
+           sdHyphenated
+        <> " " <> showt sdScore
+        <> " " <> showt sdPath
+        <> " " <> showt sdParts
 
 stenoWords (OStwRun greediness OStwStdin) =
   forever $ do
