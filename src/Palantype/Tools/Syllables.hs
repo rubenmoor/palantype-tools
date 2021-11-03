@@ -169,26 +169,37 @@ parseSyllables =
           pure [Text.pack [bm, i], Text.singleton o]
 
         realSyllable =
-            -- try hendl <|> (pure . Text.pack <$> many1 nextChar)
-            pure . Text.pack <$> many1 nextChar
+            try hendl <|> (pure . Text.pack <$> many1 nextChar)
+            -- pure . Text.pack <$> many1 nextChar
           where
             -- TODO: doesn't work
             hendl :: Parsec Text String [Text]
             hendl = do
 
-              let syllableEnd =
-                    void (oneOf "|-") <|> (getState >>= bool mzero (pure ()) . null )
+              let
+                syllableEnd =
+                  void (oneOf "|-") <|> (getState >>= bool mzero (pure ()) . null )
 
-                  consonantL = do
-                    c <- Text.singleton <$> consonant
-                    l <- Text.singleton <$> next 'l'
-                    syllableEnd
-                    pure (c, l)
+                consonantL =
+                  Text.singleton <$> next 'l' <* syllableEnd
 
-              chrs <- Text.pack <$> many (nextChar <* try (notFollowedBy $ try consonantL))
-              c1 <- Text.singleton <$> nextChar
-              (c2, l) <- consonantL
-              pure [chrs <> c1 <> c2, l]
+                notL =
+                  getState >>= \case
+                    (x:xs) | x /= 'l' -> do
+                               setState xs
+                               Text.singleton <$> char x
+                    _ -> mzero
+
+                nextCharNotCL =
+                  nextChar <* lookAhead (void vowel
+                                    <|> try (void $ consonant <* notL)
+                                    <|> try (void $ consonant <* next 'l' <* anyChar)
+                                        )
+
+              chrs <- Text.pack <$> many1 nextCharNotCL
+              c <- Text.singleton <$> consonant
+              l <- Text.singleton <$> next 'l'
+              pure [chrs <> c, l]
               -- pure [c1 <> c2, l]
 
         optionalHyphen =
@@ -212,7 +223,7 @@ parseSyllables =
               char x
             _      -> mzero
 
-        vowel = do
+        vowel =
           getState >>= \case
             (x:xs) | x `elem` ('y' : 'Y' : vowels) -> do
                        setState xs
@@ -234,7 +245,7 @@ parseSyllables =
             _ -> mzero
 
 vowels :: String
-vowels = "AEIOUÄÖÜÁÀÂÉÈÊÍÓÔÚaeiouäöüáàâåéèêëíóôøû"
+vowels = "AEIOUÄÖÜÁÀÂÅÉÈÊÍÓÔÚaeiouäöüáàâåéèêëíóôøû"
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str =

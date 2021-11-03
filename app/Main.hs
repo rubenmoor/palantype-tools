@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Main where
 
@@ -23,10 +24,9 @@ import           Data.Functor               (Functor (fmap), ($>), (<$>), (<&>))
 import           Data.HashMap.Strict        (HashMap, member)
 import qualified Data.HashMap.Strict        as HashMap
 import           Data.Int                   (Int)
-import           Data.List                  (head, replicate, sort, (!!), (++))
+import           Data.List                  (head, replicate, sort, (!!), (++), take, sortBy, sortOn)
 import           Data.Maybe                 (Maybe (Just, Nothing), maybe)
 import           Data.Monoid                ((<>))
-import           Data.Ord                   (Ord (compare), comparing)
 import           Data.Text                  (Text, replace, splitOn)
 import qualified Data.Text                  as Text
 import qualified Data.Text.IO               as StrictIO
@@ -48,8 +48,8 @@ import           Palantype.Common.RawSteno  (RawSteno (RawSteno))
 import qualified Palantype.Common.RawSteno  as RawSteno
 import qualified Palantype.DE.Keys          as DE
 import           Palantype.Tools.Statistics (plotScoresShow)
-import           Palantype.Tools.Steno      (ParseError (..), Path, SeriesData (..),
-                                             parseSeries)
+import           Palantype.Tools.Steno      (ParseError (..), SeriesData (..),
+                                             parseSeries, PartsData (..))
 import           Palantype.Tools.Syllables  (Exception (..), Result (..),
                                              SyllableData (SyllableData),
                                              parseSyllables)
@@ -63,8 +63,10 @@ import           System.IO                  (FilePath, IO, IOMode (ReadMode),
                                              universalNewlineMode)
 import           Text.Read                  (readMaybe)
 import           Text.Show                  (Show (show))
-import           TextShow                   (TextShow (showb, showt))
+import           TextShow                   (TextShow (showt))
 import           WCL                        (wcl)
+import Data.Ord (Ord((>)), comparing)
+import Data.Tuple (fst, snd)
 
 main :: IO ()
 main =
@@ -167,6 +169,9 @@ syllables (OSylFile reset) = do
 fileStenoWords :: FilePath
 fileStenoWords = "stenowords.txt"
 
+fileStenoParts :: FilePath
+fileStenoParts = "stenoparts.txt"
+
 fileStenoWordsScores :: UTCTime -> FilePath
 fileStenoWordsScores time =
      "stenowordsstats/stenowords-stats_"
@@ -208,7 +213,7 @@ average ls =
 data StenoWordsState
   = StenoWordsState
     { swsMapWordSteno  :: HashMap Text SeriesData
-    , swsMapChordParts :: HashMap Text [PartsData]
+    , swsMapChordParts :: HashMap PartsData [Text]
     }
 
 stenoWords :: OptionsStenoWords -> IO ()
@@ -238,6 +243,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
           , fileStenoWordsDuplicates
           , fileStenoWordsMissingPrimitives
           , fileStenoWordsParsecErrors
+          , fileStenoParts
           ]
     when reset $ do
       for_ lsFiles $ \file -> do
@@ -285,50 +291,78 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
       lsSyllable <- Lazy.lines <$> readFile file
       putStrLn $ "Creating steno chords for " <> show (length lsSyllable) <> " entries."
 
-      let tmpFileNoParse = "stenowords-noparse.tmp.txt"
+      let
+        tmpFileNoParse = "stenowords-noparse.tmp.txt"
 
-          -- acc :: HashMap Text SeriesData -> Lazy.Text -> IO (HashMap Text SeriesData)
-          acc
-            :: StenoWordsState
-            -> Lazy.Text
-            -> IO StenoWordsState
-          acc sws@StenoWordsState{..} str =
-            let (word, hyphenated) =
-                  case splitOn " " $ Lazy.toStrict str of
-                    [w, h] -> (w, h)
-                    _      -> error $ Text.unpack $ Lazy.toStrict $ "illegal entry: " <> str
-            in  case parseSeries greediness hyphenated of
-                  Left err  -> do
-                    case err of
-                      PEMissingPrimitives orig ->
-                        when bFirstPass $
-                          appendLine fileStenoWordsMissingPrimitives $ Lazy.fromStrict orig
-                      PEExceptionTable orig ->
-                        print $ "Error in exception table for: " <> orig
-                      PEParsec raw pe ->
-                        when bFirstPass $
-                          appendLine fileStenoWordsParsecErrors $
-                            Lazy.fromStrict $
-                                 showt word <> " "
-                              <> showt hyphenated <> " "
-                              <> showt raw <> " "
-                              <> replace "\n" "" (Text.pack $ show pe)
-                    appendLine tmpFileNoParse str $> sws
-                  Right sd  ->
-                    if word `member` swsMapWordSteno
-                      then do when bFirstPass $
-                                appendLine fileStenoWordsDuplicates str
-                              pure sws
-                      else pure $ sws
-                             { swsMapWordSteno = HashMap.insert word sd swsMapWordSteno
-                             }
+        -- acc :: HashMap Text SeriesData -> Lazy.Text -> IO (HashMap Text SeriesData)
+        acc
+          :: StenoWordsState
+          -> Lazy.Text
+          -> IO StenoWordsState
+        acc sws@StenoWordsState{..} str =
+          let
+            (word, hyphenated) =
+              case splitOn " " $ Lazy.toStrict str of
+                [w, h] -> (w, h)
+                _      -> error $ Text.unpack $ Lazy.toStrict $ "illegal entry: " <> str
+          in
+            case parseSeries greediness hyphenated of
+              Left err  -> do
+                case err of
+                  PEMissingPrimitives orig ->
+                    when bFirstPass $
+                      appendLine fileStenoWordsMissingPrimitives $ Lazy.fromStrict orig
+                  PEExceptionTable orig ->
+                    print $ "Error in exception table for: " <> orig
+                  PEParsec raw pe ->
+                    when bFirstPass $
+                      appendLine fileStenoWordsParsecErrors $
+                        Lazy.fromStrict $
+                             showt word <> " "
+                          <> showt hyphenated <> " "
+                          <> showt raw <> " "
+                          <> replace "\n" "" (Text.pack $ show pe)
+                appendLine tmpFileNoParse str $> sws
+              Right sd  ->
+                if word `member` swsMapWordSteno
+                  then do
+                    when bFirstPass $
+                      appendLine fileStenoWordsDuplicates str
+                    pure sws
+                  else do
+                    let
+                      acc' m (o, c) =
+                        HashMap.insertWith (++) (PartsData o c $ sdPath sd) [word] m
+                      partsData = foldl' acc' HashMap.empty (sdParts sd)
+                    pure $ sws
+                      { swsMapWordSteno = HashMap.insert word sd swsMapWordSteno
+                      , swsMapChordParts = HashMap.unionWith (++) partsData swsMapChordParts
+                      }
 
-      let swsInitial = StenoWordsState HashMap.empty HashMap.empty
-      StenoWordsState{..} <- foldM acc swsInitial lsSyllable
+        swsInitial = StenoWordsState HashMap.empty HashMap.empty
+
+      StenoWordsState{..} <-
+        foldM acc swsInitial lsSyllable
+
+      putStr $ "Writing file " <> fileStenoWords
+      putStrLn $ maybe "" (" and " <>) mFileOutput
+
       for_ (HashMap.toList swsMapWordSteno) $ \(word, sd) -> do
         let str = Lazy.fromStrict $ word <> " " <> showt sd
         appendLine fileStenoWords str
         maybe (pure ()) (`appendLine` str) mFileOutput
+
+      putStrLn $ "Writing file " <> fileStenoParts
+
+      for_ (sortOn (length . snd) $ HashMap.toList swsMapChordParts) $ \(pd, words) -> do
+        let
+          n = length words
+          str = Lazy.fromStrict $
+                showt pd <> "; "
+             <> showt n <> (if n > 1 then " words: " else " word: ")
+             <> Text.unwords (take 3 words)
+             <> if n > 3 then " ..." else ""
+        appendLine fileStenoParts str
 
       renamePath tmpFileNoParse fileStenoWordsNoParse
 
@@ -340,26 +374,10 @@ stenoWords OStwShowChart = do
   scores <- readScores $ dir </> latest
   plotScoresShow scores
 
-data PartsData
-  = PartsData
-    { pdOrig       :: Text
-    , pdHyphenated :: Text
-    , pdPath       :: Path
-    }
-  deriving stock Eq
-
-instance TextShow PartsData where
-  showb PartsData{..} =
-              showb pdPath
-    <> " " <> showb pdOrig
-    <> " " <> showb pdHyphenated
-
-instance Ord PartsData where
-  compare = comparing pdPath
-
 filePartsDict :: FilePath
 filePartsDict = "partsdict.txt"
 
+-- TODO: delete
 partsDict
   :: Bool
   -> IO ()

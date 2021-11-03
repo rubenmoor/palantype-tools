@@ -24,7 +24,7 @@ import           Data.Either                         (Either (Left, Right),
                                                       isLeft)
 import           Data.Eq                             (Eq ((==)))
 import           Data.FileEmbed                      (embedFile)
-import           Data.Foldable                       (Foldable (foldl', length, sum, toList, null),
+import           Data.Foldable                       (Foldable (foldl', length, sum, toList),
                                                       maximumBy, minimumBy)
 import           Data.Function                       (flip, ($))
 import           Data.Functor                        (Functor (fmap), ($>),
@@ -37,7 +37,7 @@ import           Data.List                           (head, intersperse, repeat,
 import           Data.Map                            (Map)
 import qualified Data.Map                            as Map
 import           Data.Maybe                          (Maybe (Just, Nothing))
-import           Data.Monoid                         ((<>), Monoid (mconcat))
+import           Data.Monoid                         ((<>))
 import           Data.Ord                            (Ord ((<=)), comparing)
 import           Data.Ratio                          (Rational, (%))
 import           Data.Text                           (Text, intercalate,
@@ -76,6 +76,7 @@ import           TextShow                            (TextShow (showb, showt),
 import Data.Aeson.Types (Parser)
 import Control.Lens (view)
 import Control.Lens.Tuple (_2)
+import Data.Hashable (Hashable (hashWithSalt))
 
 type Greediness = Int
 
@@ -129,6 +130,24 @@ data ParseError
 
 instance TextShow ParseError where
   showb = fromString . show
+
+data PartsData
+  = PartsData
+    { pdOrig  :: Text
+    , pdSteno :: Chord DE.Key
+    , pdPath  :: Path
+    }
+  deriving stock (Eq, Ord)
+
+instance Hashable PartsData where
+  hashWithSalt s PartsData{..} =
+    hashWithSalt s (pdOrig, showt pdSteno, showt pdPath)
+
+instance TextShow PartsData where
+  showb PartsData{..} =
+       fromText pdOrig
+    <> " " <> showb pdSteno
+    <> " " <> showb pdPath
 
 parseSeries :: Greediness -> Text -> Either ParseError SeriesData
 parseSeries greediness hyphenated =
