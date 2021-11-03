@@ -180,26 +180,16 @@ parseSyllables =
                 syllableEnd =
                   void (oneOf "|-") <|> (getState >>= bool mzero (pure ()) . null )
 
-                consonantL =
-                  Text.singleton <$> next 'l' <* syllableEnd
+                consonantL = do
+                  c <- Text.singleton <$> consonant
+                  l <- Text.singleton <$> next 'l'
+                  lookAhead syllableEnd
+                  pure (c, l)
 
-                notL =
-                  getState >>= \case
-                    (x:xs) | x /= 'l' -> do
-                               setState xs
-                               Text.singleton <$> char x
-                    _ -> mzero
-
-                nextCharNotCL =
-                  nextChar <* lookAhead (void vowel
-                                    <|> try (void $ consonant <* notL)
-                                    <|> try (void $ consonant <* next 'l' <* anyChar)
-                                        )
-
-              chrs <- Text.pack <$> many1 nextCharNotCL
-              c <- Text.singleton <$> consonant
-              l <- Text.singleton <$> next 'l'
-              pure [chrs <> c, l]
+              chrs <- Text.pack <$> many (try $ nextChar <* notFollowedBy consonantL)
+              c1 <- Text.singleton <$> nextChar
+              (c2, l) <- consonantL
+              pure [chrs <> c1 <> c2, l]
               -- pure [c1 <> c2, l]
 
         optionalHyphen =
