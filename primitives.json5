@@ -45,19 +45,23 @@
 , [ "ar"  , [0, "AO"]]
 , [ "år"  , [0, "AO"]]          // Ux00E5
 , [ "arr" , [0, "AO+"]]
+, [ "arrh", [0, "AO+"]]         // Katarrh
 , [ "aß"  , [0, "AO+S"]]
-, [ "ä"   , [0, "Ä"]]
-, [ "äh"  , [0, "ÄO"]]
-, [ "ähr" , [0, "ÄO"]]
-, [ "är"  , [0, "ÄO"]]
-, [ "ärr" , [0, "ÄO+"]]
-, [ "äß"  , [0, "ÄO+S"]]
+, [ "ä"   , [0, "Ä"]]           // note: ÄO is ö
+, [ "äe"  , [0, "Ä"]]           // e.g. Tro|phäe
+, [ "äh"  , [0, "Ä"]]
+, [ "ähr" , [0, "Ä"]]
+, [ "är"  , [0, "Ä"]]
+, [ "ärr" , [0, "Ä+"]]
+, [ "äß"  , [0, "Ä+S"]]
 , [ "b"   , [0, "B"]]
 , [ "b"   , [0, "P"]]
+, [ "bb"  , [0, "P"]]
 , [ "be"  , [1, "B"]]
 // , "beau|ty" : [0, "BJU/DJI"] // / is allowed, but this pattern fails for the more efficient (but wrong
 //                              pattern eau, thus: full word exception
 , [ "bi|o", [1, "BJO"]]
+, [ "böe" , [0, "BÄO"]]      // Böe = "Bö"
 , [ "c"   , [0, "GD"]]
 , [ "c"   , [0, "K"]]
 , [ "ç"   , [0, "SF"]]       // U+00E7
@@ -110,6 +114,9 @@
 , [ "f"   , [0, "F"]]
 , [ "ff"  , [0, "F"]]
 , [ "f|f" , [1, "F"]]
+, [ "fluor", [0, "FLU/~O", 3]]
+, [ "fluo", [0, "FLU/O", 3]]
+, [ "fst" , [0, "Fs"]]
 , [ "g"   , [0, "G"]]
 , [ "g"   , [0, "K"]]
 , [ "ge"  , [1, "G"]]
@@ -136,6 +143,7 @@
 // TODO: fe -> F maybe?
 // TODO: greedier: er : [0, "e"]
 , [ "l"   , [0, "L"]]
+, [ "lh"  , [0, "L"]]       // e.g. Delhi
 , [ "lia" , [0, "JLA"]]     // think "lia"/"ila"
 , [ "lio" , [0, "JLO"]]     // think "lio"/"ilo"
 , [ "lg"  , [0, "LK"]]
@@ -181,10 +189,11 @@
 , [ "p"   , [0, "P"]]
 , [ "p"   , [0, "BD"]]
 , [ "pf"  , [0, "BF"]]
-, [ "ph"  , [0, "F"]]     // TODO: documentation
+, [ "ph"  , [0, "F"]]       // TODO: documentation
 , [ "pp"  , [0, "P"]]
 , [ "p|p" , [1, "P"]]
 , [ "ps"  , [0, "SDJ"]]     // TODO: documentation
+, [ "pt"  , [0, "BDJ"]]     // TODO: documentation
 , [ "qa"  , [0, "GDA"]]
 , [ "qi"  , [0, "SJI"]]
 , [ "qu"  , [0, "GDW"]]
@@ -194,6 +203,7 @@
 , [ "rio" , [0, "JRO"]]     // think "rio"/"iro"
 // "re" TODO: more efficiency
 // , "ren"  : [0, "e"]  // TODO: too greedy?
+, [ "rwan" , [0, "WRAN"]]   // TODO: documentation Rw- as WR
 , [ "s"   , [0, "S"]]
 , [ "s"   , [0, "s"]]
 , [ "sc"  , [0, "GDJ"]]     // e.g. scooter
@@ -209,6 +219,7 @@
 , [ "sh"  , [0, "SJ"]]      // cash, auscashen
 , [ "sh"  , [0, "ʃ"]]       // cash, auscashen
 , [ "sp"  , [0, "BF"]]      // TODO: documentation
+, [ "sp"  , [0, "PS"]]      // TODO: documentation -sp = PS
 , [ "sk"  , [0, "GDJ"]]     // TODO: documentation x, sk -> GDJ
 , [ "sk"  , [0, "KS"]]      // tink "sk"/"ks"
 , [ "ss"  , [0, "S"]]
@@ -222,6 +233,7 @@
 , [ "th"  , [0, "D"]]
 , [ "ti"  , [1, "DJ"]]
 , [ "tia" , [0, "DJA"]]
+, [ "tio" , [0, "DJO"]]
 , [ "tja" , [0, "DJA"]]
 , [ "ti|o", [1, "DJO"]]
 , [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
@@ -235,6 +247,7 @@
 , [ "tz"  , [0, "+S"]]
 , [ "u"   , [0, "U"]]
 , [ "û"   , [0, "U"]]
+, [ "ue"  , [0, "Ü"]]
 , [ "uh"  , [0, "~U"]]
 , [ "uhr" , [0, "~U"]]
 , [ "ur"  , [0, "~U"]]
@@ -256,13 +269,14 @@
 , [ "x"   , [0, "KS"]]
 , [ "y"   , [0, "J"]]
 , [ "y"   , [0, "I"]]
+, [ "yr"  , [0, "~Ü"]]
 , [ "z"   , [0, "SF"]]
 , [ "z"   , [0, "+S"]]
 , [ "-"   , [0, "HIFn"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
 // english
 , [ "ace"  , [0, "ÄIS"]]
-, [ "air"  , [0, "ÄO"]]       // think "är"
+, [ "air"  , [0, "Ä"]]       // think "är"
 , [ "ake"  , [0, "ÄIK"]]
 , [ "ate"  , [0, "ÄID"]]
 , [ "ay"   , [0, "ÄI"]]
@@ -271,6 +285,7 @@
 , [ "boiled", [0, "BEULD"]]
 , [ "buil" , [0, "BIL"]]      // e.g. bodybuilding
 , [ "busi|ness", [0, "BIS/NES", 4]]
+, [ "bute"  , [0, "BJUD"]]
 , [ "byte" , [0, "BEID"]]
 , [ "cache" , [0, "GDÄʃ"]]
 , [ "can|dle", [0, "GDÄN/DEL", 3]] // e.g. candle-light-dinner
@@ -279,6 +294,7 @@
 , [ "cheese", [0, "SJ~IS"]]
 , [ "chise", [0, "SJEIS"]]    // franchise
 , [ "choice", [0, "SJEUS"]]
+, [ "coa"  , [0, "GDO"]]      // e.g. coa|chen
 , [ "code" , [0, "GDOD"]]
 , [ "come" , [0, "GDAM"]]
 , [ "con|ve|ni|e|nce", [0, "GDON/WE/NI/+NS", 3, 2, 2]]
@@ -295,11 +311,14 @@
 , [ "em|pire", [0, "EM/BDEI/R", 2, 2]] // TODO: documentation, very irregular
 , [ "feed" , [0, "F~ID"]]
 , [ "file" , [0, "FEIL"]]
+, [ "five" , [0, "FEIF"]]
 , [ "frame" , [0, "FRÄIM"]]
 , [ "game"  , [0, "GÄIM"]]
 , [ "gg"    , [0, "K"]]
+, [ "grade" , [0, "GRÄID"]]
 , [ "green" , [0, "GRIN"]]
 , [ "guard" , [0, "GAOD"]]    // e.g. bodyguard
+, [ "have"  , [0, "HÄF"]]
 , [ "hedge", [0, "HEʃD"]]     // like heschd (like hedsch)
 , [ "home" , [0, "HOM"]]
 , [ "house", [0, "HAUS"]]
@@ -316,20 +335,26 @@
 , [ "kee"  , [0, "GDI"]]      // barkeeper
 , [ "kite" , [0, "GDEID"]]
 , [ "kode" , [0, "GDOD"]]
+, [ "launch", [0, "LONʃ"]]
 , [ "lege" , [0, "LEʃD"]]     // e.g. college
 , [ "line" , [0, "LEIN"]]
 , [ "lign" , [0, "LEIN"]]
+, [ "live" , [0, "LEIF"]]
 , [ "lone" , [0, "LON"]]
-, [ "launch", [0, "LONʃ"]]
+, [ "love" , [0, "LOF"]]
 , [ "loa"  , [0, "LO"]]       // e.g. boot|loa|der
 , [ "lounge", [0, "LAUNʃ"]]
+, [ "made" , [0, "MÄID"]]
 , [ "mine" , [0, "MEIN"]]
+, [ "mixed", [0, "MIKSD"]]
 , [ "mole" , [0, "MOL"]]
 , [ "more" , [0, "M~O"]]
-, [ "move" , [0, "MOF"]]
+, [ "mouse", [0, "MAUS"]]
+, [ "move" , [0, "MUF"]]
 , [ "nage" , [0, "NÄʃD"]]     // ma|nage|ment
 , [ "nice" , [0, "NEIS"]]
-, [ "coa"  , [0, "GDO"]]      // e.g. coa|chen
+, [ "nine" , [0, "NEIN"]]
+, [ "nute" , [0, "NED"]]      // e.g. last-minute
 , [ "oach" , [0, "OʃD"]]      // TODO: documentation tsch-rule
 , [ "oar"  , [0, "~O"]]       // e.g. board
 , [ "of|fice", [0, "OF/FIS", 2]]
@@ -337,47 +362,65 @@
 , [ "ore"  , [0, "~O"]]       // e.g. Bangalore
 , [ "ose"  , [0, "OS"]]       // e.g. close-up
 , [ "ou"   , [0, "AU"]]       // not pretty but efficient: french "ou" is AU, too (jour)
+, [ "ough" , [0, "O"]]        // e.g. Doughnut
 , [ "our"  , [0, "AU"]]
 , [ "own" , [0, "AUN"]]       // town, clown
 , [ "page" , [0, "BDÄIʃ"]]
 , [ "pipe" , [0, "BDEIP"]]
+, [ "pole" , [0, "BDOL"]]      // e.g. Pole-Position
+, [ "plugged", [0, "BDLAKD"]]
+, [ "prince", [0, "BDI+NS"]]
+, [ "puzz" , [0, "BDAS"]]
 , [ "queen", [0, "GDWIN"]]
 , [ "rate" , [0, "RÄID"]]
 , [ "ride" , [0, "REID"]]
-, [ "road" , [0, "ROD"]]
+, [ "roa"  , [0, "RO"]]        // e.g. off-road, roaming
+, [ "royce", [0, "REUS"]]
 , [ "sales", [0, "SÄILS"]]
 , [ "save" , [0, "SÄIF"]]
 , [ "safe" , [0, "SÄIF"]]
 , [ "scope" , [0, "GDJOP"]]
 , [ "ser|vice", [0, "SEO/FIS", 3]]
-, [ "share", [0, "SJÄO"]]
+, [ "share", [0, "SJÄ"]]
 , [ "shave", [0, "SJÄIF"]]
 , [ "shire", [0, "SJEO"]]
 , [ "shore", [0, "SJ~O"]]
 , [ "sive" , [0, "SIF"]]     // e.g. inclusive
+, [ "spare", [0, "SDJÄ"]]
 , [ "speech", [0, "BFIʃD"]]  // speech, like spitsch (like spischt)
+, [ "square", [0, "GDJÄ"]]
+, [ "squat",  [0, "GDJOD"]]
+, [ "squash",  [0, "GDJOʃ"]]
+, [ "slide" , [0, "SLEID"]]
 , [ "stage" , [0, "SDÄIʃD"]]
 , [ "stream" , [0, "SDRIM"]]
+, [ "street" , [0, "SDRID"]]
 , [ "store", [0, "SD~O"]]
+, [ "source", [0, "S~OS"]]    // e.g. open-source
 , [ "sure" , [0, "SJEO"]]
 , [ "suit" , [0, "SUD"]]
+, [ "tape" , [0, "DJÄIP"]]
 , [ "tch"  , [0, "ʃD"]]       // e.g. batch, tch like tsch, like scht
 , [ "tease", [0, "DJIS"]]
 , [ "teen" , [0, "DJIN"]]
 , [ "tive" , [0, "DJIF"]]     // e.g. incentive
+, [ "trai" , [0, "BDRÄI"]]    // e.g. trainieren
 , [ "tube" , [0, "DJUP"]]     // youtube
-, [ "ture" , [0, "SJEO"]]      // TODO: maybe make more distinct. future, feature, nature
-, [ "tweet", [0, "BDW~ID"]]
-, [ "ue"   , [0, "U"]]       // e.g. blues
-, [ "uy"   , [0, "EI"]]      // e.g. buy-out
-, [ "verse", [0, "FEOS"]]    // reverse
-, [ "ware" , [0, "WÄO"]]     // TODO: are as EO?
+, [ "ture" , [0, "SJEO"]]     // TODO: maybe make more distinct. future, feature, nature
+, [ "tw"   , [0, "DW"]]       // e.g. twerken
+, [ "twee", [0, "DW~I"]]      // e.g. twee|ten
+, [ "ue"   , [0, "U"]]        // e.g. blues
+, [ "uy"   , [0, "EI"]]       // e.g. buy-out
+, [ "verse", [0, "FEOS"]]     // reverse
+, [ "ware" , [0, "WÄ"]]     
+, [ "wear" , [0, "WÄ"]]
+, [ "wh"   , [0, "W"]]
 , [ "whistle", [0, "WIS/SEL", 3]]
 , [ "white", [0, "WEID"]]
 // french
 , [ "aide" , [0, "ÄD"]]
 , [ "aille" , [0, "AI"]]      // e.g. braille
-, [ "aire" , [0, "ÄO"]]
+, [ "aire" , [0, "Ä"]]
 , [ "aisse", [0, "ÄS"]]
 , [ "aque" , [0, "AK"]]       // e.g. opaque
 , [ "anc" ,  [0, "AN"]]       // TODO: documentation french nasal: an = AN, thus anc same
@@ -387,39 +430,56 @@
 , [ "beige", [0, "BEʃ"]]
 , [ "carte", [0, "GDAOD"]]    // think "kart"
 , [ "charme", [0, "SJAM"]]
+, [ "cole" , [0, "GDOL"]]     // e.g. Nicole
 , [ "creme", [0, "GDREM"]]
-, [ "eau"  , [0, "O"]]        // Chateau
+, [ "eau"  , [0, "O"]]        // e.g. Chateau
 , [ "elle" , [0, "EL"]]
 , [ "ence" , [0, "O+NS"]]     // think "onz"
+, [ "e|nce" , [0, "O+NS"]]     // think "onz"
+, [ "e|nne", [0, "EN"]]
+, [ "e|nne", [1, "n"]]
 , [ "eque" , [0, "EK"]]
 , [ "erre" , [0, "EO"]]
 , [ "ette" , [0, "ED"]]
 , [ "e|tui", [0, "E/DJI", 1]]
 , [ "eur"  , [0, "ÄO"]]       // think "ör"
-, [ "guette", [0, "GED"]]
+, [ "feuille", [0, "FÄO/~I", 3]] // e.g. portefeuille
+, [ "force", [0, "F~OS"]]
+, [ "gage" , [0, "GAʃ"]]      // e.g. engagement
 , [ "geoi" , [0, "J~O"]]      // e.g. bour|geoi|sie
 , [ "gime" , [0, "JIM"]]      // e.g. regime
+, [ "guette", [0, "GED"]]
 , [ "heme" , [0, "HEM"]]      // e.g. boheme
 , [ "homme", [0, "HOM"]]
 , [ "ique" , [0, "IK"]]
 , [ "ize"  , [0, "IS"]]       // .. e.g. Belize
+, [ "louis", [0, "LU/I", 3]]
+, [ "louise", [0, "LU/IS", 3]]
 , [ "mage" , [0, "MAʃ"]]      // hommage
 , [ "mousse", [0, "M~US"]]
 , [ "muse" , [0, "MÜS"]]
+, [ "naie" , [0, "NÄ"]]
 , [ "onne" , [0, "ON"]]
 , [ "oire" , [0, "~O"]]
 , [ "oir"  , [0, "~O"]]
 , [ "oise" , [0, "AS"]]
 , [ "ouil|le", [0, "U/~I", 2]]
+, [ "ouille",  [0, "U/~I", 2]]
 , [ "ouil|lon", [0, "U/~I/ON", 2, 2]]
 , [ "ouche" , [0, "Uʃ"]]
 , [ "oy"    , [0, "ÄU"]]      // TODO: documentation -oy as ÄU
 , [ "pere"  , [0, "BDEO"]]    // e.g. ampere
+, [ "porte" , [0, "BD~OD"]]   // e.g. portemonnaie
 , [ "rage" , [0, "RAʃ"]]
-, [ "ueule", [0, "EU"]]       // e.g. amuse-gueule
 , [ "seille", [0, "SEI"]]     // e.g. Marseille
 , [ "sieur" , [0, "SJÄO"]]    // e.g. Monsieur, think sjö
+, [ "sui|te", [0, "SWI/BDE", 3]]
+, [ "tête"  , [0, "DJED"]]
+, [ "toas" , [0, "DJOS"]]     // e.g. Toast, Toas|ter
+, [ "tude"  , [0, "DJÜD"]]     // e.g. Pla|ti|tude
+, [ "ueule", [0, "EU"]]       // e.g. amuse-gueule
 , [ "ville" , [0, "FIL"]]     // e.g. Brazzaville
+, [ "vite"  , [0, "FID"]]
 , [ "yenne" , [0, "JEN"]]     // e.g. Cayenne
 // neerlandais
 , [ "dijk"  , [0, "DEIK"]]
@@ -441,8 +501,14 @@
 , [ "steak" , [0, "SDÄK"]]
 , [ "taupe" , [0, "GDOP"]]
 , [ "taur"  , [0, "GDAU"]]       // e.g. Minotaur
+, [ "sau|ternes", [0, "SO/DJEON"]]
 , [ "tion"  , [0, "SJEN"]]       // think "schen" like in action; "ti|o" is dealt with regularly
 , [ "wide"  , [0, "WEID"]]
 // common abbreviations
 , [ "kfz"   , [0, "GFS"]]
+, [ "vpn"   , [0, "FPn"]]
+, [ "tv"    , [0, "BDF"]]
+, [ "unesco", [0, "U/NES/GDO", 1, 3]]
+, [ "unicef", [0, "U/NI/SFEF", 1, 2]]
+, [ "uefa"  , [0, "U/E/FA", 1, 1]]
 ]
