@@ -10,8 +10,8 @@ import           Control.Category                    (Category ((.)))
 import           Control.Monad                       (Monad ((>>=)),
                                                       MonadPlus (mzero), when)
 import           Data.Bool                           (Bool (False), bool, not,
-                                                      otherwise, (||))
-import           Data.Char                           (Char, isLetter)
+                                                      otherwise, (||), (&&))
+import           Data.Char                           (Char, isLetter, isLower)
 import           Data.Either                         (Either (..), isRight)
 import           Data.Eq                             ((==))
 import           Data.Foldable                       (Foldable (elem), notElem)
@@ -157,7 +157,7 @@ parseSyllables =
             (v1 :) <$> (try bmio <|> pseudoSyllable')
           where
             pseudoSyllable' = do
-              c1 <- Text.pack <$> many1 consonantWOY
+              c1 <- Text.pack <$> many1 lcConsonantWOY
               v2 <- vowel
               rem <- Text.pack <$> many nextChar
               pure [c1 <> v2 <> rem]
@@ -220,9 +220,9 @@ parseSyllables =
                        Text.singleton <$> char x
             _ -> mzero
 
-        consonantWOY =
+        lcConsonantWOY =
           getState >>= \case
-            (x:xs) | x `notElem` ('y' : 'Y' : '-' : vowels) -> do
+            (x:xs) | isLower x && x `notElem` ('y' : 'Y' : '-' : vowels) -> do
                        setState xs
                        char x
             _ -> mzero
