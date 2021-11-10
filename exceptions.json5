@@ -5,14 +5,20 @@
 , "Düne"      : "DÜ/NE"        // < Dünne
 , "Egge"      : "EK/G"         // < Ecke
 , "Haken"     : "HAO/Kn"       // < hacken
+, "Ham"       : "HÄM"
 , "Haydn"     : "HAI/DN"
+, "Hertz"     : "HEO+Ss"       // < Herz
+, "Kent"      : "GDE+ND"       // < gedient
 , "knabber"   : "GDNAP/BR"     // < knapper
 , "Knigge"    : "GDNIK/G"      // < knicke
+, "Laos"      : "LA/OS"        // < Lars
 , "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
 , "Robbe"     : "ROP/B"        // < Robe
 , "spuken"    : "BF~U/Kn"      // < spucken
 , "tja"       : "DJA"   
+, "Truck"     : "DJRAK"
+, "Tyr"       : "DJ~Ü+"        // < Tür
 , "Speiseopfer": "BFEI/SE/OP/FEO"
 , "Xiomara"   : "GDJI/O/MA/RA"
 }

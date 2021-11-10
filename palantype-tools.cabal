@@ -77,6 +77,8 @@ executable palantype-ops
 
     build-depends:
         base ^>=4.13.0.0
+      , aeson
+      , async
       , clock
       , directory
       , filepath
@@ -85,6 +87,7 @@ executable palantype-ops
       , optparse-applicative
       , palantype-tools
       , parsec
+      , split
       , streamly
       , text
       , text-show
@@ -99,6 +102,11 @@ executable palantype-ops
     hs-source-dirs: app
     default-language: Haskell2010
     ghc-options:
+      -- concurrency
+      -threaded
+      -rtsopts
+
+      -- warnings
       -Weverything
 
       -- enable the missing export lists warning to define proper interfaces

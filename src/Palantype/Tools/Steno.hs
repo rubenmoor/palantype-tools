@@ -5,6 +5,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TupleSections #-}
 
 module Palantype.Tools.Steno where
 
@@ -28,7 +29,7 @@ import           Data.Foldable                       (Foldable (foldl', length, 
                                                       maximumBy, minimumBy)
 import           Data.Function                       (flip, ($))
 import           Data.Functor                        (Functor (fmap), ($>),
-                                                      (<$>))
+                                                      (<$>), (<&>))
 import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import           Data.Int                            (Int)
@@ -52,7 +53,7 @@ import           Data.Word                           (Word8)
 import           GHC.Err                             (error)
 import           GHC.Float                           (Double)
 import           GHC.Generics                        (Generic)
-import           GHC.Num                             (Num ((*)), (+))
+import           GHC.Num                             (Num (negate), (+))
 import           GHC.Real                            (Fractional (fromRational, (/)),
                                                       fromIntegral)
 import           Palantype.Common                    (Chord, Finger, mkChord)
@@ -150,42 +151,61 @@ instance TextShow PartsData where
     <> " " <> showb pdPath
 
 parseSeries :: Greediness -> Text -> Either ParseError SeriesData
-parseSeries greediness hyphenated =
-  let unhyphenated = replace "|" "" hyphenated
-  in case HashMap.lookup unhyphenated mapExceptions of
-      Just raw ->
-        case Raw.parseWord raw of
-          Right chords ->
-            let sdHyphenated = hyphenated
-                sdParts = zip (repeat "") chords
-                sdScore = Score (fromIntegral (Text.length unhyphenated) % fromIntegral (length chords)) $ sum (length <$> chords)
-                sdPath = PathException
-            in Right SeriesData{..}
-          Left err ->
-            Left $ PEExceptionTable $
-                 unhyphenated
-              <> ": " <> unRawSteno raw
-              <> "; " <> Text.pack (show err)
-      Nothing ->
-        let str = Text.encodeUtf8 $ toLower hyphenated
-            st = State
-              { stPartsSteno = []
-              , stNLetters = 0
-              , stNChords = 1
-              , stMFinger = Nothing
-              }
-        in  case optimizeStenoSeries greediness st str of
-              Left  err    -> Left $ PEMissingPrimitives err
-              Right result -> case result of
-                Success State{..} ->
-                  let -- the score of a series of chords for a given word is the average
-                      -- chord score, i.e. the average number of letters per chord
-                      sdHyphenated = hyphenated
-                      sdScore = score result
-                      sdParts = toParts stPartsSteno
-                      sdPath = PathOptimize greediness
-                  in  Right SeriesData{..}
-                Failure raw err -> Left $ PEParsec raw err
+parseSeries maxGreediness hyphenated =
+  let
+    unhyphenated = replace "|" "" hyphenated
+  in
+    case HashMap.lookup unhyphenated mapExceptions of
+    Just raw ->
+      case Raw.parseWord raw of
+        Right chords ->
+          let sdHyphenated = hyphenated
+              sdParts = zip (repeat "") chords
+
+              efficiency =
+                  fromIntegral (Text.length unhyphenated)
+                % fromIntegral (length chords)
+
+              sdScore = Score efficiency $ negate $ sum (length <$> chords)
+              sdPath = PathException
+          in Right SeriesData{..}
+        Left err ->
+          Left $ PEExceptionTable $
+               unhyphenated
+            <> ": " <> unRawSteno raw
+            <> "; " <> Text.pack (show err)
+    Nothing ->
+      let
+        str = Text.encodeUtf8 $ toLower hyphenated
+        st = State
+          { stPartsSteno = []
+          , stNLetters = 0
+          , stNChords = 1
+          , stMFinger = Nothing
+          }
+        lsEResult =
+          [0..maxGreediness] <&> \maxG -> (maxG, ) <$> optimizeStenoSeries maxG st str
+      in
+        case sequence lsEResult of
+          Left  err     -> Left $ PEMissingPrimitives err
+          Right pairs ->
+            case maximumBy (comparing $ uncurry scoreWithG) pairs of
+              (g, result@(Success State{..})) ->
+                let
+                  sdHyphenated = hyphenated
+                  sdScore = score result
+                  sdParts = toParts stPartsSteno
+                  sdPath = PathOptimize g
+                in
+                  Right SeriesData{..}
+              (_, Failure raw err) -> Left $ PEParsec raw err
+
+scoreWithG
+  :: Greediness
+  -> Result State
+  -> (Rational, Greediness, Int)
+scoreWithG g result =
+  let Score {..} = score result in (scorePrimary, negate g, scoreSecondary)
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num)
@@ -256,20 +276,24 @@ bsPipe :: Word8
 bsPipe = 0x7C
 
 -- | The score has two values, a primary score and a secondary score.
+--
 --   The primary score is the number of letters per chord.
 --   A high number of letters per chords means high typing efficiency.
---   The secondary score is used, when two series achieve the same score.
+--
 --   The secondary score is the number of steno keys.
 --   A lower number is preferred.
+--   The secondary score is used, when two series achieve the same primary score.
 score
   :: Result State
   -> Score
 score (Success State{..}) =
-  let scorePrimary =
-          fromIntegral (unCountLetters stNLetters)
-        / fromIntegral (unCountChords stNChords)
-      scoreSecondary = (-1) * countKeys stPartsSteno
-  in  Score{..}
+  let
+    scorePrimary =
+        fromIntegral (unCountLetters stNLetters)
+      / fromIntegral (unCountChords stNChords)
+    scoreSecondary = negate $ countKeys stPartsSteno
+  in
+    Score{..}
 score (Failure _ _) = Score 0 0
 
 -- | Try to fit as many letters as possible into a steno
@@ -303,37 +327,40 @@ optimizeStenoSeries g st str | BS.head str == bsPipe =
     r2 = optimizeStenoSeries g st str'
   in
      maximumBy (comparing score) <$> sequence [r1, r2]
-optimizeStenoSeries maxG st str =
-    let matches = Trie.matches primitives str
+optimizeStenoSeries g st str =
+    let
+      matches = Trie.matches primitives str
 
-        matchToResult (consumed, result, rem) =
-          -- TODO: always run all greediness levels
-          --       and check if higher greediness yields different result
-          case parseKey consumed (filterGreediness result) (stMFinger st) of
-            Left  err -> Right $ Failure (view _2 <$> result) err
-            Right (mFinger, lsKoS) ->
-              let newSteno = case lsKoS of
-                    [kos] -> kos : stPartsSteno st
-                    _     -> foldl' (flip (:)) (stPartsSteno st) lsKoS
-                  newState = State
-                    { stPartsSteno = newSteno
-                    , stNLetters = stNLetters st + countLetters consumed
-                    , stNChords = stNChords st + countChords lsKoS
-                    , stMFinger = mFinger
-                    }
-              in  optimizeStenoSeries maxG newState rem
+      matchToResult (consumed, result, rem) =
+        -- TODO: always run all greediness levels
+        --       and check if higher greediness yields different result
+        case parseKey consumed (filterGreediness result) (stMFinger st) of
+          Left  err -> Right $ Failure (view _2 <$> result) err
+          Right (mFinger, lsKoS) ->
+            let
+              newSteno = case lsKoS of
+                [kos] -> kos : stPartsSteno st
+                _     -> foldl' (flip (:)) (stPartsSteno st) lsKoS
+              newState = State
+                { stPartsSteno = newSteno
+                , stNLetters = stNLetters st + countLetters consumed
+                , stNChords = stNChords st + countChords lsKoS
+                , stMFinger = mFinger
+                }
+            in
+              optimizeStenoSeries g newState rem
 
-        eResults = case matches of
-              [] -> Left $ Text.decodeUtf8 str
-              ms -> sequence $ matchToResult <$> ms
-
-    in  maximumBy (comparing score) <$> eResults
+      eResults = case matches of
+        [] -> Left $ Text.decodeUtf8 str
+        ms -> sequence $ matchToResult <$> ms
+    in
+      maximumBy (comparing score) <$> eResults
   where
     filterGreediness
       :: [(Greediness, RawSteno, [Int])]
       -> [(RawSteno, [Int])]
     filterGreediness =
-      foldl' (\rs (g, r, is) -> if g <= maxG then (r, is):rs else rs) []
+      foldl' (\rs (g', r, is) -> if g' <= g then (r, is):rs else rs) []
 
     parseKey
       :: ByteString

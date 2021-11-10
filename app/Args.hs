@@ -20,7 +20,7 @@ data Task
   = TaskRawSteno Text
   | TaskSyllables OptionsSyllables
   | TaskStenoWords OptionsStenoWords
-  | TaskPartsDict Bool
+  | TaskGermanDict Bool
 
 data OptionsSyllables
   = OSylFile Bool
@@ -43,7 +43,7 @@ task = subparser
   (  command "rawSteno"   (info (TaskRawSteno   <$> arg rawStenoHelp <* helper) rawStenoInfo)
   <> command "syllables"  (info (TaskSyllables  <$> optsSyllables    <* helper) syllablesInfo)
   <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords   <* helper) stenoWordsInfo)
-  <> command "stenoDict"  (info (TaskPartsDict  <$> switchReset      <* helper) stenoDictInfo)
+  <> command "stenoDict"  (info (TaskGermanDict <$> switchReset      <* helper) germanDictInfo)
   )
   where
     rawStenoHelp =
@@ -138,8 +138,7 @@ stenoWordsInfo =
            \of steno chords. The result is written to \"steno-words.txt\". The \
            \remainder is written to \"steno-words-noparse.txt\"."
 
-stenoDictInfo :: InfoMod a
-stenoDictInfo =
-  progDesc "Read the file \"steno-words.txt\" and reverse the mapping: \
-           \Store for every steno chord a list of real-life word parts \
-           \along with the words in which they occur."
+germanDictInfo :: InfoMod a
+germanDictInfo =
+  progDesc "Read the file \"stenoparts.txt\" and \"german.dic\" \
+           \to then find a series of chords for every german word."
