@@ -78,6 +78,7 @@ data Exception
   | ExceptionSpecialChar Char
   | ExceptionSingleLetter
   | ExceptionEllipsis
+  | ExceptionAcronym
   deriving stock (Generic)
 
 instance TextShow Exception where
@@ -118,6 +119,8 @@ parseSyllables =
         when (Text.length result == 1) $ setState $ Just ExceptionSingleLetter
         when (isRight $ parse ellipsis "" result) $
           setState $ Just ExceptionEllipsis
+        when (Text.toUpper result == result) $
+          setState $ Just ExceptionAcronym
         rem <- getInput
         pure (result, rem)
       where
@@ -132,7 +135,8 @@ parseSyllables =
         case c of
           '.' -> setState $ Just ExceptionAbbreviation
           ' ' -> setState $ Just ExceptionMultiple
-          _ | not (isLetter c || c `elem` ("-!®" :: String)) -> setState $ Just $ ExceptionSpecialChar c
+          _ | not (isLetter c || c `elem` ("-!®" :: String)) ->
+              setState $ Just $ ExceptionSpecialChar c
           _ -> pure ()
       pure $ case c of
                '!' -> Nothing

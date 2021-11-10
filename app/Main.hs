@@ -19,11 +19,12 @@ import           Data.Eq                    (Eq ((==)))
 import           Data.Foldable              (Foldable (foldl', length, maximum),
                                              for_)
 import           Data.Function              (($))
-import           Data.Functor               (Functor (fmap), (<$>), (<&>), ($>))
+import           Data.Functor               (Functor (fmap), (<$>), (<&>))
 import           Data.HashMap.Strict        (HashMap, member)
 import qualified Data.HashMap.Strict        as HashMap
 import           Data.Int                   (Int)
 import           Data.List                  (head, replicate, (++), take, sortOn, zip)
+import qualified Data.Map as Map
 import           Data.Maybe                 (Maybe (Nothing, Just))
 import           Data.Monoid                ((<>), Monoid (mempty, mconcat))
 import           Data.Text                  (Text, replace, splitOn, toLower)
@@ -37,7 +38,7 @@ import           Data.Time.Clock            (UTCTime, getCurrentTime)
 import           Data.Time.Format           (defaultTimeLocale, formatTime)
 import           Formatting                 (fprint, (%))
 import           Formatting.Clock           (timeSpecs)
-import           GHC.Err                    (error, undefined)
+import           GHC.Err                    (error)
 import           GHC.Float                  (Double)
 import           GHC.Num                    ((+))
 import           GHC.Real                   (Fractional ((/), fromRational), Real, realToFrac, fromIntegral)
@@ -104,6 +105,7 @@ syllables (OSylFile reset) = do
           , fileSyllablesSpecialChar
           , fileSyllablesSingleLetter
           , fileSyllablesEllipsis
+          , fileSyllablesAcronyms
           ]
     when reset $ do
       for_ lsFiles $ \file -> do
@@ -138,6 +140,7 @@ syllables (OSylFile reset) = do
     fileSyllablesSpecialChar = "syllables-specialchar.txt"
     fileSyllablesSingleLetter = "syllables-singleletter.txt"
     fileSyllablesEllipsis = "syllables-ellipsis.txt"
+    fileSyllablesAcronyms = "syllables-acronyms.txt"
 
     runSyllables file = do
 
@@ -163,6 +166,7 @@ syllables (OSylFile reset) = do
                       ExceptionSpecialChar c -> appendLine fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
                       ExceptionSingleLetter  -> appendLine fileSyllablesSingleLetter entry
                       ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
+                      ExceptionAcronym       -> appendLine fileSyllablesAcronyms entry
                 pure hyphenated
       foldM_ acc (Success $ SyllableData "" []) entries
 
@@ -220,7 +224,7 @@ data StenoWordsState
   = StenoWordsState
     { swsMapWordSteno  :: HashMap Text SeriesData
     , swsMapChordParts :: HashMap PartsData [Text]
-    , swsMapStenoWord  :: HashMap RawSteno [(Path, Text)]
+    , swsMapStenoWords  :: HashMap RawSteno [(Path, Text)]
     , swsMissingPrimitives :: [Lazy.Text]
     , swsParsecError :: [Lazy.Text]
     , swsNoParse :: [Lazy.Text]
@@ -243,14 +247,19 @@ instance Monoid StenoWordsState where
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwRun greediness (OStwArg str)) =
-  case parseSeries greediness str of
-    Left err -> StrictIO.putStrLn $ showt err
-    Right SeriesData{..} ->
-      StrictIO.putStrLn $
+    case parseSeries greediness str of
+      Left err -> StrictIO.putStrLn $ showt err
+      Right (sd, alts) -> do
+        StrictIO.putStr $ showSeriesData sd <> " – "
+          <> Text.intercalate "; " (showAlt <$> alts)
+  where
+    showSeriesData SeriesData{..} =
            sdHyphenated
         <> " " <> showt sdScore
         <> " " <> showt sdPath
-        <> " " <> showt sdParts
+        <> " " <> Text.intercalate "/" (showt . snd <$> sdParts)
+    showAlt SeriesData {..} =
+      showt sdPath <> " " <> Text.intercalate "/" (showt . snd <$> sdParts)
 
 stenoWords (OStwRun greediness OStwStdin) =
   forever $ do
@@ -359,7 +368,7 @@ stenoWords (OStwRun greediness
                             , swsNoParse = str : swsNoParse
                             }
                     else sws { swsNoParse = str : swsNoParse }
-              Right sd  ->
+              Right (sd, alts)  ->
                 if word `member` swsMapWordSteno
                   then pure $
                     if bFirstPass
@@ -369,21 +378,27 @@ stenoWords (OStwRun greediness
                     let
                       acc' m (o, c) =
                         HashMap.insertWith (++) (PartsData o c $ sdPath sd) [word] m
-                      partsData = foldl' acc' HashMap.empty (sdParts sd)
+                      partsData = foldl' acc' HashMap.empty $
+                        mconcat $ sdParts sd : (sdParts <$> alts)
 
                       raw = RawSteno $ Text.intercalate "/" $ showt . snd <$> sdParts sd
 
-                    hPutStrLn h $ Lazy.fromStrict $ word <> " " <> showt sd
-
-                    let
                       ciAppend [p1@(_, w1)] [p2@(_, w2)] =
                         if toLower w1 == toLower w2 then [p1] else [p1, p2]
                       ciAppend ws1 ws2 = ws1 ++ ws2
 
+                      showAlt SeriesData {..} =
+                        showt sdPath <> " " <> Text.intercalate "/" (showt . snd <$> sdParts)
+
+                    -- write to file
+                    hPutStrLn h $ Lazy.fromStrict $
+                      word <> " " <> showt sd
+                      <> " – " <> Text.intercalate "; " (showAlt <$> alts)
+
                     pure $ sws
                       { swsMapWordSteno = HashMap.insert word sd swsMapWordSteno
                       , swsMapChordParts = HashMap.unionWith (++) partsData swsMapChordParts
-                      , swsMapStenoWord = HashMap.insertWith ciAppend raw [(sdPath sd, word)] swsMapStenoWord
+                      , swsMapStenoWords = HashMap.insertWith ciAppend raw [(sdPath sd, word)] swsMapStenoWords
                       }
 
       nj <- getNumCapabilities
@@ -395,6 +410,8 @@ stenoWords (OStwRun greediness
           jobs = zip [1 :: Int ..] $ chunksOf d lsSyllable
       lsResult <- forConcurrently  jobs $ \(i, ls) -> do
         let filePart = "stenoWordsPart" <> show i <> ".txt"
+        exists <- doesFileExist filePart
+        when exists $ removeFile filePart
         h <- openFile filePart ReadWriteMode
         sws <- foldM (acc h) mempty ls
         pure (h, sws)
@@ -433,18 +450,32 @@ stenoWords (OStwRun greediness
              <> if n > 3 then " ..." else ""
         appendLine fileStenoParts str
 
-      lsStenoWord <- forM (HashMap.toList swsMapStenoWord) $
-        \(r, pairs) -> case pairs of
-          [(_, word)] -> pure (r, word)
-          []     -> error "empty entry"
+      let
+        acc' m (r, pairs) = case pairs of
+
+          -- no collision: ignore path, store raw steno with word
+          -- TODO: unless there is already an entry
+          [(_, word)] -> pure $ HashMap.insert r word m
+
+          -- collision
           p:_ -> do
-            appendLine fileStenoWordsCollisions $
-              Lazy.fromStrict $ showt r <> ": " <> showt pairs
-            pure (r, snd p)
+            mSolution <- solveCollision (snd <$> pairs) swsMapWordSteno
+            case mSolution of
+              Just stenoWord -> pure stenoWord
+              Nothing -> do
+                appendLine fileStenoWordsCollisions $
+                  Lazy.fromStrict $ showt r <> ": " <> showt pairs
+                pure (r, snd p)
+
+          -- impossible case
+          []     -> error "empty entry"
+
+      mapStenoWord <-
+        foldM acc' HashMap.empty (HashMap.toList swsMapStenoWords)
 
       -- TODO: aeson object instead of list, with line breaks
       putStrLn "Writing small json dictionary"
-      Aeson.encodeFile "smalldict.json" lsStenoWord
+      Aeson.encodeFile "smalldict.json" mapStenoWord
 
       pure $ HashMap.toList swsMapWordSteno <&> \(_, SeriesData {..}) ->
         scorePrimary sdScore

@@ -1,16 +1,17 @@
 { "Aorta"     : "A/~O/DJA"
 , "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
-, "Beautyfarm": "BJU/DJI/FAOM" // more efficient, but wrong BO
+, "Beautyfarm": "BJU/DJI/FAÜM" // more efficient, but wrong BO
 , "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
 , "Düne"      : "DÜ/NE"        // < Dünne
 , "Egge"      : "EK/G"         // < Ecke
-, "Haken"     : "HAO/Kn"       // < hacken
+, "Haken"     : "HAÜ/Kn"       // < hacken
 , "Ham"       : "HÄM"
 , "Haydn"     : "HAI/DN"
-, "Hertz"     : "HEO+Ss"       // < Herz
+, "Hertz"     : "HEÜ+Ss"       // < Herz
 , "Kent"      : "GDE+ND"       // < gedient
 , "knabber"   : "GDNAP/BR"     // < knapper
 , "Knigge"    : "GDNIK/G"      // < knicke
+, "Lake"      : "LAÜ/GDE"
 , "Laos"      : "LA/OS"        // < Lars
 , "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
@@ -19,6 +20,6 @@
 , "tja"       : "DJA"   
 , "Truck"     : "DJRAK"
 , "Tyr"       : "DJ~Ü+"        // < Tür
-, "Speiseopfer": "BFEI/SE/OP/FEO"
+, "Speiseopfer": "BFEI/SE/OP/FEÜ"
 , "Xiomara"   : "GDJI/O/MA/RA"
 }

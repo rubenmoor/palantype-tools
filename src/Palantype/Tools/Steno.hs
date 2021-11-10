@@ -23,7 +23,7 @@ import qualified Data.ByteString                     as BS
 import           Data.Char                           (digitToInt, isDigit)
 import           Data.Either                         (Either (Left, Right),
                                                       isLeft)
-import           Data.Eq                             (Eq ((==)))
+import           Data.Eq                             (Eq ((==), (/=)))
 import           Data.FileEmbed                      (embedFile)
 import           Data.Foldable                       (Foldable (foldl', length, sum, toList),
                                                       maximumBy, minimumBy)
@@ -34,12 +34,12 @@ import           Data.HashMap.Strict                 (HashMap)
 import qualified Data.HashMap.Strict                 as HashMap
 import           Data.Int                            (Int)
 import           Data.List                           (head, intersperse, repeat,
-                                                      zip, (++))
+                                                      zip, (++), sortBy, sortOn, filter, tail)
 import           Data.Map                            (Map)
 import qualified Data.Map                            as Map
-import           Data.Maybe                          (Maybe (Just, Nothing))
+import           Data.Maybe                          (Maybe (Just, Nothing), fromMaybe)
 import           Data.Monoid                         ((<>))
-import           Data.Ord                            (Ord ((<=)), comparing)
+import           Data.Ord                            (Ord ((<=)), comparing, Down (Down))
 import           Data.Ratio                          (Rational, (%))
 import           Data.Text                           (Text, intercalate,
                                                       replace, toLower)
@@ -78,6 +78,9 @@ import Data.Aeson.Types (Parser)
 import Control.Lens (view)
 import Control.Lens.Tuple (_2)
 import Data.Hashable (Hashable (hashWithSalt))
+import Data.Bool (Bool(False))
+import Debug.Trace (traceShow)
+import Safe (headMay)
 
 type Greediness = Int
 
@@ -150,55 +153,86 @@ instance TextShow PartsData where
     <> " " <> showb pdSteno
     <> " " <> showb pdPath
 
-parseSeries :: Greediness -> Text -> Either ParseError SeriesData
+-- | Given a maximum value for the greediness (currently: can always be set to 3)
+--   find steno chords for a given word, provided as e.g. "Ge|sund|heit"
+--   or return a parser error.
+--   In case of success, provide the most efficient steno chords along with a
+--   list of alternatives. E.g. steno that uses more chords or more letters,
+--   or steno that uses the same number of chords or letters, but requires
+--   higher greediness
+parseSeries
+  :: Greediness
+  -> Text
+  -> Either ParseError (SeriesData, [SeriesData])
 parseSeries maxGreediness hyphenated =
-  let
-    unhyphenated = replace "|" "" hyphenated
-  in
     case HashMap.lookup unhyphenated mapExceptions of
-    Just raw ->
-      case Raw.parseWord raw of
-        Right chords ->
-          let sdHyphenated = hyphenated
-              sdParts = zip (repeat "") chords
+      Just raw ->
+        case Raw.parseWord raw of
+          Right chords ->
+            let sdHyphenated = hyphenated
+                sdParts = zip (repeat "") chords
 
-              efficiency =
-                  fromIntegral (Text.length unhyphenated)
-                % fromIntegral (length chords)
+                efficiency =
+                    fromIntegral (Text.length unhyphenated)
+                  % fromIntegral (length chords)
 
-              sdScore = Score efficiency $ negate $ sum (length <$> chords)
-              sdPath = PathException
-          in Right SeriesData{..}
-        Left err ->
-          Left $ PEExceptionTable $
-               unhyphenated
-            <> ": " <> unRawSteno raw
-            <> "; " <> Text.pack (show err)
-    Nothing ->
+                sdScore = Score efficiency $ negate $ sum (length <$> chords)
+                sdPath = PathException
+               -- in case of exception, there are no alternatives
+            in Right (SeriesData{..}, [])
+          Left err ->
+            Left $ PEExceptionTable $
+                 unhyphenated
+              <> ": " <> unRawSteno raw
+              <> "; " <> Text.pack (show err)
+      Nothing ->
+        let
+          str = Text.encodeUtf8 $ toLower hyphenated
+          st = State
+            { stPartsSteno = []
+            , stNLetters = 0
+            , stNChords = 1
+            , stMFinger = Nothing
+            }
+          lsEResult =
+            [0..maxGreediness] <&> \maxG -> (maxG, ) <$> optimizeStenoSeries maxG st str
+        in
+          case sequence lsEResult of
+            Left  err     -> Left $ PEMissingPrimitives err
+            Right pairs ->
+              case sortOn (Down . uncurry scoreWithG) pairs of
+                (_, Failure raw err) : _ -> Left $ PEParsec raw err
+                [] -> error "impossible"
+                ls ->
+                  let
+                    (main, alts) = case filterAlts ls of
+                      [] -> error "impossible"
+                      m:as -> (m, as)
+                  in
+                    Right ( toSeriesData main, toSeriesData <$> alts)
+  where
+    unhyphenated = replace "|" "" hyphenated
+
+    toSeriesData (maxG, state) =
       let
-        str = Text.encodeUtf8 $ toLower hyphenated
-        st = State
-          { stPartsSteno = []
-          , stNLetters = 0
-          , stNChords = 1
-          , stMFinger = Nothing
-          }
-        lsEResult =
-          [0..maxGreediness] <&> \maxG -> (maxG, ) <$> optimizeStenoSeries maxG st str
+        sdHyphenated = hyphenated
+        sdScore = score' state
+        sdParts = toParts (stPartsSteno state)
+        sdPath = PathOptimize maxG
       in
-        case sequence lsEResult of
-          Left  err     -> Left $ PEMissingPrimitives err
-          Right pairs ->
-            case maximumBy (comparing $ uncurry scoreWithG) pairs of
-              (g, result@(Success State{..})) ->
-                let
-                  sdHyphenated = hyphenated
-                  sdScore = score result
-                  sdParts = toParts stPartsSteno
-                  sdPath = PathOptimize g
-                in
-                  Right SeriesData{..}
-              (_, Failure raw err) -> Left $ PEParsec raw err
+        SeriesData{..}
+
+    filterAlts [] = []
+    filterAlts ((_, Failure _ _) : as) = filterAlts as
+    filterAlts ((g, Success state) : as) =
+      let
+        showRaw = fmap (showt . snd) . toParts . stPartsSteno
+
+        distinct _ (_, Failure _ _) = False
+        distinct st1 (_, Success st2) =
+          showRaw st1 /= showRaw st2
+      in
+        (g, state) : filterAlts (filter (distinct state) as)
 
 scoreWithG
   :: Greediness
@@ -286,7 +320,13 @@ bsPipe = 0x7C
 score
   :: Result State
   -> Score
-score (Success State{..}) =
+score (Success st) = score' st
+score (Failure _ _) = Score 0 0
+
+score'
+  :: State
+  -> Score
+score' State{..} =
   let
     scorePrimary =
         fromIntegral (unCountLetters stNLetters)
@@ -294,7 +334,6 @@ score (Success State{..}) =
     scoreSecondary = negate $ countKeys stPartsSteno
   in
     Score{..}
-score (Failure _ _) = Score 0 0
 
 -- | Try to fit as many letters as possible into a steno
 --   chord (a chord contains keys that can be typed all at once).

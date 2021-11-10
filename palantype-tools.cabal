@@ -80,6 +80,7 @@ executable palantype-ops
       , aeson
       , async
       , clock
+      , containers
       , directory
       , filepath
       , formatting
