@@ -51,7 +51,7 @@ import           Palantype.Tools.Steno      (ParseError (..), SeriesData (..),
                                              parseSeries, PartsData (..), Score (scorePrimary), Path)
 import           Palantype.Tools.Syllables  (Exception (..), Result (..),
                                              SyllableData (SyllableData),
-                                             parseSyllables)
+                                             parseSyllables, sdWord)
 import           System.Clock               (Clock (Monotonic), getTime)
 import           System.Directory           (doesFileExist, listDirectory,
                                              removeFile, renamePath)
@@ -71,6 +71,7 @@ import Control.Concurrent.Async (forConcurrently)
 import Data.List.Split (chunksOf)
 import Data.Traversable (forM)
 import qualified Data.Aeson as Aeson
+import Palantype.Tools.Collision (readFrequencies, lookUpFrequency, getSession)
 
 main :: IO ()
 main =
@@ -92,8 +93,14 @@ rawSteno str =
 syllables
   :: OptionsSyllables
   -> IO ()
-syllables (OSylArg str) =
-  StrictIO.putStrLn $ showt $ parseSyllables str
+syllables (OSylArg str) = do
+  cache <- readFrequencies
+  session <- getSession
+  for_ (parseSyllables str) $ \case
+    Success sd -> do
+      f <- lookUpFrequency cache session (sdWord sd)
+      StrictIO.putStrLn $ showt sd <> " " <> showt f
+    other -> StrictIO.putStrLn $ showt other
 
 syllables (OSylFile reset) = do
     start <- getTime Monotonic
@@ -146,28 +153,34 @@ syllables (OSylFile reset) = do
 
       let tmpFileNoParse = "syllables-noparse.tmp.txt"
 
+      cache <- readFrequencies
+      session <- getSession
       handle <- openFile file ReadMode
       hSetNewlineMode handle universalNewlineMode
       entries <- Lazy.lines <$> hGetContents handle
 
-      let acc last entry = do
-                -- eliminate duplicate entries after parsing
-                let lsHyphenated = parseSyllables $ Lazy.toStrict entry
-                    hyphenated = head lsHyphenated
-                unless (hyphenated == last) $
-                  for_ lsHyphenated $ \case
-                    Failure err -> do
-                      print err
-                      appendLine tmpFileNoParse entry
-                    Success sd -> appendLine fileSyllables $ Lazy.fromStrict $ showt sd
-                    Exception exc -> case exc of
-                      ExceptionAbbreviation  -> appendLine fileSyllablesAbbreviations entry
-                      ExceptionMultiple      -> appendLine fileSyllablesMultiple entry
-                      ExceptionSpecialChar c -> appendLine fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
-                      ExceptionSingleLetter  -> appendLine fileSyllablesSingleLetter entry
-                      ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
-                      ExceptionAcronym       -> appendLine fileSyllablesAcronyms entry
-                pure hyphenated
+      let
+        acc last entry = do
+          -- eliminate duplicate entries after parsing
+          let lsHyphenated = parseSyllables $ Lazy.toStrict entry
+              hyphenated = head lsHyphenated
+          unless (hyphenated == last) $
+            for_ lsHyphenated $ \case
+              Failure err -> do
+                print err
+                appendLine tmpFileNoParse entry
+              Success sd -> do
+                f <- lookUpFrequency cache session (sdWord sd)
+                appendLine fileSyllables $ Lazy.fromStrict $
+                  showt sd <> " " <> showt f
+              Exception exc -> case exc of
+                ExceptionAbbreviation  -> appendLine fileSyllablesAbbreviations entry
+                ExceptionMultiple      -> appendLine fileSyllablesMultiple entry
+                ExceptionSpecialChar c -> appendLine fileSyllablesSpecialChar $ Lazy.singleton c <> " " <> entry
+                ExceptionSingleLetter  -> appendLine fileSyllablesSingleLetter entry
+                ExceptionEllipsis      -> appendLine fileSyllablesEllipsis entry
+                ExceptionAcronym       -> appendLine fileSyllablesAcronyms entry
+          pure hyphenated
       foldM_ acc (Success $ SyllableData "" []) entries
 
       appendLine tmpFileNoParse "END"
@@ -450,6 +463,7 @@ stenoWords (OStwRun greediness
              <> if n > 3 then " ..." else ""
         appendLine fileStenoParts str
 
+      -- TODO: replace with collision detection from Palantype.Tools.Collision
       let
         acc' m (r, pairs) = case pairs of
 
@@ -459,13 +473,9 @@ stenoWords (OStwRun greediness
 
           -- collision
           p:_ -> do
-            mSolution <- solveCollision (snd <$> pairs) swsMapWordSteno
-            case mSolution of
-              Just stenoWord -> pure stenoWord
-              Nothing -> do
-                appendLine fileStenoWordsCollisions $
-                  Lazy.fromStrict $ showt r <> ": " <> showt pairs
-                pure (r, snd p)
+            appendLine fileStenoWordsCollisions $
+              Lazy.fromStrict $ showt r <> ": " <> showt pairs
+            pure $ HashMap.insert r (snd p) m
 
           -- impossible case
           []     -> error "empty entry"

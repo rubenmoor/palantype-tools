@@ -26,6 +26,7 @@ library
         Palantype.Tools.Statistics
         Palantype.Tools.Steno
         Palantype.Tools.Syllables
+        Palantype.Tools.Collision
 
     build-depends:
         base ^>=4.13.0.0
@@ -40,6 +41,7 @@ library
       , file-embed
       , hashable
       , lens
+      , lens-aeson
       , my-palantype
       , parsec
       , safe
@@ -47,6 +49,7 @@ library
       , text-show
       , unordered-containers
       , word8
+      , wreq
     hs-source-dirs: src
     default-extensions:
         LambdaCase

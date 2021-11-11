@@ -44,6 +44,7 @@ import           Text.ParserCombinators.Parsec.Pos   (initialPos)
 import           Text.Show                           (Show (show))
 import           TextShow                            (TextShow (..), fromText)
 import           TextShow.Generic                    (genericShowbPrec)
+import Data.Int (Int)
 
 data SyllableData
   = SyllableData
