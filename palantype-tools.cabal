@@ -49,7 +49,6 @@ library
       , text-show
       , unordered-containers
       , word8
-      , wreq
     hs-source-dirs: src
     default-extensions:
         LambdaCase
