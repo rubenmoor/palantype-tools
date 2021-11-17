@@ -106,6 +106,7 @@ import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
 import qualified Palantype.Common.RawSteno     as RawSteno
 import qualified Palantype.DE.Keys             as DE
 import           Palantype.Tools.Collision      ( freq
+                                                , getMapStenoWord
                                                 , readFrequencies
                                                 )
 import           Palantype.Tools.Statistics     ( plotScoresShow )
@@ -596,44 +597,35 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                               <> if n > 3 then " ..." else ""
                   appendLine fileStenoParts str
 
-        -- TODO: replace with collision detection from Palantype.Tools.Collision
-        let showPathFreqWord :: [(Path, Text)] -> Text
-            showPathFreqWord pairs =
-                Text.intercalate ", " $ showPathWord <$> pairs
-              where
-                showPathWord (p, w) =
-                    showt p <> " " <> showt (freq freqs w) <> " " <> w
-
-            acc' m (r, pairs) = case pairs of
-
-        -- no collision: ignore path, store raw steno with word
-        -- TODO: unless there is already an entry
-                [ (_, word)] -> pure $ HashMap.insert r word m
-
-                -- collision
-                p :        _ -> do
-                    appendLine fileStenoWordsCollisions
-                        $  Lazy.fromStrict
-                        $  showt r
-                        <> ": "
-                        <> showPathFreqWord pairs
-                    pure $ HashMap.insert r (snd p) m
-
-                -- impossible case
-                [] -> error "empty entry"
-
-        mapStenoWord <- foldM acc'
-                              HashMap.empty
-                              (HashMap.toList swsMapStenoWords)
-
-        -- TODO: aeson object instead of list, with line breaks
         putStrLn "Writing small json dictionary"
-        let conf = Aeson.defConfig { confCompare = compare }
+
+        let (mapStenoWord, mapCollisions) =
+                getMapStenoWord freqs swsMapStenoWords
+
+            conf = Aeson.defConfig { confCompare = compare }
+
         LazyBS.writeFile "smalldict.json"
             $ Aeson.encodePretty' conf mapStenoWord
 
+        putStrLn $ "Writing " <> fileStenoWordsCollisions
+
+        let showPathFreqWord (path, f, word) =
+                showt path <> " " <> showt f <> " " <> word
+
+        writeFile fileStenoWordsCollisions
+            $   Lazy.intercalate "\n"
+            $   HashMap.toList mapCollisions <&> \(raw, cs) ->
+                    Lazy.fromStrict $ showt raw <> ": " <> Text.intercalate
+                        ", "
+                        (showPathFreqWord <$> cs)
+
         pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
             maximum $ scorePrimary . sdScore <$> sds
+
+--     showPathFreqWord :: [(Path, Text)] -> Text
+--     showPathFreqWord pairs = Text.intercalate ", " $ showPathWord <$> pairs
+--       where
+--         showPathWord (p, w) =
 
 stenoWords OStwShowChart = do
     now <- getCurrentTime
