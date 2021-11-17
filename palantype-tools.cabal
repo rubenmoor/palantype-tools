@@ -80,7 +80,9 @@ executable palantype-ops
     build-depends:
         base ^>=4.13.0.0
       , aeson
+      , aeson-pretty
       , async
+      , bytestring
       , clock
       , containers
       , directory

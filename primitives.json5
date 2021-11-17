@@ -23,8 +23,8 @@
 //     * 1 corresponds to "greedier" patterns, e.g. patterns that make use of the steno key n
 //       to increase efficiency (less chords per letter)
 //     * ideally, G1-patterns don't cause any ambiguity or confusion (tbd.)
-//     * 2 should correspond to experimental patterns that, ideally, increase efficiency
-//       but might result in weird and impractical patterns
+//     * 2 should correspond to advanced patterns that, ideally, increase efficiency
+//       but occasionally result in unintuitive patterns
 //     * 3 currently is used for collusion avoidance, e.g. less efficient patterns that simply
 //       offer alternative steno
 //   * the order of the entries does not matter, but should stay lexicographic for readability
@@ -38,8 +38,10 @@
 , [ "à"   , [0, "A"]]
 , [ "â"   , [0, "A"]]
 , [ "å"   , [0, "A"]]          // Ux00E5
-, [ "aa"  , [0, "A/A", 1]]
-, [ "aar" , [0, "A/AÜ", 1]]
+, [ "aa"  , [0, "AÜ"]]
+, [ "aa"  , [3, "A/A", 1]]
+, [ "aar" , [0, "AÜ"]]
+, [ "aar" , [3, "A/AÜ", 1]]
 , [ "ae"  , [0, "AI"]]         // e.g. aerodynamisch
 , [ "ag"  , [3, "AÜK"]]
 , [ "ah"  , [0, "AÜ"]]
@@ -65,23 +67,23 @@
 //                              pattern eau, thus: full word exception
 , [ "bi|o", [1, "BJO"]]
 , [ "böe" , [0, "BÄO"]]      // Böe = "Bö"
-, [ "c"   , [0, "GDM"]]      // TODO: documentation; solution for c-/k- collisions
-, [ "c"   , [1, "GD"]]       // only allow c as GD if there is no collision
-, [ "c"   , [0, "+K"]]
-, [ "c"   , [1, "K"]]
+, [ "c"   , [3, "GDM"]]      // TODO: documentation; solution for c-/k- collisions
+, [ "c"   , [0, "GD"]]       // only allow c as GD if there is no collision
+, [ "c"   , [3, "+K"]]
+, [ "c"   , [0, "K"]]
 , [ "ç"   , [0, "SF"]]       // U+00E7
 , [ "cä"  , [0, "SFÄ"]]      // phonetic z
 , [ "ce"  , [1, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
 , [ "ce"  , [0, "SFJE"]]     // z: SF, sch: SJ, c with s/tsch/z-sound: SFJ
 , [ "ce"  , [1, "Ss"]]
-, [ "ch"  , [1, "SJ"]]
-, [ "ch"  , [0, "SHJ"]]
+, [ "ch"  , [0, "SJ"]]
+, [ "ch"  , [3, "SHJ"]]
 , [ "ch"  , [0, "Kʃ"]]
 , [ "chia", [0, "SJA"]]
 , [ "chio", [0, "SJO"]]
 , [ "chs" , [0, "KS"]]
-, [ "ci"  , [1, "SFI"]]
-, [ "ci"  , [0, "SFJI"]]
+, [ "ci"  , [0, "SFI"]]
+, [ "ci"  , [3, "SFJI"]]
 , [ "cia" , [0, "SFJA"]]
 , [ "ck"  , [0, "GD"]]
 , [ "ck"  , [0, "K"]]
@@ -118,7 +120,7 @@
 , [ "ren" , [2, "n"]]
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
 // maybe BDN for ent^ (works already implicitly)
-, [ "ent" , [1, "BDN"]]     // ent = "tn" -> BDN
+, [ "ent" , [1, "BDN"]]     // TODO: documentation: ent = "tn" -> BDN
 , [ "er"  , [0, "EÜ"]]   
 , [ "er"  , [2, "R"]]
 // "er"  : [0, "R", "EÜ"] // TODO: efficiency for "er" in onset
@@ -203,8 +205,8 @@
 , [ "p"   , [0, "BD"]]
 , [ "pf"  , [0, "BF"]]
 , [ "ph"  , [0, "BH"]]       // TODO: documentation
-, [ "pp"  , [1, "P"]]
-, [ "pp"  , [0, "+P"]]
+, [ "pp"  , [0, "P"]]
+, [ "pp"  , [3, "+P"]]
 , [ "p|p" , [1, "P"]]
 , [ "ps"  , [0, "SDJ"]]     // TODO: documentation
 , [ "pt"  , [0, "BDJ"]]     // TODO: documentation
@@ -212,8 +214,8 @@
 , [ "qi"  , [0, "SJI"]]
 , [ "qu"  , [0, "GDW"]]
 , [ "r"   , [0, "R"]]
-, [ "rh"  , [1, "R"]]
-, [ "rh"  , [0, "HR"]]      // TODO: documentation
+, [ "rh"  , [0, "R"]]
+, [ "rh"  , [3, "HR"]]      // TODO: documentation
 , [ "ria" , [0, "JRA"]]     // think "ria"/"ira"
 , [ "sh"  , [0, "SJ"]]      // cash, auscashen
 , [ "rio" , [0, "JRO"]]     // think "rio"/"iro"
@@ -223,8 +225,8 @@
 , [ "s"   , [0, "S"]]
 , [ "s"   , [0, "s"]]
 , [ "sc"  , [0, "GDJ"]]     // e.g. scooter
-, [ "sc"  , [0, "+KS"]]      // e.g. disc
-, [ "sc"  , [1, "KS"]]      // e.g. disc
+, [ "sc"  , [3, "+KS"]]      // e.g. disc
+, [ "sc"  , [0, "KS"]]      // e.g. disc
 , [ "sch" , [0, "SJ"]]
 , [ "sch" , [0, "ʃ"]]       // U+0283
 , [ "schm", [0, "SM"]]
@@ -239,7 +241,7 @@
 , [ "sp"  , [0, "BF"]]      // TODO: documentation
 , [ "sp"  , [0, "PS"]]      // TODO: documentation -sp = PS
 , [ "sk"  , [0, "GDJ"]]     // TODO: documentation x, sk -> GDJ
-, [ "sk"  , [0, "KS"]]      // tink "sk"/"ks"
+, [ "sk"  , [0, "KS"]]      // TODO: documentation tink "sk"/"ks"
 , [ "ss"  , [0, "S"]]
 , [ "s|s" , [1, "S"]]
 , [ "st"  , [0, "SD"]]
@@ -250,8 +252,8 @@
 , [ "te"  , [2, "DJ"]]     // TODO: maybe "-D"
 , [ "th"  , [0, "BHJ"]]    // TODO: documentation
 , [ "th"  , [1, "DJ"]]
-, [ "th"  , [0, "+D"]]
-, [ "th"  , [1, "-D"]]
+, [ "th"  , [3, "+D"]]
+, [ "th"  , [0, "-D"]]
 , [ "ti"  , [2, "DJ"]]
 , [ "tia" , [0, "DJA"]]
 , [ "tio" , [0, "DJO"]]
@@ -275,8 +277,8 @@
 , [ "urr" , [0, "~U+"]]
 , [ "uß"  , [0, "~U+S"]]
 , [ "ü"   , [0, "Ü"]]
-, [ "ü|ber", [1, "BEÜ"]]     // TODO: documentation: shortcut über BEÜ
-, [ "über", [1, "BEÜ"]]     
+, [ "ü|ber", [2, "BEÜ"]]     // TODO: documentation: shortcut über BEÜ
+, [ "über", [2, "BEÜ"]]     
 , [ "üe"  , [0, "Ü"]]       // Bircher-Müesli
 , [ "üh"  , [0, "~Ü"]]
 , [ "ür"  , [0, "~Ü"]]
@@ -285,7 +287,7 @@
 , [ "üß"  , [0, "~Ü+S"]]
 , [ "v"   , [0, "F"]]
 , [ "v"   , [3, "FW"]]
-, [ "ver" , [1, "F"]]
+, [ "ver" , [2, "F"]]
 , [ "w"   , [0, "W"]]
 , [ "w"   , [0, "-F"]]
 , [ "x"   , [0, "GDJ"]]      // TODO: documentation
@@ -433,7 +435,7 @@
 , [ "source", [0, "S~OS"]]    // e.g. open-source
 , [ "sure" , [0, "SJ~U"]]
 , [ "suit" , [0, "SUD"]]
-, [ "tab"  , [0, "TÄP"]]
+, [ "tab"  , [0, "DJÄP"]]
 , [ "tape" , [0, "DJÄIP"]]
 , [ "tch"  , [0, "ʃD"]]       // e.g. batch, tch like tsch, like scht
 , [ "teak" , [0, "DJ~IK"]]    // e.g. Teak-Holz
@@ -527,7 +529,7 @@
 // syllable exceptions
 , [ "beef"  , [0, "BIF"]]
 , [ "buss"  , [0, "BUSs"]]
-, [ "blutt"  , [0, "BL+UD"]]
+, [ "blutt"  , [0, "BLU+D"]]
 , [ "geest" , [0, "GEÜSD"]]
 , [ "guide" , [0, "GEID"]]
 , [ "hawaii", [0, "HA/WAI", 2]]
@@ -537,7 +539,7 @@
 , [ "laie"  , [0, "LA/JE", 2]]
 , [ "oa|se" , [0, "O/A/SE", 1, 1]]
 , [ "oque"  , [0, "OK"]]       // e.g. baroque
-, [ "pik"   , [0, "P~IK"]]
+, [ "pik"   , [0, "BD~IK"]]
 , [ "ral|lye", [0, "RAL/LI", 3]]
 , [ "screen", [0, "GDJRIN"]]
 , [ "seel"  , [0, "SEÜL"]]

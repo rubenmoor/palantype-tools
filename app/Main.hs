@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE TupleSections #-}
 
 module Main where
 
@@ -24,8 +25,10 @@ import           Control.Monad                  ( Monad((>>=))
                                                 , unless
                                                 , when
                                                 )
-import qualified Data.Aeson                    as Aeson
+import qualified Data.Aeson.Encode.Pretty      as Aeson
+import           Data.Aeson.Encode.Pretty       ( Config(..) )
 import           Data.Bool                      ( Bool(..) )
+import qualified Data.ByteString.Lazy          as LazyBS
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((==)) )
 import           Data.Foldable                  ( Foldable
@@ -46,9 +49,11 @@ import           Data.HashMap.Strict            ( HashMap
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
+                                                , concatMap
                                                 , head
                                                 , replicate
                                                 , sortOn
+                                                , tail
                                                 , take
                                                 , zip
                                                 )
@@ -57,7 +62,7 @@ import           Data.Maybe                     ( Maybe(Just, Nothing) )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat, mempty)
                                                 )
-import           Data.Ord                       ( Ord((>)) )
+import           Data.Ord                       ( Ord((>), compare) )
 import           Data.Text                      ( Text
                                                 , replace
                                                 , splitOn
@@ -300,7 +305,7 @@ average ls =
     in  realToFrac t / realToFrac n
 
 data StenoWordsState = StenoWordsState
-    { swsMapWordSteno      :: HashMap Text SeriesData
+    { swsMapWordStenos     :: HashMap Text [SeriesData]
     , swsMapChordParts     :: HashMap PartsData [Text]
     , swsMapStenoWords     :: HashMap RawSteno [(Path, Text)]
     , swsMissingPrimitives :: [Lazy.Text]
@@ -326,15 +331,15 @@ instance Monoid StenoWordsState where
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwRun greediness (OStwArg str)) =
     case parseSeries greediness str of
-        Left  err        -> StrictIO.putStrLn $ showt err
-        Right (sd, alts) -> do
+        Left  err -> StrictIO.putStrLn $ showt err
+        Right sds -> do
             freqs <- readFrequencies
             StrictIO.putStr
                 $  showt (freq freqs $ Text.replace "|" "" str)
                 <> " "
-                <> showSeriesData sd
+                <> showSeriesData (head sds)
                 <> " – "
-                <> Text.intercalate "; " (showAlt <$> alts)
+                <> Text.intercalate "; " (showAlt <$> tail sds)
   where
     showSeriesData SeriesData {..} =
         sdHyphenated
@@ -414,7 +419,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
     runStenoWords (file, bFirstPass) = do
 
-        freqs <- readFrequencies
+        freqs      <- readFrequencies
         lsSyllable <- Lazy.lines <$> readFile file
         let l = length lsSyllable
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -467,28 +472,32 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                             , swsNoParse     = str : swsNoParse
                                             }
                                 else sws { swsNoParse = str : swsNoParse }
-                        Right (sd, alts) -> if word `member` swsMapWordSteno
+                        Right sds -> if word `member` swsMapWordStenos
                             then pure $ if bFirstPass
                                 then sws { swsDuplicates = str : swsDuplicates }
                                 else sws
                             else do
-                                let acc' m (o, c) = HashMap.insertWith
+                                let acc' m (path, (o, c)) = HashMap.insertWith
                                         (++)
-                                        (PartsData o c $ sdPath sd)
+                                        (PartsData o c path)
                                         [word]
                                         m
                                     partsData =
                                         foldl' acc' HashMap.empty
-                                            $ mconcat
-                                            $ sdParts sd
-                                            : (sdParts <$> alts)
+                                            $ concatMap
+                                                  (\sd -> (sdPath sd, )
+                                                      <$> sdParts sd
+                                                  )
+                                                  sds
 
-                                    raw =
-                                        RawSteno
+                                    lsStenoWord = sds <&> \sd ->
+                                        ( RawSteno
                                             $   Text.intercalate "/"
                                             $   showt
                                             .   snd
                                             <$> sdParts sd
+                                        , (sdPath sd, word)
+                                        )
 
                                     ciAppend [p1@(_, w1)] [p2@(_, w2)] =
                                         if toLower w1 == toLower w2
@@ -508,24 +517,30 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                     <> " "
                                     <> showt (freq freqs word)
                                     <> " "
-                                    <> showt sd
+                                    <> showt (head sds)
                                     <> " – "
-                                    <> Text.intercalate "; " (showAlt <$> alts)
+                                    <> Text.intercalate
+                                           "; "
+                                           (showAlt <$> tail sds)
 
                                 pure $ sws
-                                    { swsMapWordSteno  = HashMap.insert
+                                    { swsMapWordStenos = HashMap.insert
                                                              word
-                                                             sd
-                                                             swsMapWordSteno
+                                                             sds
+                                                             swsMapWordStenos
                                     , swsMapChordParts = HashMap.unionWith
                                                              (++)
                                                              partsData
                                                              swsMapChordParts
-                                    , swsMapStenoWords = HashMap.insertWith
-                                                             ciAppend
-                                                             raw
-                                                             [(sdPath sd, word)]
-                                                             swsMapStenoWords
+                                    , swsMapStenoWords = foldl'
+                                        (\m (raw, p) -> HashMap.insertWith
+                                            ciAppend
+                                            raw
+                                            [p]
+                                            m
+                                        )
+                                        swsMapStenoWords
+                                        lsStenoWord
                                     }
 
         nj <- getNumCapabilities
@@ -562,7 +577,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             Just fileOutput -> do
                 putStrLn $ "Writing " <> fileOutput
 
-                for_ (HashMap.toList swsMapWordSteno) $ \(word, sd) -> do
+                for_ (HashMap.toList swsMapWordStenos) $ \(word, sd) -> do
                     let str = Lazy.fromStrict $ word <> " " <> showt sd
                     appendLine fileOutput str
             Nothing -> pure ()
@@ -591,8 +606,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
             acc' m (r, pairs) = case pairs of
 
-  -- no collision: ignore path, store raw steno with word
-  -- TODO: unless there is already an entry
+        -- no collision: ignore path, store raw steno with word
+        -- TODO: unless there is already an entry
                 [ (_, word)] -> pure $ HashMap.insert r word m
 
                 -- collision
@@ -613,10 +628,12 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
         -- TODO: aeson object instead of list, with line breaks
         putStrLn "Writing small json dictionary"
-        Aeson.encodeFile "smalldict.json" mapStenoWord
+        let conf = Aeson.defConfig { confCompare = compare }
+        LazyBS.writeFile "smalldict.json"
+            $ Aeson.encodePretty' conf mapStenoWord
 
-        pure $ HashMap.toList swsMapWordSteno <&> \(_, SeriesData {..}) ->
-            scorePrimary sdScore
+        pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
+            maximum $ scorePrimary . sdScore <$> sds
 
 stenoWords OStwShowChart = do
     now <- getCurrentTime

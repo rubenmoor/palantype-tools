@@ -223,8 +223,7 @@ instance TextShow PartsData where
 --   list of alternatives. E.g. steno that uses more chords or more letters,
 --   or steno that uses the same number of chords or letters, but requires
 --   higher greediness
-parseSeries
-    :: Greediness -> Text -> Either ParseError (SeriesData, [SeriesData])
+parseSeries :: Greediness -> Text -> Either ParseError [SeriesData]
 parseSeries maxGreediness hyphenated =
     case HashMap.lookup unhyphenated mapExceptions of
         Just raw -> case Raw.parseWord raw of
@@ -241,7 +240,7 @@ parseSeries maxGreediness hyphenated =
                     sdPath = PathException
                    -- in case of exception, there are no alternatives
                 in
-                    Right (SeriesData { .. }, [])
+                    Right [SeriesData { .. }]
             Left err ->
                 Left
                     $  PEExceptionTable
@@ -267,16 +266,8 @@ parseSeries maxGreediness hyphenated =
                     Right pairs ->
                         case sortOn (Down . uncurry scoreWithG) pairs of
                             (_, Failure raw err) : _ -> Left $ PEParsec raw err
-                            []                       -> error "impossible"
-                            ls ->
-                                let (main, alts) = case filterAlts ls of
-                                        []     -> error "impossible"
-                                        m : as -> (m, as)
-                                in
-                                    Right
-                                        ( toSeriesData main
-                                        , toSeriesData <$> alts
-                                        )
+                            [] -> error "impossible"
+                            ls -> Right $ toSeriesData <$> filterAlts ls
   where
     unhyphenated = replace "|" "" hyphenated
 
