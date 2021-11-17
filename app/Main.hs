@@ -46,6 +46,7 @@ import           Data.Functor                   ( (<$>)
 import           Data.HashMap.Strict            ( HashMap
                                                 , member
                                                 )
+import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
@@ -106,13 +107,13 @@ import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
 import qualified Palantype.Common.RawSteno     as RawSteno
 import qualified Palantype.DE.Keys             as DE
 import           Palantype.Tools.Collision      ( freq
-                                                , getMapStenoWord
+                                                , getLsStenoWord
                                                 , readFrequencies
                                                 )
 import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           Palantype.Tools.Steno          ( ParseError(..)
                                                 , PartsData(..)
-                                                , Path
+
                                                 , Score(scorePrimary)
                                                 , SeriesData(..)
                                                 , parseSeries
@@ -157,6 +158,7 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import qualified Data.Map.Strict as Map
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -308,7 +310,7 @@ average ls =
 data StenoWordsState = StenoWordsState
     { swsMapWordStenos     :: HashMap Text [SeriesData]
     , swsMapChordParts     :: HashMap PartsData [Text]
-    , swsMapStenoWords     :: HashMap RawSteno [(Path, Text)]
+    , swsMapStenoWords     :: HashMap RawSteno [Text]
     , swsMissingPrimitives :: [Lazy.Text]
     , swsParsecError       :: [Lazy.Text]
     , swsNoParse           :: [Lazy.Text]
@@ -497,13 +499,13 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                             $   showt
                                             .   snd
                                             <$> sdParts sd
-                                        , (sdPath sd, word)
+                                        , word
                                         )
 
-                                    ciAppend [p1@(_, w1)] [p2@(_, w2)] =
+                                    ciAppend [w1] [w2] =
                                         if toLower w1 == toLower w2
-                                            then [p1]
-                                            else [p1, p2]
+                                            then [w1]
+                                            else [w1, w2]
                                     ciAppend ws1 ws2 = ws1 ++ ws2
 
                                     showAlt SeriesData {..} =
@@ -534,10 +536,10 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                                              partsData
                                                              swsMapChordParts
                                     , swsMapStenoWords = foldl'
-                                        (\m (raw, p) -> HashMap.insertWith
+                                        (\m (raw, w) -> HashMap.insertWith
                                             ciAppend
                                             raw
-                                            [p]
+                                            [w]
                                             m
                                         )
                                         swsMapStenoWords
@@ -599,25 +601,26 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
         putStrLn "Writing small json dictionary"
 
-        let (mapStenoWord, mapCollisions) =
-                getMapStenoWord freqs swsMapStenoWords
+        -- remove collisions
+        let lsStenoWord = getLsStenoWord freqs swsMapStenoWords
 
             conf = Aeson.defConfig { confCompare = compare }
 
         LazyBS.writeFile "smalldict.json"
-            $ Aeson.encodePretty' conf mapStenoWord
+            $ Aeson.encodePretty' conf $ Map.fromList lsStenoWord
 
         putStrLn $ "Writing " <> fileStenoWordsCollisions
 
-        let showPathFreqWord (path, f, word) =
-                showt path <> " " <> showt f <> " " <> word
+        let
+            -- get list of words that have been removed due to collisions
+            setWord = HashSet.fromList $ snd <$> lsStenoWord
+            acc' ls w = if HashSet.member w setWord then ls else w : ls
+            lsCollisions = foldl' acc' [] $ HashMap.keys swsMapWordStenos
 
         writeFile fileStenoWordsCollisions
             $   Lazy.intercalate "\n"
-            $   HashMap.toList mapCollisions <&> \(raw, cs) ->
-                    Lazy.fromStrict $ showt raw <> ": " <> Text.intercalate
-                        ", "
-                        (showPathFreqWord <$> cs)
+            $   lsCollisions <&> \w ->
+                    Lazy.fromStrict $ showt w <> ": " <> showt (freq freqs w)
 
         pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
             maximum $ scorePrimary . sdScore <$> sds

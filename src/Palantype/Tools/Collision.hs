@@ -3,26 +3,21 @@ module Palantype.Tools.Collision where
 import           Control.Applicative            ( (<$>)
                                                 , Applicative(pure)
                                                 )
-import           Control.Monad                  ( foldM )
-import           Data.Foldable                  ( Foldable(foldl') )
+import           Data.Foldable                  ( Foldable(foldl'), maximumBy )
 import           Data.Function                  ( ($) )
-import           Data.Functor                   ( (<&>) )
 import           Data.HashMap.Internal.Strict   ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
 import           Data.Maybe                     ( fromMaybe )
 import           Data.Semigroup                 ( (<>) )
 import           Data.Text                      ( Text )
-import qualified Data.Text                     as Text
 import qualified Data.Text.Lazy                as Lazy
 import           Data.Text.Lazy.IO              ( readFile )
-import           Data.Tuple                     ( snd )
 import           GHC.Err                        ( error )
 import           Palantype.Common.RawSteno      ( RawSteno )
-import           Palantype.Tools.Steno          ( Path )
 import           System.IO                      ( IO )
 import           Text.Read                      ( read )
-import           TextShow                       ( TextShow(showt) )
+import Data.Ord (comparing)
 
 -- | word frequencies from UNI Leipzig based on
 --   35 Mio. sentences
@@ -42,33 +37,26 @@ readFrequencies = do
 freq :: HashMap Text Int -> Text -> Int
 freq freqs w = fromMaybe 0 (HashMap.lookup w freqs)
 
-type MapStenoWord = HashMap RawSteno Text
-type MapCollisions = HashMap RawSteno [(Path, Int, Text)]
-
-getMapStenoWord
+getLsStenoWord
     :: HashMap Text Int
-    -> HashMap RawSteno [(Path, Text)]
-    -> (MapStenoWord, MapCollisions)
-getMapStenoWord freqs mapStenoWords =
-    let acc (mapSW, mapCollisions) (r, lsPathWord) = case lsPathWord of
+    -> HashMap RawSteno [Text]
+    -> [(RawSteno, Text)]
+
+getLsStenoWord freqs mapStenoWords =
+    let
+        acc lsSW (r, words) = case words of
 
             -- no collision: ignore path, store raw steno with word
             -- TODO: unless there is already an entry
-            [(_, word)] -> (HashMap.insert r word mapSW, mapCollisions)
+            [word] -> (r, word) : lsSW
 
             -- collision
-            p : _ ->
-                -- appendLine fileStenoWordsCollisions
-                --     $  Lazy.fromStrict
-                --     $  showt r
-                --     <> ": "
-                --     <> showPathFreqWord lsPathWord
-                let lsPathFreqWord =
-                        lsPathWord <&> \(path, word) -> (path, freq freqs word, word)
-                in  ( HashMap.insert r (snd p) mapSW
-                    , HashMap.insert r lsPathFreqWord mapCollisions
-                    )
+            _ : _ ->
+                let
+                    word = maximumBy (comparing $ freq freqs) words
+                    -- lsPathFreqWord = words <&> \word -> (freq freqs word, word)
+                in  (r, word) : lsSW
 
             -- impossible case
             [] -> error "empty entry"
-    in  foldl' acc (HashMap.empty, HashMap.empty) (HashMap.toList mapStenoWords)
+    in  foldl' acc [] (HashMap.toList mapStenoWords)
