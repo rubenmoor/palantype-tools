@@ -100,7 +100,9 @@ import           Options.Applicative            ( execParser )
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
 import qualified Palantype.Common.RawSteno     as RawSteno
 import qualified Palantype.DE.Keys             as DE
-import           Palantype.Tools.Collision      ( readFrequencies, freq )
+import           Palantype.Tools.Collision      ( freq
+                                                , readFrequencies
+                                                )
 import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           Palantype.Tools.Steno          ( ParseError(..)
                                                 , PartsData(..)
@@ -166,7 +168,7 @@ rawSteno str =
 
 syllables :: OptionsSyllables -> IO ()
 syllables (OSylArg str) = do
-    freqs   <- readFrequencies
+    freqs <- readFrequencies
     for_ (parseSyllables str) $ \case
         Success sd -> do
             let f = freq freqs (sdWord sd)
@@ -222,8 +224,7 @@ syllables (OSylFile reset) = do
 
         let tmpFileNoParse = "syllables-noparse.tmp.txt"
 
-        freqs   <- readFrequencies
-        handle  <- openFile file ReadMode
+        handle <- openFile file ReadMode
         hSetNewlineMode handle universalNewlineMode
         entries <- Lazy.lines <$> hGetContents handle
 
@@ -236,13 +237,8 @@ syllables (OSylFile reset) = do
                     Failure err -> do
                         print err
                         appendLine tmpFileNoParse entry
-                    Success sd -> do
-                        let f = freq freqs (sdWord sd)
-                        appendLine fileSyllables
-                            $  Lazy.fromStrict
-                            $  showt sd
-                            <> " "
-                            <> showt f
+                    Success sd ->
+                        appendLine fileSyllables $ Lazy.fromStrict $ showt sd
                     Exception exc -> case exc of
                         ExceptionAbbreviation ->
                             appendLine fileSyllablesAbbreviations entry
@@ -332,9 +328,13 @@ stenoWords (OStwRun greediness (OStwArg str)) =
     case parseSeries greediness str of
         Left  err        -> StrictIO.putStrLn $ showt err
         Right (sd, alts) -> do
-            StrictIO.putStr $ showSeriesData sd <> " – " <> Text.intercalate
-                "; "
-                (showAlt <$> alts)
+            freqs <- readFrequencies
+            StrictIO.putStr
+                $  showt (freq freqs $ Text.replace "|" "" str)
+                <> " "
+                <> showSeriesData sd
+                <> " – "
+                <> Text.intercalate "; " (showAlt <$> alts)
   where
     showSeriesData SeriesData {..} =
         sdHyphenated
@@ -414,6 +414,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
     runStenoWords (file, bFirstPass) = do
 
+        freqs <- readFrequencies
         lsSyllable <- Lazy.lines <$> readFile file
         let l = length lsSyllable
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -505,6 +506,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                     $  Lazy.fromStrict
                                     $  word
                                     <> " "
+                                    <> showt (freq freqs word)
+                                    <> " "
                                     <> showt sd
                                     <> " – "
                                     <> Text.intercalate "; " (showAlt <$> alts)
@@ -579,10 +582,17 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                   appendLine fileStenoParts str
 
         -- TODO: replace with collision detection from Palantype.Tools.Collision
-        let acc' m (r, pairs) = case pairs of
+        let showPathFreqWord :: [(Path, Text)] -> Text
+            showPathFreqWord pairs =
+                Text.intercalate ", " $ showPathWord <$> pairs
+              where
+                showPathWord (p, w) =
+                    showt p <> " " <> showt (freq freqs w) <> " " <> w
 
-              -- no collision: ignore path, store raw steno with word
-              -- TODO: unless there is already an entry
+            acc' m (r, pairs) = case pairs of
+
+  -- no collision: ignore path, store raw steno with word
+  -- TODO: unless there is already an entry
                 [ (_, word)] -> pure $ HashMap.insert r word m
 
                 -- collision
@@ -591,7 +601,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                         $  Lazy.fromStrict
                         $  showt r
                         <> ": "
-                        <> showt pairs
+                        <> showPathFreqWord pairs
                     pure $ HashMap.insert r (snd p) m
 
                 -- impossible case

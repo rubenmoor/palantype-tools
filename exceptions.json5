@@ -2,23 +2,36 @@
 , "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
 , "Beautyfarm": "BJU/DJI/FAÜM" // more efficient, but wrong BO
 , "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
+, "Bismark"   : "BIS/MAÜ+K"    // < Bismarck
+, "Dike"      : "D~I/GDE"      // < Dicke
 , "Düne"      : "DÜ/NE"        // < Dünne
+, "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
 , "Egge"      : "EK/G"         // < Ecke
+, "gebiert"   : "GE/B~I+D"     // < Gebiet
+, "Görz"      : "G~O+S"        // < Götz
 , "Haken"     : "HAÜ/Kn"       // < hacken
 , "Ham"       : "HÄM"
 , "Haydn"     : "HAI/DN"
 , "Hertz"     : "HEÜ+Ss"       // < Herz
+, "hey"       : "HÄI"
+, "Huy"       : "HÜ"
 , "Kent"      : "GDE+ND"       // < gedient
 , "knabber"   : "GDNAP/BR"     // < knapper
 , "Knigge"    : "GDNIK/G"      // < knicke
 , "Lake"      : "LAÜ/GDE"
 , "Laos"      : "LA/OS"        // < Lars
+, "Nietnagel" : "N~I+D/NA/GEL" // < Niednagel
+, "Piek"      : "BD~I+K"       // < Pik
 , "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
 , "Robbe"     : "ROP/B"        // < Robe
+, "sang"      : "SAÜ+N"        // < sank
+, "sin"       : "S~IN"         // < Sinn, Abk. sinus
 , "spuken"    : "BF~U/Kn"      // < spucken
+, "sfr"       : "SW/FR"        // Abkz. Schweizer Franken
 , "tja"       : "DJA"   
 , "Truck"     : "DJRAK"
+, "Trum"      : "DJR~UM"       // < Trumm
 , "Tyr"       : "DJ~Ü+"        // < Tür
 , "Speiseopfer": "BFEI/SE/OP/FEÜ"
 , "Xiomara"   : "GDJI/O/MA/RA"
