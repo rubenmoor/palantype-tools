@@ -10,7 +10,7 @@ import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
 import           Data.Maybe                     ( fromMaybe )
 import           Data.Semigroup                 ( (<>) )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, toLower )
 import qualified Data.Text.Lazy                as Lazy
 import           Data.Text.Lazy.IO              ( readFile )
 import           GHC.Err                        ( error )
@@ -18,6 +18,10 @@ import           Palantype.Common.RawSteno      ( RawSteno )
 import           System.IO                      ( IO )
 import           Text.Read                      ( read )
 import Data.Ord (comparing)
+import qualified Data.Text as Text
+import Data.List (head)
+import Data.Foldable (all)
+import Data.Eq (Eq((==)))
 
 -- | word frequencies from UNI Leipzig based on
 --   35 Mio. sentences
@@ -50,11 +54,14 @@ getLsStenoWord freqs mapStenoWords =
             -- TODO: unless there is already an entry
             [word] -> (r, word) : lsSW
 
+            -- pseudo collision due to capitalization
+            [w1, w2] | toLower w1 == toLower w2 -> (r, toLower w1) : lsSW
+
             -- collision
+            -- TODO: rank based on whether or not there is alternative steno
             _ : _ ->
                 let
                     word = maximumBy (comparing $ freq freqs) words
-                    -- lsPathFreqWord = words <&> \word -> (freq freqs word, word)
                 in  (r, word) : lsSW
 
             -- impossible case

@@ -613,14 +613,14 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
         let
             -- get list of words that have been removed due to collisions
-            setWord = HashSet.fromList $ snd <$> lsStenoWord
-            acc' ls w = if HashSet.member w setWord then ls else w : ls
+            setWord = HashSet.fromList $ toLower . snd <$> lsStenoWord
+            acc' ls w = if HashSet.member (toLower w) setWord then ls else w : ls
             lsCollisions = foldl' acc' [] $ HashMap.keys swsMapWordStenos
 
         writeFile fileStenoWordsCollisions
             $   Lazy.intercalate "\n"
             $   lsCollisions <&> \w ->
-                    Lazy.fromStrict $ showt w <> ": " <> showt (freq freqs w)
+                    Lazy.fromStrict $ w <> ": " <> showt (freq freqs w)
 
         pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
             maximum $ scorePrimary . sdScore <$> sds

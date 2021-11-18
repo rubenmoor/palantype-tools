@@ -38,12 +38,13 @@
 , [ "à"   , [0, "A"]]
 , [ "â"   , [0, "A"]]
 , [ "å"   , [0, "A"]]          // Ux00E5
-, [ "aa"  , [0, "AÜ"]]
-, [ "aa"  , [3, "A/A", 1]]
-, [ "aar" , [0, "AÜ"]]
-, [ "aar" , [3, "A/AÜ", 1]]
+, [ "aa"  , [3, "AÜ"]]
+, [ "aa"  , [0, "A/A", 1]]
+, [ "aar" , [3, "AÜ"]]
+, [ "aar" , [0, "A/AÜ", 1]]
 , [ "ae"  , [0, "AI"]]         // e.g. aerodynamisch
-, [ "ag"  , [3, "AÜK"]]
+, [ "ag"  , [0, "AÜK"]]
+, [ "a|g" , [0, "AÜK"]]
 , [ "ah"  , [0, "AÜ"]]
 , [ "ahr" , [0, "AÜ"]]
 // TODO: greedier: ah|r: [0, "AÜ"]
@@ -54,6 +55,8 @@
 , [ "aß"  , [0, "A+S"]]
 , [ "ä"   , [0, "Ä"]]           // note: ÄO is ö
 , [ "äe"  , [0, "ÄÜ"]]           // e.g. Tro|phäe
+, [ "äg"  , [0, "ÄÜK"]]
+, [ "ä|g" , [0, "ÄÜK"]]
 , [ "äh"  , [0, "ÄÜ"]]
 , [ "ähr" , [0, "ÄÜ"]]
 , [ "är"  , [0, "ÄÜ"]]
@@ -67,21 +70,22 @@
 //                              pattern eau, thus: full word exception
 , [ "bi|o", [1, "BJO"]]
 , [ "böe" , [0, "BÄO"]]      // Böe = "Bö"
-, [ "c"   , [3, "GDM"]]      // TODO: documentation; solution for c-/k- collisions
-, [ "c"   , [0, "GD"]]       // only allow c as GD if there is no collision
-, [ "c"   , [3, "+K"]]
-, [ "c"   , [0, "K"]]
+, [ "c"   , [0, "GDM"]]      // TODO: documentation; solution for c-/k- collisions
+, [ "c"   , [3, "GD"]]       // only allow c as GD if there is no collision
+, [ "c"   , [0, "+K"]]
+, [ "c"   , [3, "K"]]
 , [ "ç"   , [0, "SF"]]       // U+00E7
 , [ "cä"  , [0, "SFÄ"]]      // phonetic z
-, [ "ce"  , [1, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
-, [ "ce"  , [0, "SFJE"]]     // z: SF, sch: SJ, c with s/tsch/z-sound: SFJ
+, [ "ce"  , [0, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
+, [ "ce"  , [3, "SFJE"]]     // z: SF, sch: SJ, c with s/tsch/z-sound: SFJ
 , [ "ce"  , [1, "Ss"]]
-, [ "ch"  , [0, "SJ"]]
-, [ "ch"  , [3, "SHJ"]]
+, [ "ch"  , [3, "SJ"]]
+, [ "ch"  , [0, "SHJ"]]
 , [ "ch"  , [0, "Kʃ"]]
 , [ "chia", [0, "SJA"]]
 , [ "chio", [0, "SJO"]]
-, [ "chs" , [0, "KS"]]
+, [ "chs" , [3, "KS"]]
+, [ "chs" , [0, "Ks"]]
 , [ "ci"  , [0, "SFI"]]
 , [ "ci"  , [3, "SFJI"]]
 , [ "cia" , [0, "SFJA"]]
@@ -95,8 +99,8 @@
 , [ "dia" , [0, "DJA"]]      // TODO documenation ia-rule
 , [ "ds"  , [0, "s"]]
 , [ "dsch", [0, "SDJ"]]      // note: also "ps" = SDJ TODO: documentation
-, [ "dt"  , [0, "-D"]]
-, [ "dt"  , [3, "-D/DJ"]]
+, [ "dt"  , [3, "-D"]]
+, [ "dt"  , [0, "-D/DJ"]]
 , [ "e"   , [0, "E"]]
 //, [ "e"   , [1, "s"]]
 // , "e"   : [0, "e"] // TODO: greedier: -e
@@ -105,12 +109,12 @@
 , [ "ère" , [0, "EÜ"]]
 , [ "ê"   , [0, "E"]]
 , [ "ë"   , [0, "E"]]        // U+00EB
-, [ "ee"  , [0, "Es"]]       // TODO: documentation for ee-rule
+, [ "ee"  , [3, "Es"]]       // TODO: documentation for ee-rule
 , [ "ee"  , [0, "E/E", 1]]      // 
 , [ "eer" , [0, "E/EÜ", 1]]
-, [ "ée"  , [0, "Es"]]
-, [ "eg"  , [3, "EÜK"]]
-, [ "e|g" , [3, "EÜK"]]
+, [ "ée"  , [3, "Es"]]
+, [ "eg"  , [0, "EÜK"]]
+, [ "e|g" , [0, "EÜK"]]
 , [ "eh"  , [0, "EÜ"]]
 , [ "ehr" , [0, "EÜ"]]
 , [ "eih" , [0, "EI"]]
@@ -133,7 +137,7 @@
 , [ "fluo", [0, "FLU/O", 3]]
 , [ "fst" , [0, "Fs"]]
 , [ "g"   , [0, "G"]]
-, [ "g"   , [0, "K"]]
+, [ "g"   , [1, "K"]]
 , [ "ge"  , [2, "G"]]
 , [ "g|g" , [1, "G"]]
 , [ "gui" , [0, "GI"]]
@@ -144,6 +148,8 @@
 , [ "ie"  , [0, "~I"]]
 , [ "ieh" , [0, "~I"]]
 , [ "ier" , [0, "~I"]]
+, [ "ig"  , [0, "IK"]]
+, [ "i|g" , [0, "IK"]]
 , [ "ih"  , [0, "~I"]]
 , [ "ihr" , [0, "~I"]]
 , [ "io"  , [0, "JO"]]      // TODO: doesn't solve mio, wio, lio, nio, rio, note: i|o is addressed by syllable parser
@@ -154,7 +160,8 @@
 , [ "j"   , [0, "J"]]
 , [ "k"   , [0, "GD"]] 
 , [ "k"   , [0, "K"]]
-, [ "kh"  , [0, "K"]]       // Khmer
+, [ "kh"  , [0, "GH"]]
+, [ "kh"  , [3, "GD"]]       // Khmer
 // TODO: fe -> F maybe?
 // TODO: greedier: er : [0, "e"]
 , [ "l"   , [0, "L"]]
@@ -187,6 +194,8 @@
 , [ "ø"   , [0, "ÄO"]]      // U+00F8
 , [ "ør"  , [0, "ÄO"]]
 , [ "oe"  , [0, "ÄO"]]
+, [ "og"  , [0, "~OK"]]
+, [ "o|g" , [0, "~OK"]]
 , [ "oh"  , [0, "~O"]]
 , [ "ohr" , [0, "~O"]]
 , [ "oi"  , [0, "EU"]]
@@ -205,8 +214,8 @@
 , [ "p"   , [0, "BD"]]
 , [ "pf"  , [0, "BF"]]
 , [ "ph"  , [0, "BH"]]       // TODO: documentation
-, [ "pp"  , [0, "P"]]
-, [ "pp"  , [3, "+P"]]
+, [ "pp"  , [3, "P"]]
+, [ "pp"  , [0, "+P"]]
 , [ "p|p" , [1, "P"]]
 , [ "ps"  , [0, "SDJ"]]     // TODO: documentation
 , [ "pt"  , [0, "BDJ"]]     // TODO: documentation
@@ -214,8 +223,8 @@
 , [ "qi"  , [0, "SJI"]]
 , [ "qu"  , [0, "GDW"]]
 , [ "r"   , [0, "R"]]
-, [ "rh"  , [0, "R"]]
-, [ "rh"  , [3, "HR"]]      // TODO: documentation
+, [ "rh"  , [3, "R"]]
+, [ "rh"  , [0, "HR"]]      // TODO: documentation
 , [ "ria" , [0, "JRA"]]     // think "ria"/"ira"
 , [ "sh"  , [0, "SJ"]]      // cash, auscashen
 , [ "rio" , [0, "JRO"]]     // think "rio"/"iro"
@@ -225,19 +234,19 @@
 , [ "s"   , [0, "S"]]
 , [ "s"   , [0, "s"]]
 , [ "sc"  , [0, "GDJ"]]     // e.g. scooter
-, [ "sc"  , [3, "+KS"]]      // e.g. disc
-, [ "sc"  , [0, "KS"]]      // e.g. disc
+, [ "sc"  , [0, "+KS"]]      // e.g. disc
+, [ "sc"  , [3, "KS"]]      // e.g. disc
 , [ "sch" , [0, "SJ"]]
 , [ "sch" , [0, "ʃ"]]       // U+0283
 , [ "schm", [0, "SM"]]
-// , [ "schl", [1, "SL"]]
-//, [ "schn", [1, "SN"]]
-//, [ "schr", [1, "SR"]]
+, [ "schl", [3, "SL"]]
+, [ "schn", [3, "SN"]]
+, [ "schr", [3, "SR"]]
 , [ "schw", [0, "SW"]]
 //, [ "se"  , [1, "Ss"]]
 // implicit "sh" SH 0
-, [ "sh"  , [1, "SJ"]]      // cash, auscashen
-, [ "sh"  , [0, "ʃ"]]       // cash, auscashen
+, [ "sh"  , [1, "SJ"]]      // e.g. auscashen
+, [ "sh"  , [0, "ʃ"]]       // e.g. cash
 , [ "sp"  , [0, "BF"]]      // TODO: documentation
 , [ "sp"  , [0, "PS"]]      // TODO: documentation -sp = PS
 , [ "sk"  , [0, "GDJ"]]     // TODO: documentation x, sk -> GDJ
@@ -251,13 +260,13 @@
 , [ "t"   , [0, "-D"]]
 , [ "te"  , [2, "DJ"]]     // TODO: maybe "-D"
 , [ "th"  , [0, "BHJ"]]    // TODO: documentation
-, [ "th"  , [1, "DJ"]]
-, [ "th"  , [3, "+D"]]
-, [ "th"  , [0, "-D"]]
+, [ "th"  , [3, "DJ"]]
+, [ "th"  , [0, "+D"]]
+, [ "th"  , [3, "-D"]]
 , [ "ti"  , [2, "DJ"]]
 , [ "tia" , [0, "DJA"]]
 , [ "tio" , [0, "DJO"]]
-, [ "tja" , [0, "DJA"]]
+, [ "tja" , [3, "DJA"]]
 , [ "ti|o", [1, "DJO"]]
 , [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
 , [ "trio", [0, "DJRO"]]
@@ -271,6 +280,8 @@
 , [ "u"   , [0, "U"]]
 , [ "û"   , [0, "U"]]
 , [ "ue"  , [0, "Ü"]]
+, [ "ug"  , [0, "~UK"]]
+, [ "u|g" , [0, "~UK"]]
 , [ "uh"  , [0, "~U"]]
 , [ "uhr" , [0, "~U"]]
 , [ "ur"  , [0, "~U"]]
@@ -279,14 +290,16 @@
 , [ "ü"   , [0, "Ü"]]
 , [ "ü|ber", [2, "BEÜ"]]     // TODO: documentation: shortcut über BEÜ
 , [ "über", [2, "BEÜ"]]     
-, [ "üe"  , [0, "Ü"]]       // Bircher-Müesli
+, [ "üe"  , [0, "Ü"]]        // e.g. Bircher-Müesli
+, [ "üg"  , [0, "~ÜK"]]
+, [ "ü|g" , [0, "~ÜK"]]
 , [ "üh"  , [0, "~Ü"]]
 , [ "ür"  , [0, "~Ü"]]
 , [ "ühr" , [0, "~Ü"]]
 , [ "ürr" , [0, "~Ü+"]]
 , [ "üß"  , [0, "~Ü+S"]]
-, [ "v"   , [0, "F"]]
-, [ "v"   , [3, "FW"]]
+, [ "v"   , [3, "F"]]
+, [ "v"   , [0, "FW"]]
 , [ "ver" , [2, "F"]]
 , [ "w"   , [0, "W"]]
 , [ "w"   , [0, "-F"]]
