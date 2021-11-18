@@ -28,10 +28,7 @@ import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Types               ( Parser )
 import           Data.Bifunctor                 ( Bifunctor(second) )
 import           Data.Bool                      ( Bool(False) )
-import           Data.ByteString                ( ByteString
-                                                , cons
-                                                , snoc
-                                                )
+import           Data.ByteString                ( ByteString )
 import qualified Data.ByteString               as BS
 import           Data.Char                      ( digitToInt
                                                 , isDigit
@@ -161,6 +158,8 @@ instance TextShow SeriesData where
             <> " "
             <> intercalate "/" (fmap (showt <<< snd) sdParts)
 
+partsToSteno :: [(Text, Chord Key)] -> RawSteno
+partsToSteno = RawSteno . Text.intercalate "/" . (showt . snd <$>)
 
 data Score = Score
     { scorePrimary   :: Rational

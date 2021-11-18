@@ -46,8 +46,8 @@ import           Data.Functor                   ( (<$>)
 import           Data.HashMap.Strict            ( HashMap
                                                 , member
                                                 )
-import qualified Data.HashSet as HashSet
 import qualified Data.HashMap.Strict           as HashMap
+import qualified Data.HashSet                  as HashSet
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
                                                 , concatMap
@@ -59,7 +59,10 @@ import           Data.List                      ( (++)
                                                 , zip
                                                 )
 import           Data.List.Split                ( chunksOf )
-import           Data.Maybe                     ( Maybe(Just, Nothing) )
+import qualified Data.Map.Strict               as Map
+import           Data.Maybe                     ( Maybe(Just, Nothing)
+                                                , maybeToList
+                                                )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat, mempty)
                                                 )
@@ -107,16 +110,17 @@ import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
 import qualified Palantype.Common.RawSteno     as RawSteno
 import qualified Palantype.DE.Keys             as DE
 import           Palantype.Tools.Collision      ( freq
-                                                , getLsStenoWord
+                                                , resolveCollisions
                                                 , readFrequencies
+                                                , StateCollision (..)
                                                 )
 import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           Palantype.Tools.Steno          ( ParseError(..)
                                                 , PartsData(..)
-
                                                 , Score(scorePrimary)
                                                 , SeriesData(..)
                                                 , parseSeries
+                                                , partsToSteno
                                                 )
 import           Palantype.Tools.Syllables      ( Exception(..)
                                                 , Result(..)
@@ -158,7 +162,6 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
-import qualified Data.Map.Strict as Map
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -290,8 +293,14 @@ fileStenoWordsMissingPrimitives = "stenowords-missingprimitives.txt"
 fileStenoWordsParsecErrors :: FilePath
 fileStenoWordsParsecErrors = "stenowords-parsecerrors.txt"
 
-fileStenoWordsCollisions :: FilePath
-fileStenoWordsCollisions = "stenowords-collisions.txt"
+fileSmallDict :: FilePath
+fileSmallDict = "smalldict.json"
+
+fileCollisions :: FilePath
+fileCollisions = "stenowords-collisions-v1.txt"
+
+fileCollisionsV2 :: FilePath
+fileCollisionsV2 = "stenowords-collisions-v2.txt"
 
 readDouble :: Lazy.Text -> Double
 readDouble str = case double str of
@@ -371,7 +380,9 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             , fileStenoWordsMissingPrimitives
             , fileStenoWordsParsecErrors
             , fileStenoParts
-            , fileStenoWordsCollisions
+            , fileSmallDict
+            , fileCollisions
+            , fileCollisionsV2
             ]
     when reset $ do
         for_ lsFiles $ \file -> do
@@ -402,10 +413,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
     let scores    = newZeroScores <> (fromRational <$> newScores)
         meanScore = average scores
     writeFile (fileStenoWordsScores now)
-        $   Lazy.unlines
-        $   Lazy.fromStrict
-        .   showt
-        <$> scores
+        $ Lazy.unlines (Lazy.fromStrict . showt <$> scores) <> "\n"
 
     putStrLn ""
     StrictIO.putStrLn $ "Average score: " <> showt meanScore
@@ -493,14 +501,12 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                                                   )
                                                   sds
 
-                                    lsStenoWord = sds <&> \sd ->
-                                        ( RawSteno
-                                            $   Text.intercalate "/"
-                                            $   showt
-                                            .   snd
-                                            <$> sdParts sd
-                                        , word
-                                        )
+                                    lsStenoWord =
+                                        sds
+                                            <&> \sd ->
+                                                    ( partsToSteno $ sdParts sd
+                                                    , word
+                                                    )
 
                                     ciAppend [w1] [w2] =
                                         if toLower w1 == toLower w2
@@ -566,15 +572,15 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             StenoWordsState {..} = mconcat lsSws
 
         writeFile fileStenoWordsMissingPrimitives
-            $ Lazy.unlines swsMissingPrimitives
-        writeFile fileStenoWordsParsecErrors $ Lazy.unlines swsParsecError
-        writeFile fileStenoWordsNoParse $ Lazy.unlines swsNoParse
-        writeFile fileStenoWordsDuplicates $ Lazy.unlines swsDuplicates
+            $ Lazy.unlines swsMissingPrimitives <> "\n"
+        writeFile fileStenoWordsParsecErrors $ Lazy.unlines swsParsecError <> "\n"
+        writeFile fileStenoWordsNoParse $ Lazy.unlines swsNoParse <> "\n"
+        writeFile fileStenoWordsDuplicates $ Lazy.unlines swsDuplicates <> "\n"
 
         putStrLn $ "Writing file " <> fileStenoWords
         let hReadFile h = hSeek h AbsoluteSeek 0 *> hGetContents h
         content <- foldM (\c h -> (c <>) <$> hReadFile h) "" handles
-        writeFile fileStenoWords content
+        writeFile fileStenoWords $ content <> "\n"
 
         case mFileOutput of
             Just fileOutput -> do
@@ -602,25 +608,44 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
         putStrLn "Writing small json dictionary"
 
         -- remove collisions
-        let lsStenoWord = getLsStenoWord freqs swsMapStenoWords
+        let mapWordStenos = (partsToSteno . sdParts <$>) <$> swsMapWordStenos
+            StateCollision {..}   = resolveCollisions freqs mapWordStenos swsMapStenoWords
 
-            conf = Aeson.defConfig { confCompare = compare }
+            conf          = Aeson.defConfig { confCompare = compare }
 
-        LazyBS.writeFile "smalldict.json"
-            $ Aeson.encodePretty' conf $ Map.fromList lsStenoWord
+        LazyBS.writeFile fileSmallDict
+            $ Aeson.encodePretty' conf
+            $ Map.fromList stcLsStenoWord
 
-        putStrLn $ "Writing " <> fileStenoWordsCollisions
+        putStrLn $ "Writing " <> fileCollisions
 
         let
             -- get list of words that have been removed due to collisions
-            setWord = HashSet.fromList $ toLower . snd <$> lsStenoWord
-            acc' ls w = if HashSet.member (toLower w) setWord then ls else w : ls
+            setWord = HashSet.fromList $ toLower . snd <$> stcLsStenoWord
+            acc' ls w =
+                if HashSet.member (toLower w) setWord then ls else w : ls
             lsCollisions = foldl' acc' [] $ HashMap.keys swsMapWordStenos
 
-        writeFile fileStenoWordsCollisions
-            $   Lazy.intercalate "\n"
-            $   lsCollisions <&> \w ->
-                    Lazy.fromStrict $ w <> ": " <> showt (freq freqs w)
+        writeFile fileCollisions
+            $ Lazy.intercalate "\n" (lsCollisions <&> \w ->
+                    Lazy.fromStrict
+                        $  w
+                        <> ": "
+                        <> showt (freq freqs w)
+                        <> " "
+                        <> Text.intercalate
+                               " "
+                               (   showt
+                               <$> mconcat
+                                       (maybeToList $ HashMap.lookup
+                                           w
+                                           mapWordStenos
+                                       )
+                               )
+              ) <> "\n"
+
+        putStrLn $ "Writing " <> fileCollisionsV2
+        writeFile fileCollisionsV2 $ Lazy.intercalate "\n" (Lazy.fromStrict . showt <$> stcLosers) <> "\n"
 
         pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
             maximum $ scorePrimary . sdScore <$> sds
