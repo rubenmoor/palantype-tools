@@ -4,13 +4,16 @@
 , "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
 , "Beautyfarm": "BJU/DJI/FAÜM" // more efficient, but wrong BO
 , "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
+, "Birne"     : "B~I+/NE"      // < Biene
 , "Bismark"   : "BIS/MAÜ+K"    // < Bismarck
+// , "CO2"       : "GDMO+S"
 , "Dike"      : "D~I/GDE"      // < Dicke
 , "dm"        : "D/M"          // < dem
 , "Düne"      : "DÜ/NE"        // < Dünne
 , "Dr"        : "D/R"          // < der 
-, "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
 , "Egge"      : "EK/G"         // < Ecke
+, "Edinburgh" : "E/DIN/B~UK"
+, "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
 , "gebiert"   : "GE/B~I+D"     // < Gebiet
 , "Görz"      : "G~O+S"        // < Götz
 , "gram"      : "GRAÜM"        // < Gramm
@@ -20,6 +23,7 @@
 , "Haydn"     : "HAI/DN"
 , "Hertz"     : "HEÜ+Ss"       // < Herz
 , "hey"       : "HÄI"
+, "high"      : "HEI"          // < Hai
 , "Huy"       : "HÜ"
 , "Iod"       : "J~OD"         // < Jod
 , "isst"      : "ISs"          // < ist
@@ -32,20 +36,27 @@
 , "Knigge"    : "GDNIK/G"      // < knicke
 , "Kommiss"   : "GDOM/MISs"    // < Kommis
 , "Krake"     : "GDRAÜ/GDE"    // < Kracke
+, "Krauss"    : "GDRAUSs"      // < kraus
 , "Lake"      : "LAÜ/GDE"
 , "Laos"      : "LA/OS"        // < Lars
 , "Lar"       : "LAÜ+"         // < Lahr
+, "lass"      : "LASs"         // < las
+, "Lindbergh" : "LIND/BEÜK"    
 , "litt"      : "LI+D"         // < Lid
 , "Lit"       : "L~I+D"        // < Lied
 , "muh"       : "M~U+"         // < Mur
+, "Mus"       : "M~US"         // < muss
 , "Nietnagel" : "N~I+D/NA/GEL" // < Niednagel
+, "Oud"       : "O/UD"
 , "Piek"      : "BD~I+K"       // < Pik
 , "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
 , "riet"      : "R~I+D"        // < Ried
 , "Robbe"     : "ROP/B"        // < Robe
+, "roh"       : "R~O+"         // < Rohr
 , "Rur"       : "R~U+"         // < Ruhr
 , "sang"      : "SAÜ+N"        // < sank
+, "Schweiß"   : "SWEIS"        // < Schweiz
 , "sin"       : "S~IN"         // < Sinn, Abk. sinus
 , "spuken"    : "BF~U/Kn"      // < spucken
 , "sfr"       : "SW/FR"        // Abkz. Schweizer Franken
