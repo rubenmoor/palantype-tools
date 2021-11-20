@@ -19,25 +19,35 @@ import           Data.List                      ( delete
                                                 )
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.List.NonEmpty             ( NonEmpty((:|)) )
-import Data.Monoid (mconcat)
 import           Data.Maybe                     ( Maybe(Just, Nothing)
-                                                , fromMaybe, maybe, maybeToList
+                                                , fromMaybe
+                                                , maybe
+                                                , maybeToList
                                                 )
-import           Data.Ord                       ( Ord((>), (>=))
+import           Data.Monoid                    ( mconcat )
+import           Data.Ord                       ( Down(Down)
+                                                , Ord((>))
                                                 , comparing
                                                 )
 import           Data.Semigroup                 ( (<>) )
+import qualified Data.Text                     as Text
 import           Data.Text                      ( Text
-                                                , toLower
                                                 , intercalate
+                                                , toLower
+                                                , toUpper
                                                 )
 import qualified Data.Text.Lazy                as Lazy
 import           Data.Text.Lazy.IO              ( readFile )
+import           Data.Tuple                     ( snd )
 import           GHC.Err                        ( error )
-import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
+import           GHC.Num                        ( Num((+)) )
+import           Palantype.Common.RawSteno      ( RawSteno )
+import           Palantype.Tools.Steno          ( Path )
 import           System.IO                      ( IO )
 import           Text.Read                      ( read )
-import TextShow (TextShow (showt, showb), fromText)
+import           TextShow                       ( TextShow(showb, showt)
+                                                , fromText
+                                                )
 
 -- | word frequencies from UNI Leipzig based on
 --   35 Mio. sentences
@@ -55,7 +65,11 @@ readFrequencies = do
     pure $ foldl' acc HashMap.empty ls
 
 freq :: HashMap Text Int -> Text -> Int
-freq freqs w = fromMaybe 0 (HashMap.lookup w freqs)
+freq freqs w =
+    let lc = toLower w
+        c  = toUpper (Text.singleton $ Text.head lc) <> Text.tail w
+    in  freq' lc + freq' c
+    where freq' word = fromMaybe 0 (HashMap.lookup word freqs)
 
 data StateCollision = StateCollision
     { stcLsStenoWord   :: [(RawSteno, Text)]
@@ -64,18 +78,41 @@ data StateCollision = StateCollision
     }
 
 data Loser = Loser
- { loserWord :: Text
- , loserFreq :: Int
- , loserSteno :: [RawSteno]
- , loserWinner :: Text
- , loserWinnerFreq :: Int
- }
+    { loserCase       :: LoserCase
+    , loserWord       :: Text
+    , loserFreq       :: Int
+    , loserSteno      :: [RawSteno]
+    , loserWinner     :: Text
+    , loserWinnerFreq :: Int
+    }
+
+data LoserCase
+  = Case1A
+  | Case1B
+  | Case2
+  | Case3
 
 instance TextShow Loser where
-  showb Loser {..} =
-    fromText $ loserWord <> " " <> showt loserFreq
-            <> " < " <> loserWinner <> " " <> showt loserWinnerFreq
-            <> ": " <> intercalate ", " (showt <$> loserSteno)
+    showb Loser {..} =
+        fromText
+            $  loserWord
+            <> " "
+            <> showt loserFreq
+            <> " "
+            <> showt loserCase
+            <> " < "
+            <> loserWinner
+            <> " "
+            <> showt loserWinnerFreq
+            <> ": "
+            <> intercalate ", " (showt <$> loserSteno)
+
+instance TextShow LoserCase where
+    showb = fromText . \case
+        Case1A -> "Case1A"
+        Case1B -> "Case1B"
+        Case2  -> "Case2"
+        Case3  -> "Case3"
 
 stateInitial :: HashMap Text [RawSteno] -> StateCollision
 stateInitial m = StateCollision [] m []
@@ -83,72 +120,80 @@ stateInitial m = StateCollision [] m []
 resolveCollisions
     :: HashMap Text Int
     -> HashMap Text [RawSteno]
-    -> HashMap RawSteno [Text]
+    -> HashMap RawSteno [(Path, Text)]
     -> StateCollision
 resolveCollisions freqs mapWordStenos mapStenoWords =
     let
         acc st (r, words) =
-            let m     = stcMapWordStenos st
-                nAlts = nAlternatives m
-                lsStenoWord    = stcLsStenoWord st
-                losers = stcLosers st
+            let m           = stcMapWordStenos st
+                nAlts       = nAlternatives m
+                lsStenoWord = stcLsStenoWord st
+                losers      = stcLosers st
             in  case words of
 
-                -- no collision: ignore path, store raw steno with word
-                -- TODO: unless there is already an entry
-                    [word] -> st { stcLsStenoWord = (r, word) : lsStenoWord }
+                    -- Case 0: no collision: ignore path, store raw steno with word
+                    -- TODO: unless there is already an entry
+                    [(_, word)] ->
+                        st { stcLsStenoWord = (r, word) : lsStenoWord }
 
-                    -- pseudo collision due to capitalization
-                    [w1, w2] | toLower w1 == toLower w2 ->
+                    -- Case 0C: pseudo collision due to capitalization
+                    [(_, w1), (_, w2)] | toLower w1 == toLower w2 ->
                         st { stcLsStenoWord = (r, toLower w1) : lsStenoWord }
 
-                    -- collision where first word doesn't have alternatives
-                    [w1, w2] | nAlts w1 == 1 && nAlts w2 >= 1 ->
-                               let (m', mLoser) = removeAlt r w1 m w2
-                               in  st { stcLsStenoWord            = (r, w1) : lsStenoWord
-                                      , stcMapWordStenos = m'
-                                      , stcLosers = maybe id (:) mLoser losers
-                                      }
-
-                    -- collision where second word doesn't have alternatives
-                    [w1, w2] | nAlts w2 == 1 && nAlts w1 >= 1 ->
-                               let (m', mLoser) = removeAlt r w2 m w1
-                               in  st { stcLsStenoWord            = (r, w2) : lsStenoWord
-                                      , stcMapWordStenos = m'
-                                      , stcLosers = maybe id (:) mLoser losers
-                                      }
-
-                    -- collision where neither word has alternatives OR
-                    -- both words have
-                    -- in this case: let the frequency decide
-                    [w1, w2] ->
-                        let (winner, runnerUp) = sortTwo w1 w2
-                            (m', mLoser) =  removeAlt r winner m runnerUp
-                        in  st { stcLsStenoWord            = (r, winner) : lsStenoWord
+                    -- Case 1a: collision where first word doesn't have alternatives
+                    [(_, w1), (_, w2)] | nAlts w1 == 1 && nAlts w2 > 1 ->
+                        let (m', mLoser) = removeAlt Case1A r w1 m w2
+                        in  st { stcLsStenoWord   = (r, w1) : lsStenoWord
                                , stcMapWordStenos = m'
-                               , stcLosers = maybe id (:) mLoser losers
+                               , stcLosers        = maybe id (:) mLoser losers
                                }
 
-                    -- collision of more then two words
+                    -- Case 1b: collision where second word doesn't have alternatives
+                    [(_, w1), (_, w2)] | nAlts w2 == 1 && nAlts w1 > 1 ->
+                        let (m', mLoser) = removeAlt Case1B r w2 m w1
+                        in  st { stcLsStenoWord   = (r, w2) : lsStenoWord
+                               , stcMapWordStenos = m'
+                               , stcLosers        = maybe id (:) mLoser losers
+                               }
+
+                    -- Case 2: collision where neither word has alternatives OR
+                    -- both words have
+                    -- in this case: let the frequency decide
+                    [(_, w1), (_, w2)] ->
+                        let (winner, runnerUp) = sortTwo w1 w2
+                            (m', mLoser) = removeAlt Case2 r winner m runnerUp
+                        in  st { stcLsStenoWord   = (r, winner) : lsStenoWord
+                               , stcMapWordStenos = m'
+                               , stcLosers        = maybe id (:) mLoser losers
+                               }
+
+                    -- Case 3: collision of more then two words
                     h : ts ->
                         let
-                            winner :| runnerUps =
-                                NonEmpty.sortBy (comparing $ freq freqs)
+                            (_, winner) :| runnerUps =
+                                NonEmpty.sortBy
+                                        (comparing $ Down . freq freqs . snd)
                                     $  h
                                     :| ts
                             acc' (map, ls) ru =
-                              let (m', mLoser) = removeAlt r winner map ru
-                              in  (m', maybe id (:) mLoser ls)
-                            (m', losers) = foldl' acc' (m, []) runnerUps
-                        in  st
-                                { stcLsStenoWord            = (r, winner) : lsStenoWord
-                                , stcMapWordStenos = m'
-                                , stcLosers = losers
-                                }
+                                let (m', mLoser) =
+                                        removeAlt Case3 r winner map ru
+                                in  (m', maybe id (:) mLoser ls)
+                            (m', losers') =
+                                foldl' acc' (m, losers) $ snd <$> runnerUps
+                        in
+                            st { stcLsStenoWord   = (r, winner) : lsStenoWord
+                               , stcMapWordStenos = m'
+                               , stcLosers        = losers'
+                               }
 
                     -- impossible case
                     [] -> error "empty entry"
-    in  foldl' acc (stateInitial mapWordStenos) (HashMap.toList mapStenoWords)
+    in  foldl' acc (stateInitial mapWordStenos)
+                -- sort by descending path:
+                -- G3, G2, G1, G0, Exception
+                -- This way, G3 is given to high scoring words with priority
+                                                $ HashMap.toList mapStenoWords
   where
     nAlternatives :: HashMap Text [RawSteno] -> Text -> Int
     nAlternatives m word =
@@ -160,24 +205,29 @@ resolveCollisions freqs mapWordStenos mapStenoWords =
     --   if there are no more alternatives, the word becomes a loser
     --   i.e. a word w/o steno representation in the result
     removeAlt
-        :: RawSteno
+        :: LoserCase
+        -> RawSteno
         -> Text
         -> HashMap Text [RawSteno]
         -> Text
         -> (HashMap Text [RawSteno], Maybe Loser)
-    removeAlt raw winner m word =
-      case HashMap.lookup word m of
+    removeAlt lcase raw winner m word = case HashMap.lookup word m of
         Just ls ->
-          let new = delete raw ls
-              ml = if null new
-                     then let raws =
-                                 mconcat $ maybeToList $
-                                   HashMap.lookup word mapWordStenos
-                              f = freq freqs word
-                              fW = freq freqs winner
-                          in  (, Just $ Loser word f raws winner fW)
-                     else (, Nothing)
-          in  ml $ HashMap.insert word new m
+            let
+                new = delete raw ls
+                ml  = if null new
+                    then
+                        let
+                            raws = mconcat $ maybeToList $ HashMap.lookup
+                                word
+                                mapWordStenos
+                            f  = freq freqs word
+                            fW = freq freqs winner
+                        in
+                            (, Just $ Loser lcase word f raws winner fW)
+                    else (, Nothing)
+            in
+                ml $ HashMap.insert word new m
         Nothing -> error "removeAlt: impossible"
 
     sortTwo :: Text -> Text -> (Text, Text)

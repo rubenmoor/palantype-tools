@@ -1,39 +1,61 @@
 { "Aorta"     : "A/~O/DJA"
+, "Ahne"      : "A/NE"
+, "Amman"     : "AM/MAÜN"      // < Ammann
 , "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
 , "Beautyfarm": "BJU/DJI/FAÜM" // more efficient, but wrong BO
 , "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
 , "Bismark"   : "BIS/MAÜ+K"    // < Bismarck
 , "Dike"      : "D~I/GDE"      // < Dicke
+, "dm"        : "D/M"          // < dem
 , "Düne"      : "DÜ/NE"        // < Dünne
+, "Dr"        : "D/R"          // < der 
 , "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
 , "Egge"      : "EK/G"         // < Ecke
 , "gebiert"   : "GE/B~I+D"     // < Gebiet
 , "Görz"      : "G~O+S"        // < Götz
-, "Haken"     : "HAÜ/Kn"       // < hacken
+, "gram"      : "GRAÜM"        // < Gramm
+, "haken"     : "HAÜ/Kn"       // < hacken
 , "Ham"       : "HÄM"
 , "Hamit"     : "HA/MI+D"
 , "Haydn"     : "HAI/DN"
 , "Hertz"     : "HEÜ+Ss"       // < Herz
 , "hey"       : "HÄI"
 , "Huy"       : "HÜ"
+, "Iod"       : "J~OD"         // < Jod
+, "isst"      : "ISs"          // < ist
+, "Jahnn"     : "JAÜ+N"        // < Jahn
+, "Jo-Jo"     : "J~O/HIFn/J~O" // < Yo-Yo
+, "Jot"       : "JO+D"         // < Jod
 , "Kent"      : "GDE+ND"       // < gedient
+, "kJ"        : "GD/J"
 , "knabber"   : "GDNAP/BR"     // < knapper
 , "Knigge"    : "GDNIK/G"      // < knicke
+, "Kommiss"   : "GDOM/MISs"    // < Kommis
+, "Krake"     : "GDRAÜ/GDE"    // < Kracke
 , "Lake"      : "LAÜ/GDE"
 , "Laos"      : "LA/OS"        // < Lars
+, "Lar"       : "LAÜ+"         // < Lahr
+, "litt"      : "LI+D"         // < Lid
+, "Lit"       : "L~I+D"        // < Lied
+, "muh"       : "M~U+"         // < Mur
 , "Nietnagel" : "N~I+D/NA/GEL" // < Niednagel
 , "Piek"      : "BD~I+K"       // < Pik
 , "Pils"      : "BDI+S"        // < Pilz
 , "Rappen"    : "RAP/BDn"      // < Raben    
+, "riet"      : "R~I+D"        // < Ried
 , "Robbe"     : "ROP/B"        // < Robe
+, "Rur"       : "R~U+"         // < Ruhr
 , "sang"      : "SAÜ+N"        // < sank
 , "sin"       : "S~IN"         // < Sinn, Abk. sinus
 , "spuken"    : "BF~U/Kn"      // < spucken
 , "sfr"       : "SW/FR"        // Abkz. Schweizer Franken
+, "Speiseopfer": "BFEI/SE/OP/FEÜ"
+, "tan"       : "DJAÜN"         // < Tann
 , "tja"       : "DJA"   
 , "Truck"     : "DJRAK"
 , "Trum"      : "DJR~UM"       // < Trumm
 , "Tyr"       : "DJ~Ü+"        // < Tür
-, "Speiseopfer": "BFEI/SE/OP/FEÜ"
 , "Xiomara"   : "GDJI/O/MA/RA"
+, "weh"       : "WE+"          
+, "Wehr"      : "WEÜ+"         // < wer
 }

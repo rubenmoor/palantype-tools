@@ -45,7 +45,6 @@ import           Data.Foldable                  ( Foldable
                                                     , toList
                                                     )
                                                 , maximumBy
-                                                , minimumBy
                                                 )
 import           Data.Function                  ( ($)
                                                 , flip
@@ -70,7 +69,9 @@ import           Data.List                      ( (++)
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( Maybe(Just, Nothing) )
-import           Data.Monoid                    ( (<>) )
+import           Data.Monoid                    ( (<>)
+                                                , mconcat
+                                                )
 import           Data.Ord                       ( Down(Down)
                                                 , Ord((<=))
                                                 , comparing
@@ -85,13 +86,10 @@ import           Data.Text                      ( Text
                                                 )
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
-import           Data.Traversable               ( Traversable(sequence)
-                                                , traverse
-                                                )
+import           Data.Traversable               ( traverse )
 import           Data.Trie                      ( Trie )
 import qualified Data.Trie                     as Trie
-import           Data.Tuple                     ( fst
-                                                , snd
+import           Data.Tuple                     ( snd
                                                 , uncurry
                                                 )
 import           Data.Word                      ( Word8 )
@@ -170,14 +168,20 @@ data Score = Score
 instance TextShow Score where
     showb Score {..} =
         fromString (printf "%.1f" $ fromRational @Double scorePrimary)
+            <> fromText "("
+            <> showb scoreSecondary
+            <> fromText ")"
 
 instance Show Score where
     show = Text.unpack . showt
 
 data Path
-  = PathException
-  | PathOptimize Greediness
+  = PathOptimize Greediness
+  | PathException
   deriving stock (Eq, Ord, Generic)
+
+instance Hashable Path where
+    hashWithSalt s = hashWithSalt s . showt
 
 instance TextShow Path where
     showb PathException    = fromText "Exception"
@@ -192,8 +196,7 @@ instance Read Path where
     readListPrec = readListPrecDefault
 
 data ParseError
-  = PEMissingPrimitives Text
-  | PEParsec [RawSteno] Parsec.ParseError
+  = PEParsec RawSteno Parsec.ParseError
   | PEExceptionTable Text
   deriving stock (Show)
 
@@ -236,8 +239,9 @@ parseSeries maxGreediness hyphenated =
 
                     sdScore =
                         Score efficiency $ negate $ sum (length <$> chords)
+
+                    -- in case of exception, there are no alternatives
                     sdPath = PathException
-                   -- in case of exception, there are no alternatives
                 in
                     Right [SeriesData { .. }]
             Left err ->
@@ -256,17 +260,14 @@ parseSeries maxGreediness hyphenated =
                             , stNChords    = 1
                             , stMFinger    = Nothing
                             }
-                lsEResult =
+                lsResult =
                     [0 .. maxGreediness] <&> \maxG ->
-                        (maxG, ) <$> optimizeStenoSeries maxG st str
+                        (maxG, ) $ optimizeStenoSeries maxG st str
             in
-                case sequence lsEResult of
-                    Left err -> Left $ PEMissingPrimitives err
-                    Right pairs ->
-                        case sortOn (Down . uncurry scoreWithG) pairs of
-                            (_, Failure raw err) : _ -> Left $ PEParsec raw err
-                            [] -> error "impossible"
-                            ls -> Right $ toSeriesData <$> filterAlts ls
+                case sortOn (Down . uncurry scoreWithG) lsResult of
+                    (_, Failure raw err) : _ -> Left $ PEParsec raw err
+                    [] -> error "impossible"
+                    ls -> Right $ toSeriesData <$> filterAlts ls
   where
     unhyphenated = replace "|" "" hyphenated
 
@@ -286,18 +287,22 @@ parseSeries maxGreediness hyphenated =
             distinct st1 (_, Success st2) = showRaw st1 /= showRaw st2
         in  (g, state) : filterAlts (filter (distinct state) as)
 
+-- | Scoring "with greediness"
+--   This scoring serves to sort the result, no result is discarded
+--   The highest scoring result is awarded to the most frequent word
+--   Given the efficiency of a steno code, lower greediness is preferred
 scoreWithG :: Greediness -> Result State -> (Rational, Greediness, Int)
 scoreWithG g result =
     let Score {..} = score result in (scorePrimary, negate g, scoreSecondary)
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
-  deriving newtype (Num, Eq)
+  deriving newtype (Num, Eq, TextShow)
 
 countLetters :: ByteString -> CountLetters
 countLetters str = CountLetters $ sum $ BS.length <$> BS.split bsPipe str
 
 newtype CountChords = CountChords { unCountChords :: Int }
-  deriving newtype (Num)
+  deriving newtype (Num, TextShow)
 
 countChords :: [KeysOrSlash] -> CountChords
 countChords = foldl' acc 0
@@ -336,7 +341,12 @@ toParts ls =
 
 data Result a
   = Success a
-  | Failure [RawSteno] Parsec.ParseError
+  | Failure RawSteno Parsec.ParseError
+
+instance TextShow a => TextShow (Result a) where
+    showb (Success x  ) = fromText "Success " <> showb x
+    -- showb (Failure rs err) = fromText "Failure " <> showb rs <> fromText (" " <> Text.pack (show err))
+    showb (Failure r _) = fromText "Failure " <> showb r <> fromText " ..."
 
 data State = State
     { stPartsSteno :: [KeysOrSlash]
@@ -344,6 +354,10 @@ data State = State
     , stNChords    :: CountChords
     , stMFinger    :: Maybe Finger
     }
+
+instance TextShow State where
+    showb State {..} = showb $ snd <$> toParts stPartsSteno
+
 
 bsPipe :: Word8
 bsPipe = 0x7C
@@ -383,9 +397,8 @@ score' State {..} =
 --         consume and recursion with remaining string ...
 --         ... increase letter count by match length
 --       return steno with highest score
-optimizeStenoSeries
-    :: Greediness -> State -> ByteString -> Either Text (Result State)
-optimizeStenoSeries _ st "" = Right $ Success st
+optimizeStenoSeries :: Greediness -> State -> ByteString -> Result State
+optimizeStenoSeries _ st "" = Success st
 optimizeStenoSeries g st str | BS.head str == bsPipe =
     let newState = State { stPartsSteno = KoSSlash : stPartsSteno st
                          , stNLetters   = stNLetters st
@@ -395,13 +408,13 @@ optimizeStenoSeries g st str | BS.head str == bsPipe =
         str' = BS.tail str
         r1   = optimizeStenoSeries g newState str'
         r2   = optimizeStenoSeries g st str'
-    in  maximumBy (comparing score) <$> sequence [r1, r2]
+    in  maximumBy (comparing score) [r1, r2]
 optimizeStenoSeries g st str =
-    let matches = Trie.matches primitives str
+    let matches = filterGreediness $ flatten $ Trie.matches primitives str
 
         matchToResult (consumed, result, rem) =
-            case parseKey consumed (filterGreediness result) (stMFinger st) of
-                Left err -> Right $ Failure (view _2 <$> result) err
+            case parseKey consumed result (stMFinger st) of
+                Left err -> Failure (view _2 result) err
                 Right (mFinger, lsKoS) ->
                     let newSteno = case lsKoS of
                             [kos] -> kos : stPartsSteno st
@@ -414,48 +427,43 @@ optimizeStenoSeries g st str =
                             }
                     in  optimizeStenoSeries g newState rem
 
-        eResults = case matches of
-            [] -> Left $ Text.decodeUtf8 str
-            ms -> sequence $ matchToResult <$> ms
-    in  maximumBy (comparing score) <$> eResults
+        results = case matches of
+            [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
+            ms -> matchToResult <$> ms
+    in  maximumBy (comparing score) results
   where
-    filterGreediness :: [(Greediness, RawSteno, [Int])] -> [(RawSteno, [Int])]
-    filterGreediness =
-        foldl' (\rs (g', r, is) -> if g' <= g then (r, is) : rs else rs) []
+    filterGreediness
+        :: [(ByteString, (Greediness, RawSteno, [Int]), ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, [Int]), ByteString)]
+    filterGreediness = filter (\(_, (g', _, _), _) -> g' <= g)
+
+    flatten
+        :: [(ByteString, [(Greediness, RawSteno, [Int])], ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, [Int]), ByteString)]
+    flatten = mconcat . fmap expand
+      where
+        expand
+            :: (ByteString, [(Greediness, RawSteno, [Int])], ByteString)
+            -> [(ByteString, (Greediness, RawSteno, [Int]), ByteString)]
+        expand (c, rs, rem) = (c, , rem) <$> rs
 
     parseKey
         :: ByteString
-        -> [(RawSteno, [Int])]
+        -> (Greediness, RawSteno, [Int])
         -> Maybe Finger
         -> Either Parsec.ParseError (Maybe Finger, [KeysOrSlash])
-    parseKey orig ls mFinger =
-        let
-            primitive s is =
-                let
-                    ePair = evalParser keysWithSlash mFinger "" s
+    parseKey orig (_, RawSteno s, is) mFinger =
+        let ePair = evalParser keysWithSlash mFinger "" s
 
-                    acc' (strs, strOrig) i =
-                        let (begin, end) = Text.splitAt i strOrig
-                        in  (strs ++ [begin], end)
+            acc (strs, strOrig) i =
+                let (begin, end) = Text.splitAt i strOrig
+                in  (strs ++ [begin], end)
 
-                    (origs, rem) = foldl' acc' ([], Text.decodeUtf8 orig) is
-                    lsOrig       = replace "|" "" <$> origs ++ [rem]
+            (origs, rem) = foldl' acc ([], Text.decodeUtf8 orig) is
+            lsOrig = replace "|" "" <$> origs ++ [rem]
 
-                    toKoS =
-                        intersperse KoSSlash
-                            . fmap (uncurry KoSKeys)
-                            . zip lsOrig
-                in
-                    second toKoS <$> ePair
-
-            acc parser (RawSteno s, is) = case (parser, primitive s is) of
-                (Right r1, Right r2) ->
-                    Right $ minimumBy (comparing fst) [r1, r2]
-                (Right result, Left _      ) -> Right result
-                (Left  _     , Right result) -> Right result
-                (Left  _     , Left err    ) -> Left err
-        in
-            foldl' acc (Left $ Parsec.newErrorUnknown (initialPos "")) ls
+            toKoS = intersperse KoSSlash . fmap (uncurry KoSKeys) . zip lsOrig
+        in  second toKoS <$> ePair
 
     keysWithSlash :: Parsec Text (Maybe Finger) [[Key]]
     keysWithSlash = sepBy1 Raw.keys (char '/' *> setState Nothing) <* eof
@@ -514,7 +522,13 @@ instance FromJSON PrimMap where
                 <> Text.unpack key
                 <> ": "
                 <> show r
-            let keyBs = Text.encodeUtf8 key
+            let keyBs   = Text.encodeUtf8 key
+                nChords = Text.count "/" $ unRawSteno r
+
+            when (nChords /= length is)
+                $  fail
+                $  "wrong number of indices: "
+                <> Text.unpack key
             pure $ Map.insertWith (++) keyBs [(g, r, is)] m
 
         acc _ other = fail $ "malformed: " <> show other
@@ -526,6 +540,6 @@ primitives :: Trie [(Greediness, RawSteno, [Int])]
 primitives =
     let str     = stripComments $(embedFile "primitives.json5")
         primMap = case Aeson.eitherDecodeStrict str of
-            Right m   -> m :: PrimMap
+            Right m   -> m
             Left  err -> error $ "Could not decode primitives.json5: " <> err
     in  Trie.fromList $ Map.toList $ unPrimMap primMap

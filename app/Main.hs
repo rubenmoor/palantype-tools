@@ -20,17 +20,18 @@ import           Control.Category               ( Category((.)) )
 import           Control.Concurrent.Async       ( forConcurrently )
 import           Control.Monad                  ( Monad((>>=))
                                                 , foldM
-                                                , foldM_
                                                 , forever
-                                                , unless
                                                 , when
                                                 )
 import qualified Data.Aeson.Encode.Pretty      as Aeson
 import           Data.Aeson.Encode.Pretty       ( Config(..) )
 import           Data.Bool                      ( Bool(..) )
 import qualified Data.ByteString.Lazy          as LazyBS
+import           Data.Char                      ( isUpper )
 import           Data.Either                    ( Either(..) )
-import           Data.Eq                        ( Eq((==)) )
+import           Data.Eq                        ( (/=)
+                                                , Eq((==))
+                                                )
 import           Data.Foldable                  ( Foldable
                                                     ( foldl'
                                                     , length
@@ -39,13 +40,12 @@ import           Data.Foldable                  ( Foldable
                                                 , for_
                                                 )
 import           Data.Function                  ( ($) )
-import           Data.Functor                   ( (<$>)
+import           Data.Functor                   ( (<$)
+                                                , (<$>)
                                                 , (<&>)
                                                 , Functor(fmap)
                                                 )
-import           Data.HashMap.Strict            ( HashMap
-                                                , member
-                                                )
+import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import qualified Data.HashSet                  as HashSet
 import           Data.Int                       ( Int )
@@ -61,6 +61,7 @@ import           Data.List                      ( (++)
 import           Data.List.Split                ( chunksOf )
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe                     ( Maybe(Just, Nothing)
+                                                , catMaybes
                                                 , maybeToList
                                                 )
 import           Data.Monoid                    ( (<>)
@@ -68,7 +69,6 @@ import           Data.Monoid                    ( (<>)
                                                 )
 import           Data.Ord                       ( Ord((>), compare) )
 import           Data.Text                      ( Text
-                                                , replace
                                                 , splitOn
                                                 , toLower
                                                 )
@@ -89,6 +89,7 @@ import           Data.Time.Clock                ( UTCTime
 import           Data.Time.Format               ( defaultTimeLocale
                                                 , formatTime
                                                 )
+import           Data.Traversable               ( for )
 import           Data.Tuple                     ( fst
                                                 , snd
                                                 )
@@ -109,14 +110,15 @@ import           Options.Applicative            ( execParser )
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
 import qualified Palantype.Common.RawSteno     as RawSteno
 import qualified Palantype.DE.Keys             as DE
-import           Palantype.Tools.Collision      ( freq
-                                                , resolveCollisions
+import           Palantype.Tools.Collision      ( StateCollision(..)
+                                                , freq
                                                 , readFrequencies
-                                                , StateCollision (..)
+                                                , resolveCollisions
                                                 )
 import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           Palantype.Tools.Steno          ( ParseError(..)
                                                 , PartsData(..)
+                                                , Path
                                                 , Score(scorePrimary)
                                                 , SeriesData(..)
                                                 , parseSeries
@@ -124,7 +126,7 @@ import           Palantype.Tools.Steno          ( ParseError(..)
                                                 )
 import           Palantype.Tools.Syllables      ( Exception(..)
                                                 , Result(..)
-                                                , SyllableData(SyllableData)
+                                                , SyllableData(..)
                                                 , parseSyllables
                                                 , sdWord
                                                 )
@@ -177,6 +179,14 @@ rawSteno :: Text -> IO ()
 rawSteno str =
     StrictIO.putStrLn $ showt $ RawSteno.parseSteno @DE.Key (RawSteno str)
 
+data StateSyllables = StateSyllables
+    { stsyllLastResult :: Result
+    , stsyllMap        :: HashMap Text SyllableData
+    }
+
+initialState :: StateSyllables
+initialState = StateSyllables (Success $ SyllableData "" []) HashMap.empty
+
 syllables :: OptionsSyllables -> IO ()
 syllables (OSylArg str) = do
     freqs <- readFrequencies
@@ -197,6 +207,7 @@ syllables (OSylFile reset) = do
             , fileSyllablesSingleLetter
             , fileSyllablesEllipsis
             , fileSyllablesAcronyms
+            , fileSyllablesExplicitExceptions
             ]
     when reset $ do
         for_ lsFiles $ \file -> do
@@ -223,13 +234,14 @@ syllables (OSylFile reset) = do
     fprint (timeSpecs % "\n") start stop
 
   where
-    fileSyllablesNoParse       = "syllables-noparse.txt"
-    fileSyllablesAbbreviations = "syllables-abbreviations.txt"
-    fileSyllablesMultiple      = "syllables-multiple.txt"
-    fileSyllablesSpecialChar   = "syllables-specialchar.txt"
-    fileSyllablesSingleLetter  = "syllables-singleletter.txt"
-    fileSyllablesEllipsis      = "syllables-ellipsis.txt"
-    fileSyllablesAcronyms      = "syllables-acronyms.txt"
+    fileSyllablesNoParse            = "syllables-noparse.txt"
+    fileSyllablesAbbreviations      = "syllables-abbreviations.txt"
+    fileSyllablesMultiple           = "syllables-multiple.txt"
+    fileSyllablesSpecialChar        = "syllables-specialchar.txt"
+    fileSyllablesSingleLetter       = "syllables-singleletter.txt"
+    fileSyllablesEllipsis           = "syllables-ellipsis.txt"
+    fileSyllablesAcronyms           = "syllables-acronyms.txt"
+    fileSyllablesExplicitExceptions = "syllables-explicitexceptions.txt"
 
     runSyllables file = do
 
@@ -240,34 +252,88 @@ syllables (OSylFile reset) = do
         entries <- Lazy.lines <$> hGetContents handle
 
         let
-            acc last entry = do
-              -- eliminate duplicate entries after parsing
+            -- | in case of duplicate entries because of
+            --   capitalization, e.g. "Rechnen" and "rechnen",
+            --   select the lower-case version
+            preferLC :: SyllableData -> SyllableData -> SyllableData
+
+-- real duplicate
+            preferLC s1 s2 | s1 == s2 = s1
+
+-- weird entry
+-- more syllables means, better entry
+            preferLC s1@(SyllableData w1 ss1) s2@(SyllableData w2 ss2)
+                | w1 == w2 = if length ss1 > length ss2 then s1 else s2
+
+            preferLC s1@(SyllableData w1 _) s2@(SyllableData w2 _) =
+                let
+                    c1 = Text.head w1
+                    c2 = Text.head w2
+                in
+                    if toLower w1 /= toLower w2
+                        then error $ "preferLC: impossible1: " <> Text.unpack
+                            (w1 <> " " <> w2)
+                        else case (isUpper c1, isUpper c2) of
+                            (True , False) -> s2
+                            (False, True ) -> s1
+                            _ ->
+                                error
+                                    $  Text.unpack
+                                    $  "preferLC: impossible2: "
+                                    <> showt s1
+                                    <> " "
+                                    <> showt s2
+
+            acc st entry = do
+-- eliminate duplicate entries after parsing
                 let lsHyphenated = parseSyllables $ Lazy.toStrict entry
                     hyphenated   = head lsHyphenated
-                unless (hyphenated == last) $ for_ lsHyphenated $ \case
-                    Failure err -> do
-                        print err
-                        appendLine tmpFileNoParse entry
-                    Success sd ->
-                        appendLine fileSyllables $ Lazy.fromStrict $ showt sd
-                    Exception exc -> case exc of
-                        ExceptionAbbreviation ->
-                            appendLine fileSyllablesAbbreviations entry
-                        ExceptionMultiple ->
-                            appendLine fileSyllablesMultiple entry
-                        ExceptionSpecialChar c ->
-                            appendLine fileSyllablesSpecialChar
-                                $  Lazy.singleton c
-                                <> " "
-                                <> entry
-                        ExceptionSingleLetter ->
-                            appendLine fileSyllablesSingleLetter entry
-                        ExceptionEllipsis ->
-                            appendLine fileSyllablesEllipsis entry
-                        ExceptionAcronym ->
-                            appendLine fileSyllablesAcronyms entry
-                pure hyphenated
-        foldM_ acc (Success $ SyllableData "" []) entries
+                    last         = stsyllLastResult st
+                    m            = stsyllMap st
+                m' <- if hyphenated == last
+                    then pure HashMap.empty
+                    else do
+                        lsMWordSyllableData <- for lsHyphenated $ \case
+                            Failure err -> do
+                                print err
+                                appendLine tmpFileNoParse entry
+                                pure Nothing
+                            Success sd ->
+                                -- TODO: persist hashmap
+                                -- appendLine fileSyllables $ Lazy.fromStrict $ showt sd
+                                pure $ Just (toLower $ sdWord sd, sd)
+                            Exception exc -> Nothing <$ case exc of
+                                ExceptionAbbreviation ->
+                                    appendLine fileSyllablesAbbreviations entry
+                                ExceptionMultiple ->
+                                    appendLine fileSyllablesMultiple entry
+                                ExceptionSpecialChar c ->
+                                    appendLine fileSyllablesSpecialChar
+                                        $  Lazy.singleton c
+                                        <> " "
+                                        <> entry
+                                ExceptionSingleLetter ->
+                                    appendLine fileSyllablesSingleLetter entry
+                                ExceptionEllipsis ->
+                                    appendLine fileSyllablesEllipsis entry
+                                ExceptionAcronym ->
+                                    appendLine fileSyllablesAcronyms entry
+                                ExceptionExplicit -> appendLine
+                                    fileSyllablesExplicitExceptions
+                                    entry
+                        pure $ HashMap.fromList $ catMaybes lsMWordSyllableData
+                pure $ st { stsyllLastResult = hyphenated
+                          -- TODO: union with to exclude case-sensitive duplicates
+                          , stsyllMap        = HashMap.unionWith preferLC m m'
+                          }
+        StateSyllables {..} <- foldM acc initialState entries
+
+        putStrLn $ "Writing file " <> fileSyllables
+        writeFile fileSyllables
+            $  Lazy.intercalate
+                   "\n"
+                   (Lazy.fromStrict . showt <$> HashMap.elems stsyllMap)
+            <> "\n"
 
         appendLine tmpFileNoParse "END"
         renamePath tmpFileNoParse fileSyllablesNoParse
@@ -286,12 +352,6 @@ fileStenoWordsScores time =
 
 fileStenoWordsDuplicates :: FilePath
 fileStenoWordsDuplicates = "stenowords-duplicates.txt"
-
-fileStenoWordsMissingPrimitives :: FilePath
-fileStenoWordsMissingPrimitives = "stenowords-missingprimitives.txt"
-
-fileStenoWordsParsecErrors :: FilePath
-fileStenoWordsParsecErrors = "stenowords-parsecerrors.txt"
 
 fileSmallDict :: FilePath
 fileSmallDict = "smalldict.json"
@@ -317,28 +377,21 @@ average ls =
     in  realToFrac t / realToFrac n
 
 data StenoWordsState = StenoWordsState
-    { swsMapWordStenos     :: HashMap Text [SeriesData]
-    , swsMapChordParts     :: HashMap PartsData [Text]
-    , swsMapStenoWords     :: HashMap RawSteno [Text]
-    , swsMissingPrimitives :: [Lazy.Text]
-    , swsParsecError       :: [Lazy.Text]
-    , swsNoParse           :: [Lazy.Text]
-    , swsDuplicates        :: [Lazy.Text]
+    { swsMapWordStenos :: HashMap Text [SeriesData]
+    , swsMapChordParts :: HashMap PartsData [Text]
+    , swsMapStenoWords :: HashMap RawSteno [(Path, Text)]
+    , swsNoParse       :: [Lazy.Text]
     }
 
 instance Semigroup StenoWordsState where
-    (StenoWordsState mWordSteno1 mChordParts1 mStenoWord1 prims1 parsecErr1 noparse1 dupls1) <> (StenoWordsState mWordSteno2 mChordParts2 mStenoWord2 prims2 parsecErr2 noparse2 dupls2)
+    (StenoWordsState mWordSteno1 mChordParts1 mStenoWord1 noparse1) <> (StenoWordsState mWordSteno2 mChordParts2 mStenoWord2 noparse2)
         = StenoWordsState (HashMap.union mWordSteno1 mWordSteno2)
                           (HashMap.unionWith (++) mChordParts1 mChordParts2)
                           (HashMap.unionWith (++) mStenoWord1 mStenoWord2)
-                          (prims1 <> prims2)
-                          (parsecErr1 <> parsecErr2)
                           (noparse1 <> noparse2)
-                          (dupls1 <> dupls2)
 
 instance Monoid StenoWordsState where
-    mempty =
-        StenoWordsState HashMap.empty HashMap.empty HashMap.empty [] [] [] []
+    mempty = StenoWordsState HashMap.empty HashMap.empty HashMap.empty []
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwRun greediness (OStwArg str)) =
@@ -346,7 +399,7 @@ stenoWords (OStwRun greediness (OStwArg str)) =
         Left  err -> StrictIO.putStrLn $ showt err
         Right sds -> do
             freqs <- readFrequencies
-            StrictIO.putStr
+            StrictIO.putStrLn
                 $  showt (freq freqs $ Text.replace "|" "" str)
                 <> " "
                 <> showSeriesData (head sds)
@@ -377,8 +430,6 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             [ fileStenoWords
             , fileStenoWordsNoParse
             , fileStenoWordsDuplicates
-            , fileStenoWordsMissingPrimitives
-            , fileStenoWordsParsecErrors
             , fileStenoParts
             , fileSmallDict
             , fileCollisions
@@ -393,8 +444,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
     existsStenoWordsNoParse <- doesFileExist fileStenoWordsNoParse
     newScores               <- runStenoWords $ if existsStenoWordsNoParse
-        then (fileStenoWordsNoParse, False)
-        else (fileSyllables, True)
+        then fileStenoWordsNoParse
+        else fileSyllables
 
     putStrLn ""
     putStrLn $ "Number of words with steno code: " <> show (length newScores)
@@ -413,7 +464,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
     let scores    = newZeroScores <> (fromRational <$> newScores)
         meanScore = average scores
     writeFile (fileStenoWordsScores now)
-        $ Lazy.unlines (Lazy.fromStrict . showt <$> scores) <> "\n"
+        $  Lazy.unlines (Lazy.fromStrict . showt <$> scores)
+        <> "\n"
 
     putStrLn ""
     StrictIO.putStrLn $ "Average score: " <> showt meanScore
@@ -428,7 +480,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
   where
     fileStenoWordsNoParse = "stenowords-noparse.txt"
 
-    runStenoWords (file, bFirstPass) = do
+    runStenoWords file = do
 
         freqs      <- readFrequencies
         lsSyllable <- Lazy.lines <$> readFile file
@@ -450,107 +502,73 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                 in
                     case parseSeries greediness hyphenated of
                         Left err -> case err of
-                            PEMissingPrimitives orig -> pure $ if bFirstPass
-                                then sws
-                                    { swsMissingPrimitives =
-                                        Lazy.fromStrict orig
-                                            : swsMissingPrimitives
-                                    , swsNoParse           = str : swsNoParse
-                                    }
-                                else sws { swsNoParse = str : swsNoParse }
                             PEExceptionTable orig -> do
                                 print $ "Error in exception table for: " <> orig
                                 pure sws
-                            PEParsec raw pe -> pure $ if bFirstPass
-                                then
-                                    let
-                                        line =
-                                            showt word
-                                                <> " "
-                                                <> showt hyphenated
-                                                <> " "
-                                                <> showt raw
-                                                <> " "
-                                                <> replace
-                                                       "\n"
-                                                       ""
-                                                       (Text.pack $ show pe)
-                                    in
-                                        sws
-                                            { swsParsecError =
-                                                Lazy.fromStrict line
-                                                    : swsParsecError
-                                            , swsNoParse     = str : swsNoParse
-                                            }
-                                else sws { swsNoParse = str : swsNoParse }
-                        Right sds -> if word `member` swsMapWordStenos
-                            then pure $ if bFirstPass
-                                then sws { swsDuplicates = str : swsDuplicates }
-                                else sws
-                            else do
-                                let acc' m (path, (o, c)) = HashMap.insertWith
-                                        (++)
-                                        (PartsData o c path)
-                                        [word]
+                            PEParsec _ _ ->
+                                pure $ sws { swsNoParse = str : swsNoParse }
+                        Right sds -> do
+                            let acc' m (path, (o, c)) = HashMap.insertWith
+                                    (++)
+                                    (PartsData o c path)
+                                    [word]
+                                    m
+                                partsData =
+                                    foldl' acc' HashMap.empty
+                                        $ concatMap
+                                              (\sd -> (sdPath sd, )
+                                                  <$> sdParts sd
+                                              )
+                                              sds
+
+                                lsStenoPathWord =
+                                    sds
+                                        <&> \sd ->
+                                                ( partsToSteno $ sdParts sd
+                                                , (sdPath sd, word)
+                                                )
+
+                                ciAppend [pw1@(_, w1)] [pw2@(_, w2)] =
+                                    if toLower w1 == toLower w2
+                                        then [pw1]
+                                        else [pw1, pw2]
+                                ciAppend ws1 ws2 = ws1 ++ ws2
+
+                                showAlt SeriesData {..} =
+                                    showt sdPath <> " " <> Text.intercalate
+                                        "/"
+                                        (showt . snd <$> sdParts)
+
+                            -- write to file
+                            hPutStrLn h
+                                $  Lazy.fromStrict
+                                $  word
+                                <> " "
+                                <> showt (freq freqs word)
+                                <> " "
+                                <> showt (head sds)
+                                <> " – "
+                                <> Text.intercalate "; " (showAlt <$> tail sds)
+
+                            pure $ sws
+                                { swsMapWordStenos = HashMap.insert
+                                                         word
+                                                         sds
+                                                         swsMapWordStenos
+                                , swsMapChordParts = HashMap.unionWith
+                                                         (++)
+                                                         partsData
+                                                         swsMapChordParts
+                                , swsMapStenoWords = foldl'
+                                    (\m (raw, pathWord) -> HashMap.insertWith
+                                        ciAppend
+                                        raw
+                                        [pathWord]
                                         m
-                                    partsData =
-                                        foldl' acc' HashMap.empty
-                                            $ concatMap
-                                                  (\sd -> (sdPath sd, )
-                                                      <$> sdParts sd
-                                                  )
-                                                  sds
-
-                                    lsStenoWord =
-                                        sds
-                                            <&> \sd ->
-                                                    ( partsToSteno $ sdParts sd
-                                                    , word
-                                                    )
-
-                                    ciAppend [w1] [w2] =
-                                        if toLower w1 == toLower w2
-                                            then [w1]
-                                            else [w1, w2]
-                                    ciAppend ws1 ws2 = ws1 ++ ws2
-
-                                    showAlt SeriesData {..} =
-                                        showt sdPath <> " " <> Text.intercalate
-                                            "/"
-                                            (showt . snd <$> sdParts)
-
-                                -- write to file
-                                hPutStrLn h
-                                    $  Lazy.fromStrict
-                                    $  word
-                                    <> " "
-                                    <> showt (freq freqs word)
-                                    <> " "
-                                    <> showt (head sds)
-                                    <> " – "
-                                    <> Text.intercalate
-                                           "; "
-                                           (showAlt <$> tail sds)
-
-                                pure $ sws
-                                    { swsMapWordStenos = HashMap.insert
-                                                             word
-                                                             sds
-                                                             swsMapWordStenos
-                                    , swsMapChordParts = HashMap.unionWith
-                                                             (++)
-                                                             partsData
-                                                             swsMapChordParts
-                                    , swsMapStenoWords = foldl'
-                                        (\m (raw, w) -> HashMap.insertWith
-                                            ciAppend
-                                            raw
-                                            [w]
-                                            m
-                                        )
-                                        swsMapStenoWords
-                                        lsStenoWord
-                                    }
+                                    )
+                                    swsMapStenoWords
+                                    lsStenoPathWord
+                                }
 
         nj <- getNumCapabilities
         putStrLn ""
@@ -571,11 +589,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             handles              = fst <$> lsResult
             StenoWordsState {..} = mconcat lsSws
 
-        writeFile fileStenoWordsMissingPrimitives
-            $ Lazy.unlines swsMissingPrimitives <> "\n"
-        writeFile fileStenoWordsParsecErrors $ Lazy.unlines swsParsecError <> "\n"
         writeFile fileStenoWordsNoParse $ Lazy.unlines swsNoParse <> "\n"
-        writeFile fileStenoWordsDuplicates $ Lazy.unlines swsDuplicates <> "\n"
 
         putStrLn $ "Writing file " <> fileStenoWords
         let hReadFile h = hSeek h AbsoluteSeek 0 *> hGetContents h
@@ -609,43 +623,63 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
 
         -- remove collisions
         let mapWordStenos = (partsToSteno . sdParts <$>) <$> swsMapWordStenos
-            StateCollision {..}   = resolveCollisions freqs mapWordStenos swsMapStenoWords
+            StateCollision {..} =
+                resolveCollisions freqs mapWordStenos swsMapStenoWords
 
-            conf          = Aeson.defConfig { confCompare = compare }
+            conf = Aeson.defConfig { confCompare = compare }
 
-        LazyBS.writeFile fileSmallDict
-            $ Aeson.encodePretty' conf
-            $ Map.fromList stcLsStenoWord
+        -- check for double entries in the final result
+            accDupls (m, ls) (r, w) = case HashMap.lookup r m of
+                Just dupl -> (m, (r, w, dupl) : ls)
+                Nothing   -> (HashMap.insert r w m, ls)
+
+            dupls = snd $ foldl' accDupls (HashMap.empty, []) stcLsStenoWord
+
+        writeFile fileStenoWordsDuplicates
+            $  Lazy.unlines
+                   (dupls <&> \(r, w, dupl) ->
+                       Lazy.fromStrict $ showt r <> " " <> w <> " " <> dupl
+                   )
+            <> "\n"
+
+        LazyBS.writeFile fileSmallDict $ Aeson.encodePretty' conf $ Map.fromList
+            stcLsStenoWord
 
         putStrLn $ "Writing " <> fileCollisions
 
         let
             -- get list of words that have been removed due to collisions
             setWord = HashSet.fromList $ toLower . snd <$> stcLsStenoWord
-            acc' ls w =
+            accCollisions ls w =
                 if HashSet.member (toLower w) setWord then ls else w : ls
-            lsCollisions = foldl' acc' [] $ HashMap.keys swsMapWordStenos
+            lsCollisions =
+                foldl' accCollisions [] $ HashMap.keys swsMapWordStenos
 
         writeFile fileCollisions
-            $ Lazy.intercalate "\n" (lsCollisions <&> \w ->
-                    Lazy.fromStrict
-                        $  w
-                        <> ": "
-                        <> showt (freq freqs w)
-                        <> " "
-                        <> Text.intercalate
-                               " "
-                               (   showt
-                               <$> mconcat
-                                       (maybeToList $ HashMap.lookup
-                                           w
-                                           mapWordStenos
-                                       )
-                               )
-              ) <> "\n"
+            $  Lazy.intercalate
+                   "\n"
+                   (lsCollisions <&> \w ->
+                       Lazy.fromStrict
+                           $  w
+                           <> ": "
+                           <> showt (freq freqs w)
+                           <> " "
+                           <> Text.intercalate
+                                  " "
+                                  (   showt
+                                  <$> mconcat
+                                          (maybeToList $ HashMap.lookup
+                                              w
+                                              mapWordStenos
+                                          )
+                                  )
+                   )
+            <> "\n"
 
         putStrLn $ "Writing " <> fileCollisionsV2
-        writeFile fileCollisionsV2 $ Lazy.intercalate "\n" (Lazy.fromStrict . showt <$> stcLosers) <> "\n"
+        writeFile fileCollisionsV2
+            $  Lazy.intercalate "\n" (Lazy.fromStrict . showt <$> stcLosers)
+            <> "\n"
 
         pure $ HashMap.toList swsMapWordStenos <&> \(_, sds) ->
             maximum $ scorePrimary . sdScore <$> sds
