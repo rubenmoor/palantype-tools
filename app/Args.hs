@@ -102,7 +102,7 @@ greediness :: Parser Int
 greediness = option auto
   (   long "greediness"
   <> short 'g'
-  <> value 3
+  <> value 4
   <> help "Greediness 0: use the minimal set of primitive patterns. greediness \
           \3: use all available patterns."
   )

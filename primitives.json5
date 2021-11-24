@@ -89,7 +89,7 @@
 , [ "cä"  , [0, "SFÄ"]]      // phonetic z
 , [ "ce"  , [0, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
 , [ "ce"  , [1, "SFJE"]]     // z: SF, sch: SJ, c with s/tsch/z-sound: SFJ
-, [ "ce"  , [2, "Ss"]]
+, [ "ce"  , [4, "Ss"]]
 , [ "ch"  , [1, "SJ"]]
 , [ "ch"  , [0, "SHJ"]]
 , [ "ch"  , [0, "Kʃ"]]
@@ -135,9 +135,9 @@
 , [ "eiß" , [0, "EI+S"]]
 , [ "ei|ß", [2, "EI+S"]]
 , [ "ei|ß", [0, "EI/S", 2]]
-// , [ "en"  , [2, "N-"]] 
-, [ "en"  , [2, "n"]]        // TODO: greedier: "ren" -> n
-, [ "ren" , [3, "n"]]
+, [ "en"  , [4, "N-"]] 
+, [ "en"  , [4, "n"]]        // TODO: greedier: "ren" -> n
+, [ "ren" , [4, "n"]]
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
 // maybe BDN for ent^ (works already implicitly)
 , [ "ent" , [2, "BDN"]]     // TODO: documentation: ent = "tn" -> BDN
@@ -285,7 +285,7 @@
 , [ "schn", [3, "SN"]]
 , [ "schr", [3, "SR"]]
 , [ "schw", [0, "SW"]]
-//, [ "se"  , [2, "Ss"]]
+, [ "se"  , [4, "Ss"]]
 // implicit "sh" SH 0
 , [ "sh"  , [1, "SJ"]]      // e.g. auscashen
 , [ "sh"  , [0, "ʃ"]]       // e.g. cash
@@ -301,7 +301,7 @@
 , [ "sz"  , [0, "SF"]]      // sz = z = SF
 , [ "t"   , [0, "DJ"]]
 , [ "t"   , [0, "+D"]]
-, [ "t"   , [2, "-D"]]
+, [ "t"   , [1, "-D"]]
 , [ "te"  , [3, "DJ"]]     // TODO: maybe "-D"
 , [ "th"  , [0, "BHJ"]]    // TODO: documentation
 , [ "th"  , [1, "DJ"]]
@@ -322,7 +322,7 @@
 , [ "tts" , [0, "s"]]
 , [ "tsch", [0, "SJ"]]      // TODO: documentation: tsch- like sch-
 , [ "tsch", [0, "ʃD"]]      // TODO: documentation: -tsch like -scht
-, [ "tscht", [0, "+ʃD"]]
+, [ "tscht",[0, "+ʃD"]]
 , [ "tz"  , [0, "+S"]]
 , [ "u"   , [0, "U"]]
 , [ "ua"  , [0, "U/A", 1]]
@@ -342,7 +342,7 @@
 , [ "u|ß" , [2, "~U+S"]]
 , [ "u|ß" , [0, "~U/S", 1]]
 , [ "ü"   , [0, "Ü"]]
-, [ "ü|ber", [3, "BEÜ"]]     // TODO: documentation: shortcut über BEÜ
+, [ "ü|ber",[3, "BEÜ"]]     // TODO: documentation: shortcut über BEÜ
 , [ "über", [3, "BEÜ"]]     
 , [ "üe"  , [0, "Ü/E", 1]]
 , [ "üe"  , [1, "Ü"]]        // e.g. Bircher-Müesli
@@ -381,7 +381,8 @@
 , [ "bane"   , [0, "BÄIN"]]
 , [ "base"   , [0, "BÄIS"]]
 , [ "beat"   , [0, "B~ID"]]
-, [ "beamer" , [2, "B~I/MR", 3]]
+, [ "bea|mer", [0, "B~I/MEÜ", 3]]
+, [ "bea|mer", [2, "B~I/MR", 3]]
 , [ "blade"  , [0, "BLÄID"]]
 , [ "boiled" , [0, "BEULD"]]
 , [ "break"  , [0, "BRÄIK"]]
@@ -579,7 +580,7 @@
 , [ "ence" , [0, "O+NS"]]     // think "onz"
 , [ "e|nce" , [0, "O+NS"]]     // think "onz"
 , [ "e|nne", [0, "EN"]]
-, [ "e|nne", [2, "n"]]
+, [ "e|nne", [4, "n"]]
 , [ "eque" , [0, "EK"]]
 , [ "erque", [0, "EÜK"]]
 , [ "erre" , [0, "EÜ"]]
