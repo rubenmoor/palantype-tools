@@ -31,7 +31,7 @@ data OptionsStenoWords
   | OStwShowChart
 
 data OptionsStenoWordsRun
-  = OStwFile Bool Bool (Maybe FilePath)
+  = OStwFile Bool (Maybe FilePath)
   | OStwArg Text
   | OStwStdin
 
@@ -120,7 +120,7 @@ optsStenoWords =
 
 optsStenoWordsRun :: Parser OptionsStenoWordsRun
 optsStenoWordsRun =
-      (OStwFile <$> switchReset <*> switchShowChart <*> mOutputFile)
+      (OStwFile <$> switchShowChart <*> mOutputFile)
   <|> (OStwArg  <$> arg hlp)
   <|> stdin
   where

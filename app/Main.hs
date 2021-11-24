@@ -23,10 +23,7 @@ import           Control.Monad                  ( Monad((>>=))
                                                 , forever
                                                 , when
                                                 )
-import qualified Data.Aeson.Encode.Pretty      as Aeson
-import           Data.Aeson.Encode.Pretty       ( Config(..) )
 import           Data.Bool                      ( Bool(..) )
-import qualified Data.ByteString.Lazy          as LazyBS
 import           Data.Char                      ( isUpper )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( (/=)
@@ -59,7 +56,6 @@ import           Data.List                      ( (++)
                                                 , zip
                                                 )
 import           Data.List.Split                ( chunksOf )
-import qualified Data.Map.Strict               as Map
 import           Data.Maybe                     ( Maybe(Just, Nothing)
                                                 , catMaybes
                                                 , maybeToList
@@ -67,7 +63,7 @@ import           Data.Maybe                     ( Maybe(Just, Nothing)
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat, mempty)
                                                 )
-import           Data.Ord                       ( Ord((>), compare) )
+import           Data.Ord                       ( Ord((>)) )
 import           Data.Text                      ( Text
                                                 , splitOn
                                                 , toLower
@@ -174,6 +170,9 @@ main = execParser argOpts >>= \case
 
 fileSyllables :: FilePath
 fileSyllables = "syllables.txt"
+
+fileExtraWords :: FilePath
+fileExtraWords = "extrawords.txt"
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -421,7 +420,7 @@ stenoWords (OStwRun greediness OStwStdin) = forever $ do
     l <- Lazy.toStrict <$> getLine
     StrictIO.putStrLn $ showt $ parseSeries greediness l
 
-stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
+stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
 
     start <- getTime Monotonic
     now   <- getCurrentTime
@@ -435,17 +434,13 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             , fileCollisions
             , fileCollisionsV2
             ]
-    when reset $ do
-        for_ lsFiles $ \file -> do
-            exists <- doesFileExist file
-            when exists $ do
-                putStrLn $ "Deleting " <> file
-                removeFile file
+    for_ lsFiles $ \file -> do
+        exists <- doesFileExist file
+        when exists $ do
+            putStrLn $ "Deleting " <> file
+            removeFile file
 
-    existsStenoWordsNoParse <- doesFileExist fileStenoWordsNoParse
-    newScores               <- runStenoWords $ if existsStenoWordsNoParse
-        then fileStenoWordsNoParse
-        else fileSyllables
+    newScores <- runStenoWords
 
     putStrLn ""
     putStrLn $ "Number of words with steno code: " <> show (length newScores)
@@ -461,8 +456,8 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
     nNoParse <- wcl fileStenoWordsNoParse
     let newZeroScores = replicate nNoParse 0
 
-    let scores    = newZeroScores <> (fromRational <$> newScores)
-        meanScore = average scores
+        scores        = newZeroScores <> (fromRational <$> newScores)
+        meanScore     = average scores
     writeFile (fileStenoWordsScores now)
         $  Lazy.unlines (Lazy.fromStrict . showt <$> scores)
         <> "\n"
@@ -480,11 +475,13 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
   where
     fileStenoWordsNoParse = "stenowords-noparse.txt"
 
-    runStenoWords file = do
+    runStenoWords         = do
 
         freqs      <- readFrequencies
-        lsSyllable <- Lazy.lines <$> readFile file
-        let l = length lsSyllable
+        lsSyllable <- Lazy.lines <$> readFile fileSyllables
+        lsExtra    <- Lazy.lines <$> readFile fileExtraWords
+        let l          = length lsSyllable + length lsExtra
+            lsAllWords = lsExtra ++ lsSyllable
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
         let acc :: Handle -> StenoWordsState -> Lazy.Text -> IO StenoWordsState
@@ -576,7 +573,7 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
         putStrLn ""
 
         let d    = ceiling ((fromIntegral l :: Double) / fromIntegral nj)
-            jobs = zip [1 :: Int ..] $ chunksOf d lsSyllable
+            jobs = zip [1 :: Int ..] $ chunksOf d lsAllWords
         lsResult <- forConcurrently jobs $ \(i, ls) -> do
             let filePart = "stenoWordsPart" <> show i <> ".txt"
             exists <- doesFileExist filePart
@@ -626,8 +623,6 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
             StateCollision {..} =
                 resolveCollisions freqs mapWordStenos swsMapStenoWords
 
-            conf = Aeson.defConfig { confCompare = compare }
-
         -- check for double entries in the final result
             accDupls (m, ls) (r, w) = case HashMap.lookup r m of
                 Just dupl -> (m, (r, w, dupl) : ls)
@@ -642,8 +637,14 @@ stenoWords (OStwRun greediness (OStwFile reset showChart mFileOutput)) = do
                    )
             <> "\n"
 
-        LazyBS.writeFile fileSmallDict $ Aeson.encodePretty' conf $ Map.fromList
-            stcLsStenoWord
+        let formatJSONLine (raw, word) =
+                Lazy.fromStrict $ "\"" <> showt raw <> "\": \"" <> word <> "\""
+            lsStenoWord = sortOn snd stcLsStenoWord
+
+        writeFile fileSmallDict
+            $  "{\n"
+            <> Lazy.intercalate ",\n" (formatJSONLine <$> lsStenoWord)
+            <> "\n}\n"
 
         putStrLn $ "Writing " <> fileCollisions
 
