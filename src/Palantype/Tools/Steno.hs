@@ -7,7 +7,6 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Palantype.Tools.Steno where
 
@@ -136,6 +135,7 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
+import qualified Palantype.DE.Keys as DE
 
 type Greediness = Int
 
@@ -429,7 +429,7 @@ optimizeStenoSeries g st str | BS.head str == bsPipe =
     in  maximumBy (comparing score) [r1, r2]
 optimizeStenoSeries g st str =
     let matches =
-            filterGreediness $ flatten $ Trie.matches (primitives @key) str
+            filterGreediness $ flatten $ Trie.matches primitives str
 
         matchToResult (consumed, result, rem) =
             case parseKey consumed result (stMFinger st) (stMLastKey st) of
@@ -561,10 +561,10 @@ instance Palantype key => FromJSON (PrimMap key) where
 
 -- | the primitives as defined in "primitives.json" parsed to a TRIE
 primitives
-    :: forall key . Palantype key => Trie [(Greediness, RawSteno, [Int])]
+    :: Trie [(Greediness, RawSteno, [Int])]
 primitives =
     let str     = stripComments $(embedFile "primitives.json5")
         primMap = case Aeson.eitherDecodeStrict str of
-            Right m   -> m :: PrimMap key
+            Right m   -> m :: PrimMap DE.Key
             Left  err -> error $ "Could not decode primitives.json5: " <> err
     in  Trie.fromList $ Map.toList $ unPrimMap primMap
