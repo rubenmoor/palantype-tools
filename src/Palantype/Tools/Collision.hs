@@ -176,9 +176,9 @@ resolveCollisions freqs mapWordStenos mapStenoWords =
                                     $  h
                                     :| ts
                             acc' (map, ls) ru =
-                                let (m', mLoser) =
+                                let (m'', mLoser) =
                                         removeAlt Case3 r winner map ru
-                                in  (m', maybe id (:) mLoser ls)
+                                in  (m'', maybe id (:) mLoser ls)
                             (m', losers') =
                                 foldl' acc' (m, losers) $ snd <$> runnerUps
                         in

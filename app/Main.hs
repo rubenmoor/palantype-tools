@@ -466,7 +466,6 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
         meanScore     = average scores
     writeFile (fileStenoWordsScores now)
         $  Lazy.unlines (Lazy.fromStrict . showt <$> scores)
-        <> "\n"
 
     putStrLn ""
     StrictIO.putStrLn $ "Average score: " <> showt meanScore
@@ -655,7 +654,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
         -- write most frequent 2'000 words in extra dictionary file
         let lsStenoWord2k = take 2000 $ sortOn (Down . freq freqs . snd) lsStenoWord
         writeFile fileTop2k
-            $ "{\n}"
+            $ "{\n"
             <> Lazy.intercalate ",\n" (formatJSONLine <$> lsStenoWord2k)
             <> "\n}\n"
 
@@ -708,6 +707,7 @@ stenoWords OStwShowChart = do
     let dir = takeDirectory $ fileStenoWordsScores now
     files <- listDirectory dir
     let latest = maximum files
+    putStrLn $ "Reading scores from " <> dir </> latest
     scores <- readScores $ dir </> latest
     plotScoresShow scores
 
