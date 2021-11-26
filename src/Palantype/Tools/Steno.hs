@@ -6,6 +6,8 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Palantype.Tools.Steno where
 
@@ -104,13 +106,12 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 )
 import           Palantype.Common               ( Chord
                                                 , Finger
+                                                , Palantype
                                                 , mkChord
                                                 )
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno, unRawSteno)
                                                 )
 import qualified Palantype.Common.RawSteno     as Raw
-import           Palantype.DE.Keys              ( Key )
-import qualified Palantype.DE.Keys             as DE
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
@@ -138,14 +139,14 @@ import           TextShow                       ( TextShow(showb, showt)
 
 type Greediness = Int
 
-data SeriesData = SeriesData
+data SeriesData key = SeriesData
     { sdHyphenated :: Text
-    , sdParts      :: [(Text, Chord Key)]
+    , sdParts      :: [(Text, Chord key)]
     , sdScore      :: Score
     , sdPath       :: Path
     }
 
-instance TextShow SeriesData where
+instance Palantype key => TextShow (SeriesData key) where
     showb SeriesData {..} =
         fromText
             $  sdHyphenated
@@ -156,7 +157,7 @@ instance TextShow SeriesData where
             <> " "
             <> intercalate "/" (fmap (showt <<< snd) sdParts)
 
-partsToSteno :: [(Text, Chord Key)] -> RawSteno
+partsToSteno :: forall key . Palantype key => [(Text, Chord key)] -> RawSteno
 partsToSteno = RawSteno . Text.intercalate "/" . (showt . snd <$>)
 
 data Score = Score
@@ -203,18 +204,18 @@ data ParseError
 instance TextShow ParseError where
     showb = fromString . show
 
-data PartsData = PartsData
+data PartsData key = PartsData
     { pdOrig  :: Text
-    , pdSteno :: Chord DE.Key
+    , pdSteno :: Chord key
     , pdPath  :: Path
     }
     deriving stock (Eq, Ord)
 
-instance Hashable PartsData where
+instance Palantype key => Hashable (PartsData key) where
     hashWithSalt s PartsData {..} =
         hashWithSalt s (pdOrig, showt pdSteno, showt pdPath)
 
-instance TextShow PartsData where
+instance Palantype key => TextShow (PartsData key) where
     showb PartsData {..} =
         fromText pdOrig <> " " <> showb pdSteno <> " " <> showb pdPath
 
@@ -225,7 +226,12 @@ instance TextShow PartsData where
 --   list of alternatives. E.g. steno that uses more chords or more letters,
 --   or steno that uses the same number of chords or letters, but requires
 --   higher greediness
-parseSeries :: Greediness -> Text -> Either ParseError [SeriesData]
+parseSeries
+    :: forall key
+     . Palantype key
+    => Greediness
+    -> Text
+    -> Either ParseError [SeriesData key]
 parseSeries maxGreediness hyphenated =
     case HashMap.lookup unhyphenated mapExceptions of
         Just raw -> case Raw.parseWord raw of
@@ -259,6 +265,7 @@ parseSeries maxGreediness hyphenated =
                             , stNLetters   = 0
                             , stNChords    = 1
                             , stMFinger    = Nothing
+                            , stMLastKey   = Nothing
                             }
                 lsResult =
                     [0 .. maxGreediness] <&> \maxG ->
@@ -291,7 +298,8 @@ parseSeries maxGreediness hyphenated =
 --   This scoring serves to sort the result, no result is discarded
 --   The highest scoring result is awarded to the most frequent word
 --   Given the efficiency of a steno code, lower greediness is preferred
-scoreWithG :: Greediness -> Result State -> (Rational, Greediness, Int)
+scoreWithG
+    :: forall k . Greediness -> Result (State k) -> (Rational, Greediness, Int)
 scoreWithG g result =
     let Score {..} = score result in (scorePrimary, negate g, scoreSecondary)
 
@@ -304,7 +312,7 @@ countLetters str = CountLetters $ sum $ BS.length <$> BS.split bsPipe str
 newtype CountChords = CountChords { unCountChords :: Int }
   deriving newtype (Num, TextShow)
 
-countChords :: [KeysOrSlash] -> CountChords
+countChords :: forall key . [KeysOrSlash key] -> CountChords
 countChords = foldl' acc 0
   where
     acc n = \case
@@ -315,26 +323,26 @@ countChords = foldl' acc 0
 
 -- | a series is a list of steno keys, interspersed with slashes ('/') to mark
 --   a new chord
-data KeysOrSlash
-  = KoSKeys Text [Key]
+data KeysOrSlash key
+  = KoSKeys Text [key]
   | KoSSlash
 
-countKeys :: [KeysOrSlash] -> Int
+countKeys :: forall key . [KeysOrSlash key] -> Int
 countKeys = foldl' acc 0
   where
     acc n = \case
         KoSKeys _ ks -> n + length ks
         KoSSlash     -> n
 
-toParts :: [KeysOrSlash] -> [(Text, Chord Key)]
+toParts :: forall key . Palantype key => [KeysOrSlash key] -> [(Text, Chord key)]
 toParts ls =
     let (lsParts, (str, keys)) = foldl' acc ([], ("", [])) ls
     in  (str, mkChord keys) : lsParts
   where
     acc
-        :: ([(Text, Chord Key)], (Text, [Key]))
-        -> KeysOrSlash
-        -> ([(Text, Chord Key)], (Text, [Key]))
+        :: ([(Text, Chord key)], (Text, [key]))
+        -> KeysOrSlash key
+        -> ([(Text, Chord key)], (Text, [key]))
     acc (chords, (str, keys)) = \case
         (KoSKeys s ks) -> (chords, (s <> str, ks ++ keys))
         KoSSlash       -> ((str, mkChord keys) : chords, ("", []))
@@ -348,14 +356,17 @@ instance TextShow a => TextShow (Result a) where
     -- showb (Failure rs err) = fromText "Failure " <> showb rs <> fromText (" " <> Text.pack (show err))
     showb (Failure r _) = fromText "Failure " <> showb r <> fromText " ..."
 
-data State = State
-    { stPartsSteno :: [KeysOrSlash]
+data State key = State
+    { stPartsSteno :: [KeysOrSlash key]
     , stNLetters   :: CountLetters
     , stNChords    :: CountChords
     , stMFinger    :: Maybe Finger
+    -- | for compatibility with original palantype that relies on key order
+    --   rather than on finger, because several keys per finger are allowed
+    , stMLastKey   :: Maybe key
     }
 
-instance TextShow State where
+instance Palantype key => TextShow (State key) where
     showb State {..} = showb $ snd <$> toParts stPartsSteno
 
 
@@ -370,11 +381,11 @@ bsPipe = 0x7C
 --   The secondary score is the number of steno keys.
 --   A lower number is preferred.
 --   The secondary score is used, when two series achieve the same primary score.
-score :: Result State -> Score
+score :: forall k . Result (State k) -> Score
 score (Success st ) = score' st
 score (Failure _ _) = Score 0 0
 
-score' :: State -> Score
+score' :: forall k . State k -> Score
 score' State {..} =
     let scorePrimary = fromIntegral (unCountLetters stNLetters)
             / fromIntegral (unCountChords stNChords)
@@ -397,25 +408,33 @@ score' State {..} =
 --         consume and recursion with remaining string ...
 --         ... increase letter count by match length
 --       return steno with highest score
-optimizeStenoSeries :: Greediness -> State -> ByteString -> Result State
+optimizeStenoSeries
+    :: forall key
+     . Palantype key
+    => Greediness
+    -> State key
+    -> ByteString
+    -> Result (State key)
 optimizeStenoSeries _ st "" = Success st
 optimizeStenoSeries g st str | BS.head str == bsPipe =
     let newState = State { stPartsSteno = KoSSlash : stPartsSteno st
                          , stNLetters   = stNLetters st
                          , stNChords    = stNChords st + 1
                          , stMFinger    = Nothing
+                         , stMLastKey   = Nothing
                          }
         str' = BS.tail str
         r1   = optimizeStenoSeries g newState str'
         r2   = optimizeStenoSeries g st str'
     in  maximumBy (comparing score) [r1, r2]
 optimizeStenoSeries g st str =
-    let matches = filterGreediness $ flatten $ Trie.matches primitives str
+    let matches =
+            filterGreediness $ flatten $ Trie.matches (primitives @key) str
 
         matchToResult (consumed, result, rem) =
-            case parseKey consumed result (stMFinger st) of
+            case parseKey consumed result (stMFinger st) (stMLastKey st) of
                 Left err -> Failure (view _2 result) err
-                Right (mFinger, lsKoS) ->
+                Right ((mFinger, mLK), lsKoS) ->
                     let newSteno = case lsKoS of
                             [kos] -> kos : stPartsSteno st
                             _     -> foldl' (flip (:)) (stPartsSteno st) lsKoS
@@ -424,6 +443,7 @@ optimizeStenoSeries g st str =
                             , stNLetters = stNLetters st + countLetters consumed
                             , stNChords    = stNChords st + countChords lsKoS
                             , stMFinger    = mFinger
+                            , stMLastKey   = mLK
                             }
                     in  optimizeStenoSeries g newState rem
 
@@ -451,9 +471,12 @@ optimizeStenoSeries g st str =
         :: ByteString
         -> (Greediness, RawSteno, [Int])
         -> Maybe Finger
-        -> Either Parsec.ParseError (Maybe Finger, [KeysOrSlash])
-    parseKey orig (_, RawSteno s, is) mFinger =
-        let ePair = evalParser keysWithSlash mFinger "" s
+        -> Maybe key
+        -> Either
+               Parsec.ParseError
+               ((Maybe Finger, Maybe key), [KeysOrSlash key])
+    parseKey orig (_, RawSteno s, is) mFinger mLastKey =
+        let ePair = evalParser keysWithSlash (mFinger, mLastKey) "" s
 
             acc (strs, strOrig) i =
                 let (begin, end) = Text.splitAt i strOrig
@@ -465,8 +488,9 @@ optimizeStenoSeries g st str =
             toKoS = intersperse KoSSlash . fmap (uncurry KoSKeys) . zip lsOrig
         in  second toKoS <$> ePair
 
-    keysWithSlash :: Parsec Text (Maybe Finger) [[Key]]
-    keysWithSlash = sepBy1 Raw.keys (char '/' *> setState Nothing) <* eof
+    keysWithSlash :: Parsec Text (Maybe Finger, Maybe key) [[key]]
+    keysWithSlash =
+        sepBy1 Raw.keys (char '/' *> setState (Nothing, Nothing)) <* eof
 
 stripComments :: ByteString -> ByteString
 stripComments content =
@@ -485,9 +509,9 @@ mapExceptions =
             Right ls  -> ls
             Left  err -> error $ "Could not decode exceptions.json5: " <> err
 
-newtype PrimMap = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno, [Int])] }
+newtype PrimMap key = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno, [Int])] }
 
-instance FromJSON PrimMap where
+instance Palantype key => FromJSON (PrimMap key) where
 
     parseJSON (Array vs) = PrimMap <$> foldM acc Map.empty vs
 
@@ -516,7 +540,7 @@ instance FromJSON PrimMap where
                         <> Text.unpack key
                         <> ": "
                         <> show v
-            when (isLeft $ Raw.parseSteno @DE.Key r)
+            when (isLeft $ Raw.parseSteno @key r)
                 $  fail
                 $  "malformed raw steno: "
                 <> Text.unpack key
@@ -536,10 +560,11 @@ instance FromJSON PrimMap where
     parseJSON _ = mzero
 
 -- | the primitives as defined in "primitives.json" parsed to a TRIE
-primitives :: Trie [(Greediness, RawSteno, [Int])]
+primitives
+    :: forall key . Palantype key => Trie [(Greediness, RawSteno, [Int])]
 primitives =
     let str     = stripComments $(embedFile "primitives.json5")
         primMap = case Aeson.eitherDecodeStrict str of
-            Right m   -> m
+            Right m   -> m :: PrimMap key
             Left  err -> error $ "Could not decode primitives.json5: " <> err
     in  Trie.fromList $ Map.toList $ unPrimMap primMap

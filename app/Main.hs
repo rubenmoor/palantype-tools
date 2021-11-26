@@ -63,7 +63,9 @@ import           Data.Maybe                     ( Maybe(Just, Nothing)
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat, mempty)
                                                 )
-import           Data.Ord                       ( Ord((>)) )
+import           Data.Ord                       ( Ord((>))
+                                                , Down (Down)
+                                                )
 import           Data.Text                      ( Text
                                                 , splitOn
                                                 , toLower
@@ -160,6 +162,7 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import Palantype.Common (Palantype)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -355,6 +358,9 @@ fileStenoWordsDuplicates = "stenowords-duplicates.txt"
 fileSmallDict :: FilePath
 fileSmallDict = "smalldict.json"
 
+fileTop2k :: FilePath
+fileTop2k = "top2k.json"
+
 fileCollisions :: FilePath
 fileCollisions = "stenowords-collisions-v1.txt"
 
@@ -375,26 +381,26 @@ average ls =
     let (t, n) = foldl' (\(!b, !c) a -> (a + b, (c :: Int) + 1)) (0, 0) ls
     in  realToFrac t / realToFrac n
 
-data StenoWordsState = StenoWordsState
-    { swsMapWordStenos :: HashMap Text [SeriesData]
-    , swsMapChordParts :: HashMap PartsData [Text]
+data StenoWordsState key = StenoWordsState
+    { swsMapWordStenos :: HashMap Text [SeriesData key]
+    , swsMapChordParts :: HashMap (PartsData key) [Text]
     , swsMapStenoWords :: HashMap RawSteno [(Path, Text)]
     , swsNoParse       :: [Lazy.Text]
     }
 
-instance Semigroup StenoWordsState where
+instance Palantype key => Semigroup (StenoWordsState key) where
     (StenoWordsState mWordSteno1 mChordParts1 mStenoWord1 noparse1) <> (StenoWordsState mWordSteno2 mChordParts2 mStenoWord2 noparse2)
         = StenoWordsState (HashMap.union mWordSteno1 mWordSteno2)
                           (HashMap.unionWith (++) mChordParts1 mChordParts2)
                           (HashMap.unionWith (++) mStenoWord1 mStenoWord2)
                           (noparse1 <> noparse2)
 
-instance Monoid StenoWordsState where
+instance Palantype key => Monoid (StenoWordsState key) where
     mempty = StenoWordsState HashMap.empty HashMap.empty HashMap.empty []
 
 stenoWords :: OptionsStenoWords -> IO ()
 stenoWords (OStwRun greediness (OStwArg str)) =
-    case parseSeries greediness str of
+    case parseSeries @DE.Key greediness str of
         Left  err -> StrictIO.putStrLn $ showt err
         Right sds -> do
             freqs <- readFrequencies
@@ -418,7 +424,7 @@ stenoWords (OStwRun greediness (OStwArg str)) =
 
 stenoWords (OStwRun greediness OStwStdin) = forever $ do
     l <- Lazy.toStrict <$> getLine
-    StrictIO.putStrLn $ showt $ parseSeries greediness l
+    StrictIO.putStrLn $ showt $ parseSeries @DE.Key greediness l
 
 stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
 
@@ -484,7 +490,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
             lsAllWords = lsExtra ++ lsSyllable
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
-        let acc :: Handle -> StenoWordsState -> Lazy.Text -> IO StenoWordsState
+        let acc :: Handle -> StenoWordsState DE.Key -> Lazy.Text -> IO (StenoWordsState DE.Key)
             acc h sws@StenoWordsState {..} str =
                 let
                     (word, hyphenated) =
@@ -497,7 +503,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
                                     $  "illegal entry: "
                                     <> str
                 in
-                    case parseSeries greediness hyphenated of
+                    case parseSeries @DE.Key greediness hyphenated of
                         Left err -> case err of
                             PEExceptionTable orig -> do
                                 print $ "Error in exception table for: " <> orig
@@ -644,6 +650,13 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
         writeFile fileSmallDict
             $  "{\n"
             <> Lazy.intercalate ",\n" (formatJSONLine <$> lsStenoWord)
+            <> "\n}\n"
+
+        -- write most frequent 2'000 words in extra dictionary file
+        let lsStenoWord2k = take 2000 $ sortOn (Down . freq freqs . snd) lsStenoWord
+        writeFile fileTop2k
+            $ "{\n}"
+            <> Lazy.intercalate ",\n" (formatJSONLine <$> lsStenoWord2k)
             <> "\n}\n"
 
         putStrLn $ "Writing " <> fileCollisions

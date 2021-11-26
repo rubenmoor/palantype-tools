@@ -133,6 +133,7 @@
 , [ "ehr" , [0, "EÜ"]]
 , [ "eih" , [0, "EI"]]
 , [ "eiß" , [0, "EI+S"]]
+, [ "eiß" , [2, "EIS"]]
 , [ "ei|ß", [2, "EI+S"]]
 , [ "ei|ß", [0, "EI/S", 2]]
 , [ "en"  , [4, "N-"]] 
@@ -291,7 +292,7 @@
 , [ "sh"  , [0, "ʃ"]]       // e.g. cash
 , [ "sp"  , [0, "BF"]]      // TODO: documentation
 , [ "sp"  , [0, "PS"]]      // TODO: documentation -sp = PS
-, [ "sph" , [2, "SF"]]
+, [ "sph" , [0, "SF"]]
 , [ "sk"  , [0, "GDJ"]]     // TODO: documentation x, sk -> GDJ
 , [ "sk"  , [0, "KS"]]      // TODO: documentation tink "sk"/"ks"
 , [ "ski" , [0, "GDJ~I"]]   // < Xi
