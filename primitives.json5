@@ -369,8 +369,9 @@
 , [ "yo"  , [0, "Ü/O", 1]]
 , [ "yr"  , [0, "~Ü"]]
 , [ "z"   , [0, "SF"]]
+, [ "z"   , [1, "SH"]]       // TODO: documentation: easier to reach
 , [ "z"   , [0, "+S"]]
-, [ "-"   , [0, "HIFn"]]
+, [ "-"   , [0, "HINF"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
 // english
 , [ "ace"    , [0, "ÄIS"]]

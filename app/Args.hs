@@ -9,7 +9,7 @@ import           Data.Semigroup      ((<>))
 import           Data.String         (String)
 import           Data.Text           (Text)
 import           Options.Applicative (Alternative ((<|>)),
-                                      Applicative ((<*), (<*>)), InfoMod,
+                                      Applicative ((<*), (<*>), pure), InfoMod,
                                       Parser, ParserInfo, auto, command, flag',
                                       help, helper, info, long, metavar, option,
                                       optional, progDesc, short, strOption,
@@ -21,9 +21,10 @@ data Task
   | TaskSyllables OptionsSyllables
   | TaskStenoWords OptionsStenoWords
   | TaskGermanDict Bool
+  | TaskFrequency Int
 
 data OptionsSyllables
-  = OSylFile Bool
+  = OSylFile
   | OSylArg Text
 
 data OptionsStenoWords
@@ -44,6 +45,7 @@ task = subparser
   <> command "syllables"  (info (TaskSyllables  <$> optsSyllables    <* helper) syllablesInfo)
   <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords   <* helper) stenoWordsInfo)
   <> command "stenoDict"  (info (TaskGermanDict <$> switchReset      <* helper) germanDictInfo)
+  <> command "frequency"  (info (TaskFrequency  <$> freqsSize        <* helper) frequencyInfo)
   )
   where
     rawStenoHelp =
@@ -68,9 +70,19 @@ arg hlp =
     <> help hlp
     )
 
+freqsSize :: Parser Int
+freqsSize =
+  option auto
+    (  long "size"
+    <> short 's'
+    <> help hlp
+    )
+  where
+    hlp = "The number of words in the output."
+
 optsSyllables :: Parser OptionsSyllables
 optsSyllables =
-      (OSylFile <$> switchReset)
+      pure OSylFile
   <|> (OSylArg  <$> arg hlp)
   where
     hlp = "Extract syllable patterns from one single line of the format: \
@@ -142,3 +154,7 @@ germanDictInfo :: InfoMod a
 germanDictInfo =
   progDesc "Read the file \"stenoparts.txt\" and \"german.dic\" \
            \to then find a series of chords for every german word."
+
+frequencyInfo :: InfoMod a
+frequencyInfo =
+  progDesc "Print words from the frequency list to stdin, most frequent first."

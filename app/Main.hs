@@ -138,7 +138,7 @@ import           System.Clock                   ( Clock(Monotonic)
 import           System.Directory               ( doesFileExist
                                                 , listDirectory
                                                 , removeFile
-                                                , renamePath
+
                                                 )
 import           System.FilePath                ( (</>)
                                                 , takeDirectory
@@ -171,11 +171,14 @@ main = execParser argOpts >>= \case
     TaskStenoWords opts -> stenoWords opts
     TaskGermanDict _    -> pure ()
 
+fileSyllableEntries :: FilePath
+fileSyllableEntries = "entries.txt"
+
+fileSyllableEntriesExtra :: FilePath
+fileSyllableEntriesExtra = "entries-extra.txt"
+
 fileSyllables :: FilePath
 fileSyllables = "syllables.txt"
-
-fileExtraWords :: FilePath
-fileExtraWords = "extrawords.txt"
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -198,7 +201,7 @@ syllables (OSylArg str) = do
             StrictIO.putStrLn $ showt sd <> " " <> showt f
         other -> StrictIO.putStrLn $ showt other
 
-syllables (OSylFile reset) = do
+syllables OSylFile = do
     start <- getTime Monotonic
     let lsFiles =
             [ fileSyllables
@@ -211,22 +214,18 @@ syllables (OSylFile reset) = do
             , fileSyllablesAcronyms
             , fileSyllablesExplicitExceptions
             ]
-    when reset $ do
-        for_ lsFiles $ \file -> do
-            exists <- doesFileExist file
-            when exists $ do
-                putStrLn $ "Deleting " <> file
-                removeFile file
-
-    existsFileNoParse <- doesFileExist fileSyllablesNoParse
+    for_ lsFiles $ \file -> do
+        exists <- doesFileExist file
+        when exists $ do
+            putStrLn $ "Deleting " <> file
+            removeFile file
 
     runSyllables
-        $ if existsFileNoParse then fileSyllablesNoParse else "entries.txt"
 
     putStrLn ""
     putStrLn "Number of lines in"
 
-    for_ ("entries.txt" : lsFiles) $ \file -> do
+    for_ (fileSyllableEntries : fileSyllableEntriesExtra : lsFiles) $ \file -> do
         nl <- wcl file
         putStrLn $ show nl <> "\t" <> file
 
@@ -236,22 +235,22 @@ syllables (OSylFile reset) = do
     fprint (timeSpecs % "\n") start stop
 
   where
-    fileSyllablesNoParse            = "syllables-noparse.txt"
     fileSyllablesAbbreviations      = "syllables-abbreviations.txt"
     fileSyllablesMultiple           = "syllables-multiple.txt"
     fileSyllablesSpecialChar        = "syllables-specialchar.txt"
     fileSyllablesSingleLetter       = "syllables-singleletter.txt"
     fileSyllablesEllipsis           = "syllables-ellipsis.txt"
     fileSyllablesAcronyms           = "syllables-acronyms.txt"
+    fileSyllablesNoParse            = "syllables-noparse.txt"
     fileSyllablesExplicitExceptions = "syllables-explicitexceptions.txt"
 
-    runSyllables file = do
+    runSyllables = do
 
-        let tmpFileNoParse = "syllables-noparse.tmp.txt"
-
-        handle <- openFile file ReadMode
+        handle <- openFile fileSyllableEntries ReadMode
         hSetNewlineMode handle universalNewlineMode
         entries <- Lazy.lines <$> hGetContents handle
+        entriesExtra <- Lazy.lines <$> readFile fileSyllableEntriesExtra
+        let entriesAll = entriesExtra <> entries
 
         let
             -- | in case of duplicate entries because of
@@ -259,11 +258,11 @@ syllables (OSylFile reset) = do
             --   select the lower-case version
             preferLC :: SyllableData -> SyllableData -> SyllableData
 
--- real duplicate
+            -- real duplicate
             preferLC s1 s2 | s1 == s2 = s1
 
--- weird entry
--- more syllables means, better entry
+            -- weird entry
+            -- more syllables means, better entry
             preferLC s1@(SyllableData w1 ss1) s2@(SyllableData w2 ss2)
                 | w1 == w2 = if length ss1 > length ss2 then s1 else s2
 
@@ -287,7 +286,7 @@ syllables (OSylFile reset) = do
                                     <> showt s2
 
             acc st entry = do
--- eliminate duplicate entries after parsing
+                -- eliminate duplicate entries after parsing
                 let lsHyphenated = parseSyllables $ Lazy.toStrict entry
                     hyphenated   = head lsHyphenated
                     last         = stsyllLastResult st
@@ -298,7 +297,7 @@ syllables (OSylFile reset) = do
                         lsMWordSyllableData <- for lsHyphenated $ \case
                             Failure err -> do
                                 print err
-                                appendLine tmpFileNoParse entry
+                                appendLine fileSyllablesNoParse entry
                                 pure Nothing
                             Success sd ->
                                 -- TODO: persist hashmap
@@ -325,10 +324,9 @@ syllables (OSylFile reset) = do
                                     entry
                         pure $ HashMap.fromList $ catMaybes lsMWordSyllableData
                 pure $ st { stsyllLastResult = hyphenated
-                          -- TODO: union with to exclude case-sensitive duplicates
                           , stsyllMap        = HashMap.unionWith preferLC m m'
                           }
-        StateSyllables {..} <- foldM acc initialState entries
+        StateSyllables {..} <- foldM acc initialState entriesAll
 
         putStrLn $ "Writing file " <> fileSyllables
         writeFile fileSyllables
@@ -336,9 +334,6 @@ syllables (OSylFile reset) = do
                    "\n"
                    (Lazy.fromStrict . showt <$> HashMap.elems stsyllMap)
             <> "\n"
-
-        appendLine tmpFileNoParse "END"
-        renamePath tmpFileNoParse fileSyllablesNoParse
 
 fileStenoWords :: FilePath
 fileStenoWords = "stenowords.txt"
@@ -389,7 +384,7 @@ data StenoWordsState key = StenoWordsState
     }
 
 instance Palantype key => Semigroup (StenoWordsState key) where
-    (StenoWordsState mWordSteno1 mChordParts1 mStenoWord1 noparse1) <> (StenoWordsState mWordSteno2 mChordParts2 mStenoWord2 noparse2)
+    StenoWordsState mWordSteno1 mChordParts1 mStenoWord1 noparse1 <> StenoWordsState mWordSteno2 mChordParts2 mStenoWord2 noparse2
         = StenoWordsState (HashMap.union mWordSteno1 mWordSteno2)
                           (HashMap.unionWith (++) mChordParts1 mChordParts2)
                           (HashMap.unionWith (++) mStenoWord1 mStenoWord2)
@@ -484,9 +479,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
 
         freqs      <- readFrequencies
         lsSyllable <- Lazy.lines <$> readFile fileSyllables
-        lsExtra    <- Lazy.lines <$> readFile fileExtraWords
-        let l          = length lsSyllable + length lsExtra
-            lsAllWords = lsExtra ++ lsSyllable
+        let l          = length lsSyllable
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
         let acc :: Handle -> StenoWordsState DE.Key -> Lazy.Text -> IO (StenoWordsState DE.Key)
@@ -578,7 +571,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
         putStrLn ""
 
         let d    = ceiling ((fromIntegral l :: Double) / fromIntegral nj)
-            jobs = zip [1 :: Int ..] $ chunksOf d lsAllWords
+            jobs = zip [1 :: Int ..] $ chunksOf d lsSyllable
         lsResult <- forConcurrently jobs $ \(i, ls) -> do
             let filePart = "stenoWordsPart" <> show i <> ".txt"
             exists <- doesFileExist filePart
