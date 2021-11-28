@@ -13,18 +13,18 @@ import           Args                           ( OptionsStenoWords(..)
                                                     , OSylFile
                                                     )
                                                 , Task(..)
-                                                , argOpts
+                                                , argOpts, OptionsFrequency (..)
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( Category((.)) )
+import           Control.Category               ( Category((.), id) )
 import           Control.Concurrent.Async       ( forConcurrently )
 import           Control.Monad                  ( Monad((>>=))
                                                 , foldM
                                                 , forever
-                                                , when
+                                                , when, foldM_
                                                 )
 import           Data.Bool                      ( Bool(..) )
-import           Data.Char                      ( isUpper )
+import           Data.Char                      ( isUpper, isLetter )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( (/=)
                                                 , Eq((==))
@@ -58,7 +58,7 @@ import           Data.List                      ( (++)
 import           Data.List.Split                ( chunksOf )
 import           Data.Maybe                     ( Maybe(Just, Nothing)
                                                 , catMaybes
-                                                , maybeToList
+                                                , maybeToList, fromMaybe
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat, mempty)
@@ -170,6 +170,7 @@ main = execParser argOpts >>= \case
     TaskSyllables  opts -> syllables opts
     TaskStenoWords opts -> stenoWords opts
     TaskGermanDict _    -> pure ()
+    TaskFrequency  c    -> frequency c
 
 fileSyllableEntries :: FilePath
 fileSyllableEntries = "entries.txt"
@@ -335,8 +336,8 @@ syllables OSylFile = do
                    (Lazy.fromStrict . showt <$> HashMap.elems stsyllMap)
             <> "\n"
 
-fileStenoWords :: FilePath
-fileStenoWords = "stenowords.txt"
+fileStenoWordsWordStenos :: FilePath
+fileStenoWordsWordStenos = "stenoWordsWordStenos.txt"
 
 fileStenoParts :: FilePath
 fileStenoParts = "stenoparts.txt"
@@ -427,7 +428,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
     now   <- getCurrentTime
 
     let lsFiles =
-            [ fileStenoWords
+            [ fileStenoWordsWordStenos
             , fileStenoWordsNoParse
             , fileStenoWordsDuplicates
             , fileStenoParts
@@ -529,21 +530,14 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
                                         else [pw1, pw2]
                                 ciAppend ws1 ws2 = ws1 ++ ws2
 
-                                showAlt SeriesData {..} =
-                                    showt sdPath <> " " <> Text.intercalate
-                                        "/"
-                                        (showt . snd <$> sdParts)
+                                showSteno sd =
+                                    Text.intercalate "/" (showt . snd <$> sdParts sd)
 
                             -- write to file
-                            hPutStrLn h
-                                $  Lazy.fromStrict
-                                $  word
+                            hPutStrLn h $  Lazy.fromStrict $
+                                   word
                                 <> " "
-                                <> showt (freq freqs word)
-                                <> " "
-                                <> showt (head sds)
-                                <> " – "
-                                <> Text.intercalate "; " (showAlt <$> tail sds)
+                                <> Text.intercalate " " (showSteno <$> sds)
 
                             pure $ sws
                                 { swsMapWordStenos = HashMap.insert
@@ -586,10 +580,10 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
 
         writeFile fileStenoWordsNoParse $ Lazy.unlines swsNoParse <> "\n"
 
-        putStrLn $ "Writing file " <> fileStenoWords
+        putStrLn $ "Writing file " <> fileStenoWordsWordStenos
         let hReadFile h = hSeek h AbsoluteSeek 0 *> hGetContents h
         content <- foldM (\c h -> (c <>) <$> hReadFile h) "" handles
-        writeFile fileStenoWords $ content <> "\n"
+        writeFile fileStenoWordsWordStenos $ content <> "\n"
 
         case mFileOutput of
             Just fileOutput -> do
@@ -709,3 +703,75 @@ filePartsDict = "partsdict.txt"
 
 appendLine :: FilePath -> Lazy.Text -> IO ()
 appendLine file str = appendFile file $ str <> "\n"
+
+fileFrequencyAll :: FilePath
+fileFrequencyAll = "frequencyAll.txt"
+
+fileFrequency2k :: FilePath
+fileFrequency2k = "frequency2k.txt"
+
+fileFrequencyMissingAll :: FilePath
+fileFrequencyMissingAll = "frequencyMissingAll.txt"
+
+fileFrequencyMissing2k :: FilePath
+fileFrequencyMissing2k = "frequencyMissing2k.txt"
+
+frequency :: OptionsFrequency -> IO ()
+frequency = \case
+    OFreAll -> frequency' fileFrequencyMissingAll fileFrequencyAll id
+    OFre2k  -> frequency' fileFrequencyMissing2k fileFrequency2k (take 2000)
+  where
+    frequency' fileMissing fileOutput fTake = do
+
+      existsFileMissing <- doesFileExist fileMissing
+      when existsFileMissing $ do
+        putStrLn $ "Deleting " <> fileMissing
+        removeFile fileMissing
+
+      existsFileOutput <- doesFileExist fileOutput
+      when existsFileOutput $ do
+        putStrLn $ "Deleting " <> fileOutput
+        removeFile fileOutput
+
+      nLines <- wcl fileStenoWordsWordStenos
+      StrictIO.putStrLn $ showt nLines <> " in " <> Text.pack fileStenoWordsWordStenos
+
+      -- read steno words
+      lsWordStenos <- Lazy.lines <$> readFile fileStenoWordsWordStenos
+      let acc m str =
+            case Lazy.splitOn " " str of
+              w:stenos -> HashMap.insert w stenos m
+              _        -> error $ "could not read: " <> Lazy.unpack str
+          mapWordStenos = foldl' acc HashMap.empty lsWordStenos
+
+      StrictIO.putStrLn "Writing files: "
+      StrictIO.putStrLn $ Text.pack fileOutput
+      StrictIO.putStrLn $ Text.pack fileMissing
+      StrictIO.putStrLn ""
+
+      -- read frequencies
+      ls <- fTake . Lazy.lines <$> readFile "deu_news_2020_freq.txt"
+
+      let accM :: Int -> Lazy.Text -> IO Int
+          accM i l = case Lazy.head l of
+            c | isLetter c -> case Lazy.splitOn "\t" l of
+                [w, strF] ->
+                  let mStenos = case HashMap.lookup w mapWordStenos of
+                        Just stenos -> Just stenos
+                        Nothing     -> HashMap.lookup (Lazy.toLower w) mapWordStenos
+                  in  case mStenos of
+                        Just stenos -> do
+                          for_ stenos $ \s -> appendLine fileOutput $ s <> " " <> w
+                          pure $ i + 1
+                        Nothing -> do
+                            appendLine fileMissing $ Lazy.fromStrict (showt i) <> " " <> strF <> " " <> w
+                            pure $ i + 1
+                _ -> error $ "could not read: " <> Lazy.unpack l
+            _ -> pure i
+      foldM_ accM (1 :: Int) ls
+
+      putStrLn "Number of lines in"
+
+      for_ [fileOutput, fileMissing] $ \file -> do
+          nl <- wcl file
+          putStrLn $ show nl <> "\t" <> file

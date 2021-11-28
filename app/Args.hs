@@ -15,13 +15,14 @@ import           Options.Applicative (Alternative ((<|>)),
                                       optional, progDesc, short, strOption,
                                       subparser, switch, value, (<$>))
 import           System.IO           (FilePath)
+import Data.Functor ((<$))
 
 data Task
   = TaskRawSteno Text
   | TaskSyllables OptionsSyllables
   | TaskStenoWords OptionsStenoWords
   | TaskGermanDict Bool
-  | TaskFrequency Int
+  | TaskFrequency OptionsFrequency
 
 data OptionsSyllables
   = OSylFile
@@ -36,6 +37,10 @@ data OptionsStenoWordsRun
   | OStwArg Text
   | OStwStdin
 
+data OptionsFrequency
+  = OFre2k
+  | OFreAll
+
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
 
@@ -45,7 +50,8 @@ task = subparser
   <> command "syllables"  (info (TaskSyllables  <$> optsSyllables    <* helper) syllablesInfo)
   <> command "stenoWords" (info (TaskStenoWords <$> optsStenoWords   <* helper) stenoWordsInfo)
   <> command "stenoDict"  (info (TaskGermanDict <$> switchReset      <* helper) germanDictInfo)
-  <> command "frequency"  (info (TaskFrequency  <$> freqsSize        <* helper) frequencyInfo)
+  <> command "frequencyAll" (info (TaskFrequency OFreAll <$ helper) frequencyInfo)
+  <> command "frequency2k" (info (TaskFrequency OFre2k <$ helper) frequencyInfo)
   )
   where
     rawStenoHelp =
@@ -157,4 +163,4 @@ germanDictInfo =
 
 frequencyInfo :: InfoMod a
 frequencyInfo =
-  progDesc "Print words from the frequency list to stdin, most frequent first."
+  progDesc "Write 'sten/o/chords word' to a file, most frequent first."
