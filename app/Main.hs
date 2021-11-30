@@ -257,34 +257,34 @@ syllables OSylFile = do
             -- | in case of duplicate entries because of
             --   capitalization, e.g. "Rechnen" and "rechnen",
             --   select the lower-case version
-            preferLC :: SyllableData -> SyllableData -> SyllableData
+            preferLessWeird :: SyllableData -> SyllableData -> SyllableData
 
             -- real duplicate
-            preferLC s1 s2 | s1 == s2 = s1
+            preferLessWeird s1 s2 | s1 == s2 = s1
 
             -- weird entry
             -- more syllables means, better entry
-            preferLC s1@(SyllableData w1 ss1) s2@(SyllableData w2 ss2)
-                | w1 == w2 = if length ss1 > length ss2 then s1 else s2
+            preferLessWeird s1@(SyllableData _ ss1) s2@(SyllableData _ ss2)
+                = if length ss1 > length ss2 then s1 else s2
 
-            preferLC s1@(SyllableData w1 _) s2@(SyllableData w2 _) =
-                let
-                    c1 = Text.head w1
-                    c2 = Text.head w2
-                in
-                    if toLower w1 /= toLower w2
-                        then error $ "preferLC: impossible1: " <> Text.unpack
-                            (w1 <> " " <> w2)
-                        else case (isUpper c1, isUpper c2) of
-                            (True , False) -> s2
-                            (False, True ) -> s1
-                            _ ->
-                                error
-                                    $  Text.unpack
-                                    $  "preferLC: impossible2: "
-                                    <> showt s1
-                                    <> " "
-                                    <> showt s2
+            -- preferLessWeird s1@(SyllableData w1 _) s2@(SyllableData w2 _) =
+            --     let
+            --         c1 = Text.head w1
+            --         c2 = Text.head w2
+            --     in
+            --         if toLower w1 /= toLower w2
+            --             then error $ "preferLessWeird: impossible1: " <> Text.unpack
+            --                 (w1 <> " " <> w2)
+            --             else case (isUpper c1, isUpper c2) of
+            --                 (True , False) -> s2
+            --                 (False, True ) -> s1
+            --                 _ ->
+            --                     error
+            --                         $  Text.unpack
+            --                         $  "preferLessWeird: impossible2: "
+            --                         <> showt s1
+            --                         <> " "
+            --                         <> showt s2
 
             acc st entry = do
                 -- eliminate duplicate entries after parsing
@@ -300,10 +300,7 @@ syllables OSylFile = do
                                 print err
                                 appendLine fileSyllablesNoParse entry
                                 pure Nothing
-                            Success sd ->
-                                -- TODO: persist hashmap
-                                -- appendLine fileSyllables $ Lazy.fromStrict $ showt sd
-                                pure $ Just (toLower $ sdWord sd, sd)
+                            Success sd -> pure $ Just (sdWord sd, sd)
                             Exception exc -> Nothing <$ case exc of
                                 ExceptionAbbreviation ->
                                     appendLine fileSyllablesAbbreviations entry
@@ -325,7 +322,7 @@ syllables OSylFile = do
                                     entry
                         pure $ HashMap.fromList $ catMaybes lsMWordSyllableData
                 pure $ st { stsyllLastResult = hyphenated
-                          , stsyllMap        = HashMap.unionWith preferLC m m'
+                          , stsyllMap        = HashMap.unionWith preferLessWeird m m'
                           }
         StateSyllables {..} <- foldM acc initialState entriesAll
 

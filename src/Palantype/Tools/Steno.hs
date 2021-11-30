@@ -28,11 +28,11 @@ import           Data.Aeson                     ( FromJSON(parseJSON)
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Types               ( Parser )
 import           Data.Bifunctor                 ( Bifunctor(second) )
-import           Data.Bool                      ( Bool(False) )
+import           Data.Bool                      ( Bool(False, True), (&&) )
 import           Data.ByteString                ( ByteString )
 import qualified Data.ByteString               as BS
 import           Data.Char                      ( digitToInt
-                                                , isDigit
+                                                , isDigit, isUpper
                                                 )
 import           Data.Either                    ( Either(Left, Right)
                                                 , isLeft
@@ -219,6 +219,13 @@ instance Palantype key => TextShow (PartsData key) where
     showb PartsData {..} =
         fromText pdOrig <> " " <> showb pdSteno <> " " <> showb pdPath
 
+isCapitalized :: Text -> Bool
+isCapitalized "" = error "isCapitalized: empty string"
+isCapitalized str =
+  let (h, rest) = Text.splitAt 1 str
+      c = head $ Text.unpack h
+  in  isUpper c && Text.toLower rest == rest
+
 -- | Given a maximum value for the greediness (currently: can always be set to 3)
 --   find steno chords for a given word, provided as e.g. "Ge|sund|heit"
 --   or return a parser error.
@@ -260,6 +267,11 @@ parseSeries maxGreediness hyphenated =
                     <> Text.pack (show err)
         Nothing ->
             let
+                -- TODO: deal with capitalization
+                -- run optimizeStenoSeries with "toLower hyphenated"
+                -- but before that, check if the word is capitalized
+                -- and if that's the case, add the capitalization steno code
+                -- to each result
                 str = Text.encodeUtf8 $ toLower hyphenated
                 st  = State { stPartsSteno = []
                             , stNLetters   = 0
@@ -397,7 +409,7 @@ score' State {..} =
 --   The score of a chord is the number of letters it successfully
 --   encoded, w/o the hyphenation symbol.
 --
--- | look at next character:
+--   look at next character:
 --     '|' -> do
 --       consume character
 --       (steno1, score1) = append '/', recursion with increased chord count and
