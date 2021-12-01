@@ -10,7 +10,7 @@
 
 module Palantype.Tools.Steno where
 
-import           Control.Applicative            ( Applicative((*>), (<*), pure)
+import           Control.Applicative            ( Applicative((*>), (<*), pure, (<*>)), (<$)
                                                 )
 import           Control.Category               ( (<<<)
                                                 , Category((.))
@@ -27,8 +27,8 @@ import           Data.Aeson                     ( FromJSON(parseJSON)
                                                 )
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Types               ( Parser )
-import           Data.Bifunctor                 ( Bifunctor(second) )
-import           Data.Bool                      ( Bool(False, True), (&&) )
+import           Data.Bifunctor                 ( Bifunctor(second, first) )
+import           Data.Bool                      ( Bool(False, True), (&&), not )
 import           Data.ByteString                ( ByteString )
 import qualified Data.ByteString               as BS
 import           Data.Char                      ( digitToInt
@@ -48,7 +48,7 @@ import           Data.Foldable                  ( Foldable
                                                 , maximumBy
                                                 )
 import           Data.Function                  ( ($)
-                                                , flip
+                                                , flip, const
                                                 )
 import           Data.Functor                   ( ($>)
                                                 , (<$>)
@@ -71,7 +71,7 @@ import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
 import           Data.Maybe                     ( Maybe(Just, Nothing) )
 import           Data.Monoid                    ( (<>)
-                                                , mconcat
+                                                , mconcat, Monoid (mempty)
                                                 )
 import           Data.Ord                       ( Down(Down)
                                                 , Ord((<=))
@@ -98,7 +98,7 @@ import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           GHC.Generics                   ( Generic )
 import           GHC.Num                        ( (+)
-                                                , Num(negate)
+                                                , Num(negate, fromInteger)
                                                 )
 import           GHC.Real                       ( Fractional((/), fromRational)
                                                 , fromIntegral
@@ -123,7 +123,7 @@ import qualified Text.ParserCombinators.Parsec.Error
                                                as Parsec
 import           Text.ParserCombinators.ReadP   ( (+++)
                                                 , satisfy
-                                                , string
+                                                , string, option
                                                 )
 import           Text.Printf                    ( printf )
 import           Text.Read                      ( Read(readListPrec, readPrec)
@@ -136,6 +136,8 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromText
                                                 )
 import qualified Palantype.DE.Keys as DE
+import qualified Palantype.Common.Indices as KI
+import Palantype.Common.Dictionary (kiCapNext)
 
 type Greediness = Int
 
@@ -177,7 +179,9 @@ instance Show Score where
     show = Text.unpack . showt
 
 data Path
-  = PathOptimize Greediness
+  -- | Optimized by algo, given greediness, and True
+  --   in case of a capitalized word w/o added capitalization chord
+  = PathOptimize Greediness Bool
   | PathException
   deriving stock (Eq, Ord, Generic)
 
@@ -186,14 +190,17 @@ instance Hashable Path where
 
 instance TextShow Path where
     showb PathException    = fromText "Exception"
-    showb (PathOptimize g) = fromText "Opt" <> showb g
+    showb (PathOptimize g oC) =
+      fromText "Opt" <> showb g <> if oC then fromText "C" else mempty
 
 instance Read Path where
     readPrec = readP_to_Prec $ \_ -> exception +++ optimize
       where
         exception = string "Exception" $> PathException
         optimize =
-            string "Opt" *> (PathOptimize . digitToInt <$> satisfy isDigit)
+            string "Opt" *> (PathOptimize <$> digitGreediness <*> isOptCap)
+        digitGreediness = digitToInt <$> satisfy isDigit
+        isOptCap        = option False $ satisfy (== 'C') $> True
     readListPrec = readListPrecDefault
 
 data ParseError
@@ -225,6 +232,16 @@ isCapitalized str =
   let (h, rest) = Text.splitAt 1 str
       c = head $ Text.unpack h
   in  isUpper c && Text.toLower rest == rest
+
+{-|
+Add the "capitalize next word" chord in front
+-}
+addCapChord :: forall key. Palantype key => State key -> State key
+addCapChord st@State {..} = st
+    -- the list [KeysOrSlash] is reversed
+    { stPartsSteno = stPartsSteno ++ [KoSSlash, KoSKeys "" $ KI.toKeys kiCapNext]
+    , stNChords    = stNChords + 1
+    }
 
 -- | Given a maximum value for the greediness (currently: can always be set to 3)
 --   find steno chords for a given word, provided as e.g. "Ge|sund|heit"
@@ -267,11 +284,7 @@ parseSeries maxGreediness hyphenated =
                     <> Text.pack (show err)
         Nothing ->
             let
-                -- TODO: deal with capitalization
-                -- run optimizeStenoSeries with "toLower hyphenated"
-                -- but before that, check if the word is capitalized
-                -- and if that's the case, add the capitalization steno code
-                -- to each result
+                -- calculate result for lower case word
                 str = Text.encodeUtf8 $ toLower hyphenated
                 st  = State { stPartsSteno = []
                             , stNLetters   = 0
@@ -279,9 +292,20 @@ parseSeries maxGreediness hyphenated =
                             , stMFinger    = Nothing
                             , stMLastKey   = Nothing
                             }
-                lsResult =
+
+                lsResultLc =
                     [0 .. maxGreediness] <&> \maxG ->
-                        (maxG, ) $ optimizeStenoSeries maxG st str
+                        ((maxG, False), ) $ optimizeStenoSeries maxG st str
+
+                lsResult = if isCapitalized hyphenated
+
+                  -- capitalized words enter as no-optimized with the
+                  -- "capitalize next word"-chord added in front
+                  -- AND as c-optimized version, w/o extra chord
+                  then let lsNoCOpt = second (mapSuccess addCapChord) <$> lsResultLc
+                           lsYesCOpt = first (second $ const True) <$> lsResultLc
+                       in  lsNoCOpt ++ lsYesCOpt
+                  else lsResultLc
             in
                 case sortOn (Down . uncurry scoreWithG) lsResult of
                     (_, Failure raw err) : _ -> Left $ PEParsec raw err
@@ -290,11 +314,11 @@ parseSeries maxGreediness hyphenated =
   where
     unhyphenated = replace "|" "" hyphenated
 
-    toSeriesData (maxG, state) =
+    toSeriesData ((maxG, cOpt), state) =
         let sdHyphenated = hyphenated
             sdScore      = score' state
             sdParts      = toParts (stPartsSteno state)
-            sdPath       = PathOptimize maxG
+            sdPath       = PathOptimize maxG cOpt
         in  SeriesData { .. }
 
     filterAlts []                      = []
@@ -311,9 +335,10 @@ parseSeries maxGreediness hyphenated =
 --   The highest scoring result is awarded to the most frequent word
 --   Given the efficiency of a steno code, lower greediness is preferred
 scoreWithG
-    :: forall k . Greediness -> Result (State k) -> (Rational, Greediness, Int)
-scoreWithG g result =
-    let Score {..} = score result in (scorePrimary, negate g, scoreSecondary)
+    :: forall k . (Greediness, Bool) -> Result (State k) -> (Rational, Greediness, Bool, Int)
+scoreWithG (g, cOpt) result =
+    let Score {..} = score result
+    in  (scorePrimary, negate g, not cOpt, scoreSecondary)
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
@@ -346,6 +371,12 @@ countKeys = foldl' acc 0
         KoSKeys _ ks -> n + length ks
         KoSSlash     -> n
 
+{-|
+Convert the list [KeysOrSlash] from the optimization algo into a list
+of word parts. The list [KeysOrSlash] is in reverse order,
+the keys between slashes are grouped along with the original text that
+they encode.
+-}
 toParts :: forall key . Palantype key => [KeysOrSlash key] -> [(Text, Chord key)]
 toParts ls =
     let (lsParts, (str, keys)) = foldl' acc ([], ("", [])) ls
@@ -367,6 +398,10 @@ instance TextShow a => TextShow (Result a) where
     showb (Success x  ) = fromText "Success " <> showb x
     -- showb (Failure rs err) = fromText "Failure " <> showb rs <> fromText (" " <> Text.pack (show err))
     showb (Failure r _) = fromText "Failure " <> showb r <> fromText " ..."
+
+mapSuccess :: (a -> a) -> Result a -> Result a
+mapSuccess _ r@(Failure _ _) = r
+mapSuccess f (Success x) = Success $ f x
 
 data State key = State
     { stPartsSteno :: [KeysOrSlash key]

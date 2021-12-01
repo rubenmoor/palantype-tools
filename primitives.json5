@@ -87,8 +87,8 @@
 , [ "c"   , [1, "K"]]
 , [ "ç"   , [0, "SF"]]       // U+00E7
 , [ "cä"  , [0, "SFÄ"]]      // phonetic z
-, [ "ce"  , [0, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
-, [ "ce"  , [1, "SFJE"]]     // z: SF, sch: SJ, c with s/tsch/z-sound: SFJ
+, [ "ce"  , [0, "SHJE"]]     // z: SH, sch: SJ, c with s/tsch/z-sound: SHJ
+, [ "ce"  , [1, "SJE"]]      // onset: phonetic tsch: Cellist; coda: -ice
 , [ "ce"  , [4, "Ss"]]
 , [ "ch"  , [1, "SJ"]]
 , [ "ch"  , [0, "SHJ"]]
@@ -98,8 +98,8 @@
 , [ "chs" , [1, "KS"]]
 , [ "chs" , [0, "Ks"]]
 , [ "ci"  , [0, "SFI"]]
-, [ "ci"  , [1, "SFJI"]]
-, [ "cia" , [0, "SFJA"]]
+, [ "ci"  , [1, "SHJI"]]
+, [ "cia" , [0, "SHJA"]]
 , [ "ck"  , [0, "GD"]]
 , [ "ck"  , [0, "K"]]
 , [ "d"   , [0, "D"]]
@@ -211,13 +211,14 @@
 , [ "n"   , [0, "N"]]
 , [ "ñ"   , [0, "N"]]
 , [ "nch" , [0, "Nʃ"]]     // TODO: documentation, ch is Kʃ
+, [ "nck" , [0, "+N"]]     // Planck
 , [ "ng"  , [0, "+N"]]
+, [ "n|gen",[4, "+Nn"]]    // TODO: documentation
 , [ "nia" , [0, "NI/A", 2]]
 , [ "nia" , [2, "JNA"]]    // think "nia"/"ina"
 , [ "nio" , [0, "NI/O", 2]]
 , [ "nio" , [2, "JNO"]]
 , [ "nk"  , [0, "+N"]]
-, [ "nck" , [0, "+N"]]     // Planck
 , [ "nn"  , [0, "-N"]]
 , [ "n|n" , [2, "-N"]]
 , [ "nz"  , [0, "+NS"]]
@@ -249,8 +250,9 @@
 , [ "öß"  , [0, "ÄO+S"]]
 , [ "ö|ß" , [2, "ÄO+S"]]
 , [ "ö|ß" , [0, "ÄO/S", 1]]
-, [ "p"   , [0, "P"]]
 , [ "p"   , [0, "BD"]]
+, [ "p"   , [0, "+P"]]
+, [ "p"   , [2, "P"]]
 , [ "pf"  , [0, "BF"]]
 , [ "ph"  , [0, "BH"]]       // TODO: documentation
 , [ "ph"  , [0, "+F"]]
@@ -368,9 +370,9 @@
 , [ "y"   , [1, "I"]]
 , [ "yo"  , [0, "Ü/O", 1]]
 , [ "yr"  , [0, "~Ü"]]
-, [ "z"   , [0, "SF"]]
-, [ "z"   , [1, "SH"]]       // TODO: documentation: easier to reach
+, [ "z"   , [0, "SHM"]]
 , [ "z"   , [0, "+S"]]
+, [ "zw"  , [0, "SHW"]]      // TODO: documentation
 , [ "-"   , [0, "HINF"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
 // english
@@ -402,7 +404,8 @@
 , [ "chise"  , [0, "SJAIS"]]    // franchise
 , [ "choice" , [0, "SJEUS"]]
 , [ "coa"    , [0, "GDMO"]]      // e.g. coa|chen
-, [ "code"   , [0, "GDOD"]]
+, [ "code"   , [0, "GDMOD"]]
+, [ "code"   , [2, "GDOD"]]
 , [ "come"   , [0, "GDAM"]]
 , [ "con|ve|ni|e|nce", [0, "GDON/WE/NI/+NS", 3, 2, 2]]
 , [ "core"   , [0, "GD~O"]]
@@ -429,6 +432,7 @@
 , [ "friend" , [0, "FREND"]]
 , [ "fruit"  , [0, "FR~UD"]]
 , [ "game"   , [0, "GÄIM"]]
+, [ "george" , [0, "J~Oʃ"]]
 , [ "gg"     , [0, "K"]]
 , [ "goal"   , [0, "G~OL"]]
 , [ "grade"  , [0, "GRÄID"]]
@@ -449,9 +453,11 @@
 , [ "i|mage" , [0, "I/MÄʃD", 1]]
 , [ "ime"    , [0, "AIM"]]       // e.g. time, prime
 , [ "inge"   , [0, "INʃ"]]       // e.g. binge
+, [ "jack"   , [0, "JÄK"]]
 , [ "jane"   , [0, "JÄIN"]]
 , [ "jazz"   , [0, "JÄS"]]
 , [ "jeans"  , [0, "J~INS"]]
+, [ "jones"  , [0, "J~ONS"]]
 , [ "juke"   , [0, "JUK"]]      // jukebox
 , [ "kee"    , [0, "GDI"]]      // barkeeper
 , [ "keyne"  , [0, "GDÄIN"]]
