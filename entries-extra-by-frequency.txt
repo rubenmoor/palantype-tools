@@ -104,7 +104,7 @@ aller >>> al|ler
 deren >>> de|ren
 gehört >>> ge|hört
 SPD >>> SPD
-söchte >>> möch|te
+möchte >>> möch|te
 dürfte >>> dürf|te
 Minuten >>> Mi|nu|ten
 hält >>> hält
@@ -292,7 +292,7 @@ fehlt >>> fehlt
 Präsidenten >>> Prä|si|den|ten
 Themen >>> The|men
 sucht >>> sucht
-setzte >>> setzte
+setzte >>> setz|te
 Augen >>> Au|gen
 starken >>> star|ken
 Dr. >>> Dr.

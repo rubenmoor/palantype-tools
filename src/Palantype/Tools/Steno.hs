@@ -7,10 +7,11 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module Palantype.Tools.Steno where
 
-import           Control.Applicative            ( Applicative((*>), (<*), pure, (<*>)), (<$)
+import           Control.Applicative            ( Applicative((*>), (<*), pure, (<*>))
                                                 )
 import           Control.Category               ( (<<<)
                                                 , Category((.))
@@ -98,7 +99,7 @@ import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           GHC.Generics                   ( Generic )
 import           GHC.Num                        ( (+)
-                                                , Num(negate, fromInteger)
+                                                , Num(negate)
                                                 )
 import           GHC.Real                       ( Fractional((/), fromRational)
                                                 , fromIntegral
@@ -135,9 +136,9 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import qualified Palantype.DE.Keys as DE
 import qualified Palantype.Common.Indices as KI
 import Palantype.Common.Dictionary (kiCapNext)
+import qualified Palantype.DE.Keys as DE
 
 type Greediness = Int
 

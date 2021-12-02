@@ -7,7 +7,12 @@ module Palantype.Tools.Syllables where
 import           Control.Applicative            ( Alternative((<|>))
                                                 , Applicative((<*>))
                                                 )
-import           Control.Category               ( Category((.)) )
+import           Control.Category               ( (<<<)
+                                                , Category((.))
+                                                )
+import           Control.Lens                   ( _2
+                                                , view
+                                                )
 import           Control.Monad                  ( Monad((>>=))
                                                 , MonadPlus(mzero)
                                                 , when
@@ -19,6 +24,7 @@ import           Data.Bool                      ( (&&)
                                                 , otherwise
                                                 , (||)
                                                 )
+import           Data.ByteString                ( ByteString )
 import           Data.Char                      ( Char
                                                 , isLetter
                                                 , isLower
@@ -27,20 +33,29 @@ import           Data.Either                    ( Either(..)
                                                 , isRight
                                                 )
 import           Data.Eq                        ( (==) )
-import           Data.Foldable                  ( Foldable(elem)
+import           Data.Foldable                  ( Foldable(elem, foldl', length)
                                                 , notElem
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
-                                                , Functor(fmap)
+                                                , (<&>)
                                                 , void
                                                 )
+import qualified Data.HashMap.Strict           as HashMap
+import           Data.HashMap.Strict            ( HashMap )
+import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
                                                 , intersperse
+                                                , reverse
+                                                , sortOn
                                                 )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
+                                                , fromMaybe
                                                 , isNothing
+                                                )
+import           Data.Ord                       ( Down(Down)
+                                                , Ord((>=))
                                                 )
 import           Data.Semigroup                 ( Semigroup((<>)) )
 import           Data.Set                       ( Set )
@@ -48,7 +63,16 @@ import qualified Data.Set                      as Set
 import           Data.String                    ( String )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
+import qualified Data.Text.Encoding            as Text
+import qualified Data.Text.Lazy                as Lazy
+import           Data.Text.Lazy.IO              ( readFile )
+import           Data.Trie                      ( Trie )
+import qualified Data.Trie                     as Trie
+import           Data.Tuple                     ( fst )
+import           GHC.Enum                       ( Bounded(maxBound) )
 import           GHC.Generics                   ( Generic )
+import           GHC.IO                         ( IO )
+import           GHC.Num                        ( Num((+), negate) )
 import           Prelude                        ( Applicative((*>), (<*), pure)
                                                 , Eq((/=))
                                                 , Foldable(null)
@@ -84,6 +108,7 @@ import           Text.ParserCombinators.Parsec.Error
                                                 ( newErrorMessage )
 import           Text.ParserCombinators.Parsec.Pos
                                                 ( initialPos )
+import           Text.Read                      ( read )
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(..)
                                                 , fromText
@@ -124,6 +149,7 @@ data Exception
   | ExceptionEllipsis
   | ExceptionAcronym
   | ExceptionExplicit
+  | ExceptionMisspelling
   deriving stock (Generic)
 
 instance TextShow Exception where
@@ -133,14 +159,19 @@ instance TextShow Exception where
 --   w/o adding too much value
 --   thus they are explicitly excluded
 setExplicitExceptions :: Set Text
-setExplicitExceptions = Set.fromList ["AStA", "IGeL", "kN", "Terasse"]
+setExplicitExceptions = Set.fromList ["AStA", "IGeL", "kN"]
+
+contains :: Text -> Text -> Bool
+contains haystack needle = fst (Text.breakOn needle haystack) /= haystack
 
 -- | turn "zusammenhang[s]los >>> zu|sam|men|hang[s]|los ..." into
 --   [ Success (SyllableData "zusammenhanglos" ["zu", "sam", "men", "hang", "los"])
 --   , Success (SyllableData "zusammenhangslos" ["zu", "sam", "men", "hangs", "los"])
 --   ]
 parseSyllables :: Text -> [Result]
-parseSyllables = fmap parseSyllables' . parseOptionalChars
+parseSyllables str | str `contains` "falsche Schreibung für" =
+    [Exception ExceptionMisspelling]
+parseSyllables txt = parseSyllables' <$> parseOptionalChars txt
   where
     parseSyllables' :: Text -> Result
     parseSyllables' str = case evalParser word Nothing "" str of
@@ -312,3 +343,78 @@ replaceFirst needle replacement haystack
       otherwise = Text.concat
         [front, replacement, Text.drop (Text.length needle) back]
     where (front, back) = Text.breakOn needle haystack
+
+-- | bootstrapping syllables from the words that have the syllables
+--   already defined via "hy|phe|na|ted"
+getTrieSyllables :: IO (Trie (Int, Text))
+getTrieSyllables = do
+    lines <- Lazy.lines <$> readFile "syllables-trie.txt"
+    let ls = lines <&> \line -> case Lazy.splitOn " " line of
+            [txt, n, hyphenated] ->
+                ( Lazy.toStrict txt
+                , (read $ Lazy.unpack n, Lazy.toStrict hyphenated)
+                )
+            _ ->
+                error $ "syllables-trie: malformed entry: " <> Lazy.unpack line
+
+        mapNOccurrences :: HashMap Text Int
+        mapNOccurrences = HashMap.fromList $ ls <&> \(txt, (n, _)) -> (txt, n)
+
+        accOccurrences n part = n + fromMaybe
+            (error $ "impossible: not found " <> Text.unpack part)
+            (HashMap.lookup part mapNOccurrences)
+
+        lsTrie = ls <&> \(txt, (n, hyphenated)) ->
+            let bs = Text.encodeUtf8 txt
+            in
+                case Text.splitOn "|" hyphenated of
+                    [_] -> (bs, (n, hyphenated))
+                    ps ->
+                        let nTotal = foldl' accOccurrences 0 ps
+                        in  (bs, (nTotal, hyphenated))
+    pure $ Trie.fromList lsTrie
+
+{-|
+hyphenation any word with the help of a syllables trie
+that contains the syllalble partitions of formerly correctly hyphenated words
+-}
+findSyllables :: Trie (Int, Text) -> Text -> Maybe [Text]
+findSyllables trie txt = findSyllables' maxBound [] $ Text.encodeUtf8 txt
+  where
+    findSyllables' :: Int -> [Text] -> ByteString -> Maybe [Text]
+    findSyllables' _ ss@(_ : _) ""               = Just ss
+    findSyllables' maxL ss _ | length ss >= maxL = Nothing
+    findSyllables' maxL ss strRem =
+
+        let
+            matches =
+                sortOn (Down <<< score <<< view _2)
+                    $   splitIntoSyllables
+                    <$> Trie.matches trie strRem
+            goMatch l (_, (_, vs), rem) = findSyllables' l (ss ++ vs) rem
+
+            acc
+                :: Maybe [Text]
+                -> (ByteString, (Int, [Text]), ByteString)
+                -> Maybe [Text]
+            acc Nothing match = goMatch maxL match
+            acc (Just syls) match =
+                Just $ fromMaybe syls $ goMatch (length syls) match
+        in
+            foldl' acc Nothing matches
+
+    splitIntoSyllables
+        :: (ByteString, (Int, Text), ByteString)
+        -> (ByteString, (Int, [Text]), ByteString)
+    splitIntoSyllables (c, (n, v), r) = (c, (n, Text.splitOn "|" v), r)
+
+    score :: (Int, [Text]) -> (Int, Int)
+    score (f, ss) = (negate $ length ss, f)
+
+
+partitions :: [Text] -> [[Text]]
+partitions []            = []
+partitions ls@(_ : tail) = partitions' ls ++ partitions tail
+  where
+    partitions' []       = []
+    partitions' (p : ps) = [p] : ((p :) <$> partitions' ps)

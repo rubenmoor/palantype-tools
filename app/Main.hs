@@ -6,21 +6,26 @@
 
 module Main where
 
-import           Args                           ( OptionsStenoWords(..)
+import           Args                           ( OptionsHyphenate(..)
+                                                , OptionsStenoWords(..)
                                                 , OptionsStenoWordsRun(..)
                                                 , OptionsSyllables(..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( Category((.)) )
+import           Control.Category               ( (<<<)
+                                                , Category((.))
+                                                )
 import           Control.Concurrent.Async       ( forConcurrently )
 import           Control.Monad                  ( Monad((>>=))
                                                 , foldM
                                                 , foldM_
                                                 , forever
+                                                , unless
                                                 , when
                                                 )
+import           Data.Bool                      ( (||) )
 import           Data.Char                      ( isLetter )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((==)) )
@@ -31,7 +36,9 @@ import           Data.Foldable                  ( Foldable
                                                     )
                                                 , for_
                                                 )
-import           Data.Function                  ( ($) )
+import           Data.Function                  ( ($)
+
+                                                )
 import           Data.Functor                   ( (<$)
                                                 , (<$>)
                                                 , (<&>)
@@ -121,8 +128,10 @@ import           Palantype.Tools.Steno          ( ParseError(..)
 import           Palantype.Tools.Syllables      ( Exception(..)
                                                 , Result(..)
                                                 , SyllableData(..)
+                                                , findSyllables
                                                 , parseSyllables
-                                                , sdWord
+                                                , partitions
+                                                , sdWord, getTrieSyllables
                                                 )
 import           Prelude                        ( Applicative((*>))
                                                 , RealFrac(ceiling)
@@ -161,6 +170,7 @@ import           WCL                            ( wcl )
 main :: IO ()
 main = execParser argOpts >>= \case
     TaskRawSteno   str  -> rawSteno str
+    TaskHyphenate  opts -> hyphenate opts
     TaskSyllables  opts -> syllables opts
     TaskStenoWords opts -> stenoWords opts
     TaskGermanDict _    -> pure ()
@@ -177,6 +187,9 @@ fileSyllableEntriesExtraByFrequency = "entries-extra-by-frequency.txt"
 
 fileSyllables :: FilePath
 fileSyllables = "syllables.txt"
+
+fileSyllablesTrie :: FilePath
+fileSyllablesTrie = "syllables-trie.txt"
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -211,22 +224,25 @@ syllables OSylFile = do
             , fileSyllablesEllipsis
             , fileSyllablesAcronyms
             , fileSyllablesExplicitExceptions
+            , fileSyllablesTrie
             ]
-    for_ lsFiles $ \file -> do
-        exists <- doesFileExist file
-        when exists $ do
-            putStrLn $ "Deleting " <> file
-            removeFile file
+    removeFiles lsFiles
 
     runSyllables
 
     putStrLn ""
     putStrLn "Number of lines in"
 
-    for_ (fileSyllableEntries : fileSyllableEntriesExtra : fileSyllableEntriesExtraByFrequency : lsFiles) $ \file ->
-        do
-            nl <- wcl file
-            putStrLn $ show nl <> "\t" <> file
+    for_
+            ( fileSyllableEntries
+            : fileSyllableEntriesExtra
+            : fileSyllableEntriesExtraByFrequency
+            : fileSyllableEntriesAlgo
+            : lsFiles
+            )
+        $ \file -> do
+              nl <- wcl file
+              putStrLn $ show nl <> "\t" <> file
 
     putStrLn ""
     stop <- getTime Monotonic
@@ -247,10 +263,13 @@ syllables OSylFile = do
 
         handle <- openFile fileSyllableEntries ReadMode
         hSetNewlineMode handle universalNewlineMode
-        entries      <- Lazy.lines <$> hGetContents handle
-        entriesExtra <- Lazy.lines <$> readFile fileSyllableEntriesExtra
-        entriesExtraFreq <- Lazy.lines <$> readFile fileSyllableEntriesExtraByFrequency
-        let entriesAll = entriesExtra <> entriesExtraFreq <> entries
+        entries          <- Lazy.lines <$> hGetContents handle
+        entriesExtra     <- Lazy.lines <$> readFile fileSyllableEntriesExtra
+        entriesExtraFreq <- Lazy.lines
+            <$> readFile fileSyllableEntriesExtraByFrequency
+        entriesExtraAlgo <- Lazy.lines <$> readFile fileSyllableEntriesAlgo
+        let entriesAll =
+                entriesExtra <> entriesExtraFreq <> entriesExtraAlgo <> entries
 
         let
             -- | in case of duplicate entries because of
@@ -258,35 +277,16 @@ syllables OSylFile = do
             --   select the lower-case version
             preferLessWeird :: SyllableData -> SyllableData -> SyllableData
 
-        -- real duplicate
+-- real duplicate
             preferLessWeird s1 s2 | s1 == s2 = s1
 
-        -- weird entry
-        -- more syllables means, better entry
+-- weird entry
+-- more syllables means, better entry
             preferLessWeird s1@(SyllableData _ ss1) s2@(SyllableData _ ss2) =
                 if length ss1 > length ss2 then s1 else s2
 
-        -- preferLessWeird s1@(SyllableData w1 _) s2@(SyllableData w2 _) =
-        --     let
-        --         c1 = Text.head w1
-        --         c2 = Text.head w2
-        --     in
-        --         if toLower w1 /= toLower w2
-        --             then error $ "preferLessWeird: impossible1: " <> Text.unpack
-        --                 (w1 <> " " <> w2)
-        --             else case (isUpper c1, isUpper c2) of
-        --                 (True , False) -> s2
-        --                 (False, True ) -> s1
-        --                 _ ->
-        --                     error
-        --                         $  Text.unpack
-        --                         $  "preferLessWeird: impossible2: "
-        --                         <> showt s1
-        --                         <> " "
-        --                         <> showt s2
-
             acc st entry = do
-            -- eliminate duplicate entries after parsing
+    -- eliminate duplicate entries after parsing
                 let lsHyphenated = parseSyllables $ Lazy.toStrict entry
                     hyphenated   = head lsHyphenated
                     last         = stsyllLastResult st
@@ -319,6 +319,7 @@ syllables OSylFile = do
                                 ExceptionExplicit -> appendLine
                                     fileSyllablesExplicitExceptions
                                     entry
+                                ExceptionMisspelling -> pure ()
                         pure $ HashMap.fromList $ catMaybes lsMWordSyllableData
                 pure $ st { stsyllLastResult = hyphenated
                           , stsyllMap = HashMap.unionWith preferLessWeird m m'
@@ -331,6 +332,93 @@ syllables OSylFile = do
                    "\n"
                    (Lazy.fromStrict . showt <$> HashMap.elems stsyllMap)
             <> "\n"
+
+        -- create a set of all syllables
+        let countOccurrences :: (Int, Text) -> (Int, Text) -> (Int, Text)
+            countOccurrences _ (oldN, oldV) = (oldN + 1, oldV)
+
+            accS m sd =
+                let accPs m' ps' = HashMap.insertWith
+                        countOccurrences
+                        (Text.concat ps')
+                        (1, Text.intercalate "|" ps')
+                        m'
+                in  foldl' accPs m $ partitions $ sdSyllables sd
+            mapSyllables = foldl' accS HashMap.empty $ HashMap.elems stsyllMap
+
+-- mapSyllablesScoreSingletons =
+
+            mkLine (word, (nOcc, hyphenated)) =
+                word <> " " <> showt nOcc <> " " <> hyphenated
+
+        putStrLn $ "Writing file " <> fileSyllablesTrie
+        writeFile fileSyllablesTrie
+            $  Lazy.intercalate
+                   "\n"
+                   (Lazy.fromStrict . mkLine <$> HashMap.toList mapSyllables)
+            <> "\n"
+
+fileSyllableEntriesAlgo :: FilePath
+fileSyllableEntriesAlgo = "entries-extra-algo.txt"
+
+fileHyphenationFailure :: FilePath
+fileHyphenationFailure = "hyphenation-failure.txt"
+
+hyphenate :: OptionsHyphenate -> IO ()
+hyphenate (OHypArg txt) = do
+    trie <- getTrieSyllables
+    StrictIO.putStrLn $ case findSyllables trie txt of
+      Just ss -> Text.intercalate "|" ss
+      Nothing -> "Could not hyphenate."
+
+hyphenate OHypFile = do
+
+    removeFiles [fileHyphenationFailure]
+
+    putStrLn $ "Reading file " <> fileSyllableEntriesAlgo
+    lsEntriesAlgo <- Lazy.lines <$> readFile fileSyllableEntriesAlgo
+    let setEntriesAglo =
+            HashSet.fromList $ head . Lazy.splitOn " " <$> lsEntriesAlgo
+
+    putStrLn $ "Reading file " <> fileStenoWordsWordStenos
+    lsWordStenos <- Lazy.lines <$> readFile fileStenoWordsWordStenos
+    let acc s str = case Lazy.splitOn " " str of
+            w : _ -> HashSet.insert w s
+            _     -> error $ "could not read: " <> Lazy.unpack str
+        setWords = foldl' acc HashSet.empty lsWordStenos
+
+    putStrLn "Reading frequency information"
+    freqs       <- readFrequencies
+
+    nLextraAlgo <- wcl fileSyllableEntriesAlgo
+    putStrLn $ show nLextraAlgo <> " lines in " <> fileSyllableEntriesAlgo
+
+    nLgermanDic <- wcl "german.utf8.dic"
+    putStrLn $ show nLgermanDic <> " lines in german.utf8.dic"
+
+    trie <- getTrieSyllables
+
+    ls <- Lazy.lines <$> readFile "german.utf8.dic"
+    for_ (sortOn (Down <<< freq freqs <<< Lazy.toStrict) ls) $ \l ->
+        unless (HashSet.member l setWords || HashSet.member l setEntriesAglo)
+            $ do
+                  let strictL = Lazy.toStrict l
+                  case findSyllables trie strictL of
+                      Nothing ->
+                          appendLine fileHyphenationFailure $ l <> " >>> " <> l
+                      Just ss ->
+                          appendLine fileSyllableEntriesAlgo
+                              $  l
+                              <> " >>> "
+                              <> Lazy.fromStrict (Text.intercalate "|" ss)
+
+    nLextraAlgo' <- wcl fileSyllableEntriesAlgo
+    putStrLn
+        $  show nLextraAlgo'
+        <> " lines in "
+        <> fileSyllableEntriesAlgo
+        <> " now."
+
 
 fileStenoWordsWordStenos :: FilePath
 fileStenoWordsWordStenos = "stenoWordsWordStenos.txt"
@@ -432,11 +520,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
             , fileCollisions
             , fileCollisionsV2
             ]
-    for_ lsFiles $ \file -> do
-        exists <- doesFileExist file
-        when exists $ do
-            putStrLn $ "Deleting " <> file
-            removeFile file
+    removeFiles lsFiles
 
     newScores <- runStenoWords
 
@@ -617,7 +701,7 @@ stenoWords (OStwRun greediness (OStwFile showChart mFileOutput)) = do
             StateCollision {..} =
                 resolveCollisions freqs mapWordStenos swsMapStenoWords
 
-    -- check for double entries in the final result
+-- check for double entries in the final result
             accDupls (m, ls) (r, w) = case HashMap.lookup r m of
                 Just dupl -> (m, (r, w, dupl) : ls)
                 Nothing   -> (HashMap.insert r w m, ls)
@@ -733,11 +817,7 @@ frequency = do
         <> fileFrequencyMissingSyllables
         <> " first."
 
-    for_ [fileFrequency, fileFrequencyMissing] $ \file -> do
-        existsFile <- doesFileExist file
-        when existsFile $ do
-            putStrLn $ "Deleting " <> file
-            removeFile file
+    removeFiles [fileFrequency, fileFrequencyMissing]
 
     nLines <- wcl fileStenoWordsWordStenos
     StrictIO.putStrLn
@@ -770,11 +850,15 @@ frequency = do
                             Just stenos -> Just stenos
                             Nothing ->
                                 HashMap.lookup (Lazy.toLower w) mapWordStenos
-                    in
-                        case mStenos of
+                    in  case mStenos of
                             Just stenos -> do
                                 for_ stenos $ \s ->
-                                    appendLine fileFrequency $ Lazy.fromStrict (showt i) <> " " <> s <> " " <> w
+                                    appendLine fileFrequency
+                                        $  Lazy.fromStrict (showt i)
+                                        <> " "
+                                        <> s
+                                        <> " "
+                                        <> w
                                 pure $ i + 1
                             Nothing -> do
                                 appendLine fileFrequencyMissing
@@ -808,3 +892,10 @@ frequency = do
         <> fileSyllableEntriesExtraByFrequency
         <> ", to then run 'palantype-ops syllables' and \
                  \'palantype-ops stenoWords' again."
+
+removeFiles :: [FilePath] -> IO ()
+removeFiles files = for_ files $ \file -> do
+    exists <- doesFileExist file
+    when exists $ do
+        putStrLn $ "Deleting " <> file
+        removeFile file

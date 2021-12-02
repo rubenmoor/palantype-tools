@@ -1,6 +1,7 @@
 module Args
   ( Task (..)
   , OptionsSyllables (..)
+  , OptionsHyphenate (..)
   , OptionsStenoWords (..)
   , OptionsStenoWordsRun (..)
   , argOpts
@@ -43,6 +44,7 @@ import           System.IO                      ( FilePath )
 data Task
   = TaskRawSteno Text
   | TaskSyllables OptionsSyllables
+  | TaskHyphenate OptionsHyphenate
   | TaskStenoWords OptionsStenoWords
   | TaskGermanDict Bool
   | TaskFrequency
@@ -50,6 +52,10 @@ data Task
 data OptionsSyllables
   = OSylFile
   | OSylArg Text
+
+data OptionsHyphenate
+  = OHypFile
+  | OHypArg Text
 
 data OptionsStenoWords
   = OStwRun Int OptionsStenoWordsRun
@@ -71,6 +77,9 @@ task = subparser
     <> command
            "syllables"
            (info (TaskSyllables <$> optsSyllables <* helper) syllablesInfo)
+    <> command
+           "hyphenate"
+           (info (TaskHyphenate <$> optsHyphenate <* helper) hyphenateInfo)
     <> command
            "stenoWords"
            (info (TaskStenoWords <$> optsStenoWords <* helper) stenoWordsInfo)
@@ -112,6 +121,17 @@ syllablesInfo =
            \The result is written to \"syllables.txt\". The remainder is written \
            \to \"syllables-noparse.txt.\" When the file \"syllables-noparse.txt\" \
            \exists already, ignore \"entries.txt\" and work on the remainder, only."
+
+optsHyphenate :: Parser OptionsHyphenate
+optsHyphenate = pure OHypFile <|> (OHypArg <$> arg hlp)
+  where
+    hlp = "Hyphenate the word given in the argument."
+
+hyphenateInfo :: InfoMod a
+hyphenateInfo =
+  progDesc "Read syllables from \"syllables-set.txt\" and pass through the \
+           \list of words in \"german.utf8.dic\" to find the proper hyphenation \
+           \and write \"entries-extra-algo.txt."
 
 switchShowChart :: Parser Bool
 switchShowChart = switch
