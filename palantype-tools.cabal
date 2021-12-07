@@ -87,6 +87,7 @@ executable palantype-ops
       , directory
       , filepath
       , formatting
+      , hyphenation
       , my-palantype
       , optparse-applicative
       , palantype-tools

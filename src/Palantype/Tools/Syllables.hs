@@ -388,7 +388,7 @@ findSyllables trie txt = findSyllables' maxBound [] $ Text.encodeUtf8 txt
 
         let
             matches =
-                sortOn (Down <<< score <<< view _2)
+                sortOn (Down <<< fst <<< view _2)
                     $   splitIntoSyllables
                     <$> Trie.matches trie strRem
             goMatch l (_, (_, vs), rem) = findSyllables' l (ss ++ vs) rem
@@ -407,9 +407,6 @@ findSyllables trie txt = findSyllables' maxBound [] $ Text.encodeUtf8 txt
         :: (ByteString, (Int, Text), ByteString)
         -> (ByteString, (Int, [Text]), ByteString)
     splitIntoSyllables (c, (n, v), r) = (c, (n, Text.splitOn "|" v), r)
-
-    score :: (Int, [Text]) -> (Int, Int)
-    score (f, ss) = (negate $ length ss, f)
 
 
 partitions :: [Text] -> [[Text]]
