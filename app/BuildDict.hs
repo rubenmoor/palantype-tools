@@ -36,7 +36,7 @@ import           Data.Functor                   ( (<$>)
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
-import           Data.List                      ( replicate
+import           Data.List                      ( replicate, (++)
 
 
 
@@ -100,6 +100,9 @@ import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
 import qualified Palantype.EN.Keys as EN
+import qualified Data.Aeson as Aeson
+import Data.Maybe (fromMaybe)
+import GHC.Err (error)
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -116,7 +119,7 @@ average ls =
     in  realToFrac t / realToFrac n
 
 data State = State
-    { stMapWordStenos :: HashMap Text [SeriesData]
+    { stMapWordStenos :: HashMap Text [RawSteno]
     , stMapStenoWord :: HashMap RawSteno Text
     }
 
@@ -134,7 +137,6 @@ buildDict (OStDArg lang str) = do
 buildDict (OStDFile fileInput fileOutput lang) = do
 
     start <- getTime Monotonic
-    now   <- getCurrentTime
 
     let lsFiles =
             [ fileDictNoParse
@@ -144,10 +146,25 @@ buildDict (OStDFile fileInput fileOutput lang) = do
             ]
     removeFiles lsFiles
 
-    newScores <- runBuildDict
+    -- initial state with existing steno in output file
+    fileExistsOutput <- doesFileExist fileInput
+    stMapStenoWord <- if fileExistsOutput
+        then do
+          nLO <- wcl fileOutput
+          putStrLn $ "Reading data from output file: " <> fileOutput <> " (" <> show nLO <> " lines)."
+          putStrLn "If this is undesired, delete the file first."
+          mMap <- Aeson.decodeFileStrict' fileOutput
+          pure $ fromMaybe (error "Could not decode file.") mMap
+        else pure HashMap.empty
+    let
+        accFlip m (steno, word) =
+            HashMap.insertWith (++) word [steno] m
+        stMapWordStenos = foldl' accFlip HashMap.empty $ HashMap.toList mapDictExisting
+
+    runBuildDict $ State {..}
 
     putStrLn ""
-    putStrLn $ "Number of words with steno code: " <> show (length newScores)
+    -- putStrLn $ "Number of words with steno code: " <> show (length newScores)
 
     putStrLn "Number of lines in"
 
@@ -157,16 +174,17 @@ buildDict (OStDFile fileInput fileOutput lang) = do
             nl <- wcl file
             putStrLn $ show nl <> "\t" <> file
 
-    nNoParse <- wcl fileDictNoParse
-    let newZeroScores = replicate nNoParse (0 :: Double)
+    -- TODO: scoring: move elsewhere
+    -- nNoParse <- wcl fileDictNoParse
+    -- let newZeroScores = replicate nNoParse (0 :: Double)
 
-        scores        = newZeroScores <> (fromRational <$> newScores)
-        meanScore     = average scores
-    writeFile (fileScores now)
-        $ Lazy.unlines (Lazy.fromStrict . showt <$> scores)
+    --     scores        = newZeroScores <> (fromRational <$> newScores)
+    --     meanScore     = average scores
+    -- writeFile (fileScores now)
+    --     $ Lazy.unlines (Lazy.fromStrict . showt <$> scores)
 
-    putStrLn ""
-    StrictIO.putStrLn $ "Average score: " <> showt meanScore
+    -- putStrLn ""
+    -- StrictIO.putStrLn $ "Average score: " <> showt meanScore
 
     putStrLn ""
 
@@ -178,13 +196,13 @@ buildDict (OStDFile fileInput fileOutput lang) = do
     fileDictNoParse = "buildDict-noparse.txt"
     fileOutputTmp   = "buildDict-tmp.txt"
 
-    runBuildDict         = do
+    runBuildDict initialState = do
 
         ls <- Lazy.lines <$> readFile fileInput
         let
             l = length ls
 
-            formatJSONLine raw word =
+            formatJSONLine word raw =
                 Lazy.fromStrict $ "\"" <> showt raw <> "\": \"" <> word <> "\""
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -206,17 +224,17 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                         PEExceptionTable orig -> print $ "Error in exception table for: " <> orig
                         PEParsec _ _ -> appendLine fileDictNoParse str
                       pure st
-                    Right sds -> do
+                    Right raws -> do
                         -- TODO: collision detection
                         -- write to output file
-                        for_ sds $ appendLine fileOutput <<< formatJSONLine str' <<< showt <<< sdRawSteno
+                        for_ raws $ appendLine fileOutput <<< formatJSONLine str' <<< showt
 
                         pure $ st
                             { stMapWordStenos = HashMap.insert str' sds stMapWordStenos
                             }
 
         appendLine fileOutputTmp "{\n"
-        State {..} <- foldM acc (State HashMap.empty HashMap.empty) ls
+        State {..} <- foldM acc initialState ls
         appendLine fileOutputTmp "\n}\n"
         renameFile fileOutputTmp fileOutput
         removeFiles [fileOutputTmp]
@@ -224,5 +242,6 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         -- TODO
         -- check for double entries in the final result
 
-        pure $ HashMap.toList stMapWordStenos <&> \(_, sds) ->
-            maximum $ scorePrimary . sdScore <$> sds
+        -- TODO scoring
+        -- pure $ HashMap.toList stMapWordStenos <&> \(_, sds) ->
+        --     maximum $ scorePrimary . sdScore <$> sds

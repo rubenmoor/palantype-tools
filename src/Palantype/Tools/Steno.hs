@@ -77,8 +77,7 @@ import           Data.Ord                       ( Down(Down)
                                                 , Ord((<=))
                                                 , comparing
                                                 )
-import           Data.Ratio                     ( (%)
-                                                , Rational
+import           Data.Ratio                     ( Rational
                                                 )
 import           Data.Text                      ( Text
 
@@ -246,25 +245,11 @@ parseSeries
     :: forall key
      . Palantype key
     => Text
-    -> Either ParseError [SeriesData]
+    -> Either ParseError [RawSteno]
 parseSeries hyphenated =
     case HashMap.lookup unhyphenated mapExceptions of
         Just raw -> case Raw.parseWord @key raw of
-            Right chords ->
-                let
-                    sdHyphenated = hyphenated
-                    sdRawSteno = Raw.unparts $ Raw.fromChord <$> chords
-
-                    efficiency   = fromIntegral (Text.length unhyphenated)
-                        % fromIntegral (length chords)
-
-                    sdScore =
-                        Score efficiency $ negate $ sum (length <$> chords)
-
-                    -- in case of exception, there are no alternatives
-                    sdPath = PathException
-                in
-                    Right [SeriesData { .. }]
+            Right chords -> Right [Raw.unparts $ Raw.fromChord <$> chords]
             Left err ->
                 Left
                     $  PEExceptionTable
@@ -301,29 +286,21 @@ parseSeries hyphenated =
                 case sortOn (Down . uncurry scoreWithG) lsResult of
                     (_, Failure raw err) : _ -> Left $ PEParsec raw err
                     [] -> error "impossible"
-                    ls -> Right $ toSeriesData <$> filterAlts ls
+                    ls -> Right $ filterAlts ls
   where
     unhyphenated = replace "|" "" hyphenated
 
-    toSeriesData ((maxG, cOpt), state) =
-        let sdHyphenated = hyphenated
-            sdScore      = score' state
-            -- sdParts      = toParts (stPartsSteno state)
-            sdRawSteno   = RawSteno (stStrRawSteno state)
-            sdPath       = PathOptimize maxG cOpt
-        in  SeriesData { .. }
-
     filterAlts []                      = []
     filterAlts ((_, Failure _ _) : as) = filterAlts as
-    filterAlts ((g, Success state) : as) =
+    filterAlts ((_, Success state) : as) =
         let
-            distinct _   (_, Failure _ _) = False
-            distinct st1 (_, Success st2) = stStrRawSteno st1 /= stStrRawSteno st2
-        in  (g, state) : filterAlts (filter (distinct state) as)
+            rawSteno = stStrRawSteno state
+            distinct (_, Failure _ _) = False
+            distinct (_, Success st2) = rawSteno /= stStrRawSteno st2
+        in  RawSteno rawSteno : filterAlts (filter distinct as)
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
---   The highest scoring result is awarded to the most frequent word
 --   Given the efficiency of a steno code, lower greediness is preferred
 scoreWithG
     :: forall k . (Greediness, Bool) -> Result (State k) -> (Rational, Greediness, Bool, Int)
