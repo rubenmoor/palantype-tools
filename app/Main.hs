@@ -8,14 +8,14 @@ import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
 import           Control.Monad                  ( Monad((>>=))
-                                                , unless
+
                                                 )
 import           Data.Bool                      ( (&&)
                                                 , not
                                                 )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((/=)) )
-import           Data.Foldable                  ( Foldable(maximum, foldl')
+import           Data.Foldable                  ( Foldable(foldl', maximum)
                                                 , for_
                                                 , traverse_
                                                 )
@@ -23,16 +23,23 @@ import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
-import qualified Data.HashSet                  as HashSet
-import           Data.List                      ( filter, sortOn )
+import           Data.List                      ( filter
+                                                , sortOn
+                                                )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
                                                 )
-import           Data.Text                      ( Text, toLower, toUpper )
+import           Data.Text                      ( Text
+                                                , replace
+
+
+                                                )
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as StrictIO
 import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile, writeFile )
+import           Data.Text.Lazy.IO              ( readFile
+                                                , writeFile
+                                                )
 import           Data.Text.Lazy.Read            ( double )
 import           Data.Time.Clock                ( getCurrentTime )
 import           Data.Time.Format               ( defaultTimeLocale
@@ -63,21 +70,22 @@ import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart
                                                     ( OSCHistScores
                                                     )
-                                                , OptionsSort (..)
+                                                , OptionsSort(..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
 import           BuildDict                      ( buildDict )
-import           Common                         ( appendLine, fileScores )
+import           Common                         ( appendLine
+                                                , fileScores
+                                                )
+import           Data.HashMap.Strict            ( HashMap )
+import qualified Data.HashMap.Strict           as HashMap
+import           Data.Int                       ( Int )
+import           Data.Maybe                     ( fromMaybe, Maybe (..) )
+import           Data.Ord                       ( Down(Down) )
 import           RunPrepare                     ( prepare )
+import           Text.Read
 import           WCL                            ( wcl )
-import Data.HashMap.Strict (HashMap)
-import Data.Int (Int)
-import qualified Data.HashMap.Strict as HashMap
-import Text.Read
-import GHC.Num (Num((+)))
-import Data.Maybe (fromMaybe)
-import Data.Ord (Down(Down))
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -86,6 +94,7 @@ main = execParser argOpts >>= \case
     TaskHyphenate opts -> hyphenate opts
     TaskStenoDict opts -> buildDict opts
     TaskSort      opts -> sortByFrequency opts
+    TaskShowChart opts -> showChart opts
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -114,11 +123,11 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
     traverse_ putStrLn filesHyphenated
 
     let hasContent line = not (Lazy.null line) && Lazy.head line /= '#'
-    setExisting <-
-        HashSet.fromList
-        .   filter hasContent
-        .   mconcat
-        <$> traverse (fmap Lazy.lines <<< readFile) filesHyphenated
+
+    lsExisting <- filter hasContent . mconcat <$> traverse (fmap Lazy.lines <<< readFile) filesHyphenated
+
+    let mapExisting = HashMap.fromList $ (\w -> (replace "|" "" w, w)) . Lazy.toStrict <$> lsExisting
+
 
     nLines <- wcl fileInput
     putStrLn
@@ -131,18 +140,19 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
     appendLine fileOutput $ "# " <> Lazy.pack
         (formatTime defaultTimeLocale "%y%m%d-%T" now)
 
-    for_ ls $ \l ->
-        unless (HashSet.member l setExisting)
-            $   appendLine fileOutput
-            $   Lazy.intercalate "|"
-            $   Lazy.pack
-            <$> KL.hyphenate (KL.languageHyphenator lang') (Lazy.unpack l)
+    for_ ls $ \l -> do
+        let hyph = case HashMap.lookup (Lazy.toStrict l) mapExisting of
+              Just h -> Lazy.fromStrict h
+              Nothing -> Lazy.intercalate "|" $ Lazy.pack <$> KL.hyphenate (KL.languageHyphenator lang') (Lazy.unpack l)
+        appendLine fileOutput hyph
 
 sortByFrequency :: OptionsSort -> IO ()
 sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
-    ls <- Lazy.lines <$> readFile fileInput
+    ls    <- Lazy.lines <$> readFile fileInput
     freqs <- readFrequencies
-    let sorted = sortOn (Down <<< freq freqs <<< Lazy.toStrict) ls
+    let sorted = sortOn
+            (Down <<< freq freqs <<< replace "|" "" <<< Lazy.toStrict)
+            ls
     writeFile fileOutput $ Lazy.unlines sorted
   where
     -- | word frequencies from UNI Leipzig based on
@@ -161,11 +171,7 @@ sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
         pure $ foldl' acc HashMap.empty ls
 
     freq :: HashMap Text Int -> Text -> Int
-    freq freqs w =
-        let lc = toLower w
-            c  = toUpper (Text.singleton $ Text.head lc) <> Text.tail w
-        in  freq' lc + freq' c
-        where freq' word = fromMaybe 0 (HashMap.lookup word freqs)
+    freq freqs w = fromMaybe 0 $ HashMap.lookup w freqs
 
 
 readScores :: FilePath -> IO [Double]

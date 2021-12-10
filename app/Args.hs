@@ -48,11 +48,11 @@ data Task
   -- | build the steno dict
   | TaskStenoDict OptionsStenoDict
 
-  -- | show charts
-  | TaskShowChart OptionsShowChart
-
   -- | sort a word list by frequency
   | TaskSort OptionsSort
+
+  -- | show charts
+  | TaskShowChart OptionsShowChart
 
 data OptionsPrepare
   = OPrepFile FilePath FilePath
@@ -94,6 +94,9 @@ task = subparser
            "stenoDict"
            (info (TaskStenoDict <$> optsStenoDict <* helper) stenoWordsInfo)
     <> command "sort" (info (TaskSort <$> optsSort <* helper) sortInfo)
+    <> command
+           "showChart"
+           (info (TaskShowChart <$> optsShowChart <* helper) showChartInfo)
     )
   where
     rawStenoHelp
@@ -110,6 +113,7 @@ lang :: Parser Lang
 lang = option
     auto
     (  long "language"
+    <> short 'l'
     <> value DE
     <> help "One of DE, EN"
     <> metavar "LANG"
@@ -127,18 +131,22 @@ optsPrepare =
     fileInput = option
         auto
         (  long "file-input"
+        <> short 'i'
         <> value "entries.txt"
         <> help
                "Input file with lines of the format \"Direktive >>> Di|rek|ti|ve, die; -, -n (Weisung; Verhaltensregel)\""
         <> metavar "FILE"
+        <> showDefault
         )
 
     fileOutput = option
         auto
         (  long "file-output"
+        <> short 'o'
         <> value "hyphenated-prepared.txt"
         <> help "Output file with lines of the format \"Di|rek|ti|ve\"."
         <> metavar "FILE"
+        <> showDefault
         )
 
 prepareInfo :: InfoMod a
@@ -157,7 +165,8 @@ optsHyphenate =
     fileInput = option
         auto
         (  long "file-input"
-        <> value "words.txt"
+        <> short 'i'
+        <> value "german.utf8.dic"
         <> help "Input file with lines containing one word each."
         <> metavar "FILE"
         <> showDefault
@@ -167,16 +176,20 @@ optsHyphenate =
         auto
         (  long "files-hyphenated"
         <> short 'h'
-        <> value "hyphenated-prepared.txt"
+        -- <> value "hyphenated-prepared.txt" -- causes run time memory leak, probably in combination with `some`
         <> help
-               "A list of files that contain hyphenated words. Any word that appears in one of these files won't be hyphenated again."
-        <> metavar "FILELIST"
+               "A list of files that contain hyphenated words. Any word that \
+               \appears in one of these files won't be hyphenated again and the \
+               \the hyphenation information will be taken from this file. \
+               \E.g.: \"hyphenated-prepared.txt\"."
+        <> metavar "FILE"
         <> showDefault
         )
 
     fileOutput = option
         auto
         (  long "file-output"
+        <> short 'o'
         <> value "hyphenated.txt"
         <> help
                "A file containing a hyphenated word in each line, e.g. \"Di|rek|ti|ve\". If the file exists, lines will be appended."
@@ -189,7 +202,9 @@ optsHyphenate =
 hyphenateInfo :: InfoMod a
 hyphenateInfo =
     progDesc
-        "Read words from the input file, check if this word has been hyphenated before. If not, hyphenate given the language and write to the output file."
+        "Read words from the input file, check if this word has been hyphenated \
+        \before. If not, hyphenate it, given the language. \
+        \Write the hyphenated word to the output file."
 
 optsStenoDict :: Parser OptionsStenoDict
 optsStenoDict =
@@ -203,6 +218,7 @@ optsStenoDict =
     fileInput = option
         auto
         (  long "file-input"
+        <> short 'i'
         <> value "hyphenated.txt"
         <> help
                "Input file with lines containing one word each. The words must be hyphenated, e.g. \"Di|rek|ti|ve\"."
@@ -213,17 +229,12 @@ optsStenoDict =
     fileOutput = option
         auto
         (  long "file-output"
+        <> short 'o'
         <> value "palantype.json"
         <> help "The dictionary file for use with plover."
         <> metavar "FILE"
         <> showDefault
         )
-
-    -- showChart = flag'
-    --     OStwShowChart
-    --     (long "show-chart-only" <> short 'c' <> help
-    --         "Don't compute chords. Only show the chart of the latest scores."
-    --     )
 
 stenoWordsInfo :: InfoMod a
 stenoWordsInfo =
@@ -231,15 +242,6 @@ stenoWordsInfo =
         "Read the file \"syllables.txt\" and parse every word into a series \
            \of steno chords. The result is written to \"steno-words.txt\". The \
            \remainder is written to \"steno-words-noparse.txt\"."
-
--- frequencyInfo :: InfoMod a
--- frequencyInfo =
---     progDesc
---         "Write 'sten/o/chords word' to a file, most frequent first. 'frequency2k' \
---         \is meant for use with palantype.com/learn-palantype, e.g. \
---         \copy frequency2k.txt ../learn-palantype/backend/. 'frequencyAll' can \
---         \be used to identify missing single syllable words and add the to \
---         \the stenoWords algorithm."
 
 optsSort :: Parser OptionsSort
 optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
@@ -276,4 +278,12 @@ optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
 sortInfo :: InfoMod a
 sortInfo =
     progDesc
-        "Given a file with frequency information in the format WORD NUMBER, where NUMBER is the frequency, sort any file that contains words by frequency, descending."
+        "Given a file with frequency information in the format WORD NUMBER, \
+        \where NUMBER is the frequency, sort any file that contains words by \
+        \frequency, descending. The | symbol in words is ignored."
+
+optsShowChart :: Parser OptionsShowChart
+optsShowChart = pure OSCHistScores
+
+showChartInfo :: InfoMod a
+showChartInfo = progDesc "Show a chart with statistics."
