@@ -60,7 +60,7 @@ import           System.FilePath                ( (</>)
                                                 , takeDirectory
                                                 )
 import           System.IO                      ( IO
-                                                , putStrLn
+                                                , putStrLn, putStr
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
@@ -76,7 +76,7 @@ import           Args                           ( OptionsHyphenate(..)
                                                 )
 import           BuildDict                      ( buildDict )
 import           Common                         ( appendLine
-                                                , fileScores
+                                                , fileScores, removeFiles
                                                 )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
@@ -119,15 +119,18 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
             DE -> KL.German_1996
             EN -> KL.English_US
 
+    removeFiles [fileOutput]
+
     putStrLn "Reading existing hyphenation files: "
-    traverse_ putStrLn filesHyphenated
+    for_ filesHyphenated $ \file -> do
+        nLines <- wcl file
+        putStrLn $ file <> " (" <> show nLines <> " lines)"
 
     let hasContent line = not (Lazy.null line) && Lazy.head line /= '#'
 
     lsExisting <- filter hasContent . mconcat <$> traverse (fmap Lazy.lines <<< readFile) filesHyphenated
 
     let mapExisting = HashMap.fromList $ (\w -> (replace "|" "" w, w)) . Lazy.toStrict <$> lsExisting
-
 
     nLines <- wcl fileInput
     putStrLn
@@ -137,6 +140,8 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
         <> show nLines
         <> " lines)"
     ls <- Lazy.lines <$> readFile fileInput
+
+    putStrLn $ "Writing to " <> fileOutput
     appendLine fileOutput $ "# " <> Lazy.pack
         (formatTime defaultTimeLocale "%y%m%d-%T" now)
 
@@ -146,19 +151,36 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
               Nothing -> Lazy.intercalate "|" $ Lazy.pack <$> KL.hyphenate (KL.languageHyphenator lang') (Lazy.unpack l)
         appendLine fileOutput hyph
 
+    nLO <- wcl fileOutput
+    putStrLn $ fileOutput <> " (" <> show nLO <> " lines) written."
+
 sortByFrequency :: OptionsSort -> IO ()
 sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
+
+    nLI <- wcl fileInput
+    putStrLn
+        $  "Reading words from file "
+        <> fileInput
+        <> " ("
+        <> show nLI
+        <> " lines)"
     ls    <- Lazy.lines <$> readFile fileInput
+
     freqs <- readFrequencies
+
+    putStr "Sorting ..."
     let sorted = sortOn
             (Down <<< freq freqs <<< replace "|" "" <<< Lazy.toStrict)
             ls
+    putStrLn " done."
+    putStrLn $ "Writing file " <> fileOutput
     writeFile fileOutput $ Lazy.unlines sorted
   where
     -- | word frequencies from UNI Leipzig based on
     --   35 Mio. sentences
     readFrequencies :: IO (HashMap Text Int)
     readFrequencies = do
+        putStrLn $  "Reading frequency data from " <> fileFrequencies
         ls <- Lazy.lines <$> readFile fileFrequencies
         let acc m l = case Lazy.head l of
                 '#' -> m

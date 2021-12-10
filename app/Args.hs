@@ -162,8 +162,7 @@ optsHyphenate =
         <|> (OHyphArg <$> lang <*> arg argHlp)
   where
 
-    fileInput = option
-        auto
+    fileInput = strOption
         (  long "file-input"
         <> short 'i'
         <> value "german.utf8.dic"
@@ -172,16 +171,16 @@ optsHyphenate =
         <> showDefault
         )
 
-    fileHyphenated = option
-        auto
-        (  long "files-hyphenated"
+    fileHyphenated = strOption
+        (  long "file-hyphenated"
         <> short 'h'
         -- <> value "hyphenated-prepared.txt" -- causes run time memory leak, probably in combination with `some`
         <> help
-               "A list of files that contain hyphenated words. Any word that \
-               \appears in one of these files won't be hyphenated again and the \
-               \the hyphenation information will be taken from this file. \
-               \E.g.: \"hyphenated-prepared.txt\"."
+               "A file that contain hyphenated words. Any word that \
+               \appears in the file won't be hyphenated again and the \
+               \hyphenation information will be taken from this file. \
+               \Use this flag various time to add more than one file, \
+               \e.g.: \"-h hyphenated-prepared.txt -h hyphenated-checked.txt\"."
         <> metavar "FILE"
         <> showDefault
         )
@@ -246,28 +245,28 @@ stenoWordsInfo =
 optsSort :: Parser OptionsSort
 optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
   where
-    fileInput = option
-        auto
+    fileInput = strOption
         (  long "file-input"
-        <> value "words.txt"
+        <> short 'i'
+        <> value "hyphenated.txt"
         <> help "Input file with lines containing one word each."
         <> metavar "FILE"
         <> showDefault
         )
 
-    fileFrequencyData = option
-        auto
+    fileFrequencyData = strOption
         (  long "file-frequency-data"
+        <> short 'f'
         <> value "deu_news_2020_freq.txt"
         <> help "Frequency data file."
         <> metavar "FILE"
         <> showDefault
         )
 
-    fileOutput = option
-        auto
+    fileOutput = strOption
         (  long "file-output"
-        <> value "words-sorted.txt"
+        <> short 'o'
+        <> value "hyphenated-sorted.txt"
         <> help
                "Output file with lines containing one word each, sorted by frequency in descending order."
         <> metavar "FILE"

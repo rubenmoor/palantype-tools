@@ -24,7 +24,7 @@ Languages differ in important details.
   4. English and french foreign words are rare enough within German to be dealt with as exceptions.
      This allows to base the steno of foreign words on pronounciation.
      The alternative would imply additional rules for each foreign language.
-     
+
 The frequency of so called phonems is important.
 Even though Palantype DE is built based on ortography,
 decisions need to be made on how to map all existing letters of some language
@@ -80,24 +80,39 @@ with only the most frequent words.
 This way you can produce quick results on a limited set of words.
 You can then check the output and iterate quickly (e.g. change the steno layout)
 before you move on to the complete set of all words.
-    
+
 ### 5. Hyphenate
 
 You can feed a list of words into `palantype-ops` to produce hyphenation information.
 
-    $> TODO
-    
+    $> palantype-ops hyphenate --help
+    $> palantype-ops hyphenate --file-input words.txt
+
 In my experience, the algorithmic hyphenation isn't 100% accurate.
 Checking and correctiong thousands of words for correct hyphenation is tiring, but for the most frequent words
 it's probably worthwhile.
 For more than 10'000 thousand words, a complete revision doesn't seem sensible.
 Rather, be prepared to encounter weird or wrong steno once in a while.
 When the cause of the weird steno is bad hyphenation, you can add the correct hyphenation
-manually.
+manually to a file, e.g. `hyphenated-checked.txt`. You can add this file to
+the aforementioned command to make sure, your corrections take precedence
+over the algorithmic hyphenation:
 
-    $> TODO
+    $> palantype-ops hyphenate -h hyphenated-checked --file-input words.txt
 
-### 6. Build dictionary
+### 6. Sorting the word list
+
+In order to put words that have a high natural frequency
+on top, you can sort any file. You need the frequency information, however.
+The order of the words also affects the collision resolution, i.e.
+ambiguous steno code. Usually, there are various ways to type a word and
+collisions can be resolved. The higher up the word in the list,
+the more efficient steno it will get in case of a collision.
+
+    $> palantype-ops sort --help
+    $> palantype-ops sort --file-frequency-data freq.txt
+
+### 7. Build dictionary
 
 Keep building small dictionary on a limited set of words and iteratively improve
 
@@ -105,6 +120,6 @@ Keep building small dictionary on a limited set of words and iteratively improve
     2. the steno key layout
     3. the primitives
     4. the exceptions
-    
+
 Once you reach some 100'000+ words in the steno dictionary, think about publishing
 your system as plover plug-in.
