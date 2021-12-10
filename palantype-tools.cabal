@@ -25,8 +25,9 @@ library
     exposed-modules:
         Palantype.Tools.Statistics
         Palantype.Tools.Steno
-        Palantype.Tools.Syllables
+        Palantype.Tools.Prepare
         Palantype.Tools.Collision
+        Palantype.Tools.Hyphenate
 
     build-depends:
         base ^>=4.13.0.0
@@ -73,9 +74,10 @@ executable palantype-ops
 
     other-modules:
         Args
+      , BuildDict
+      , Common
       , WCL
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
+      , RunPrepare
 
     build-depends:
         base ^>=4.13.0.0

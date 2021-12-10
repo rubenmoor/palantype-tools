@@ -25,9 +25,8 @@
 //       shows up at greediness 1
 //     * 2 corresponds to "greedier" patterns, e.g. patterns that make use of the steno key n
 //       to increase efficiency (less chords per letter)
-//     * ideally, G1-patterns don't cause any ambiguity or confusion (tbd.)
-//     * 3 should correspond to advanced patterns that, ideally, increase efficiency
-//       but occasionally result in unintuitive patterns
+//     * 3 introduces even more efficiency
+       * 4 makes use of the n and s key
 //   * the order of the entries does not matter, but should stay lexicographic for readability
 //   * patterns for words (or syllables) of english or french origin,
 //     are at the bottom (this isn't a 100% accurate)

@@ -49,6 +49,9 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromText
                                                 )
 
+resolveCollision :: Text -> Text -> Text
+resolveCollision str _ = str
+
 -- | word frequencies from UNI Leipzig based on
 --   35 Mio. sentences
 readFrequencies :: IO (HashMap Text Int)
