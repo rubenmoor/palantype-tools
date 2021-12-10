@@ -4,7 +4,7 @@
 module Palantype.Tools.Collision where
 
 import           Control.Applicative            ( (<$>)
-                                                , Applicative(pure)
+
                                                 )
 import           Control.Category               ( Category((.), id) )
 import           Data.Bool                      ( (&&) )
@@ -30,49 +30,21 @@ import           Data.Ord                       ( Down(Down)
                                                 , comparing
                                                 )
 import           Data.Semigroup                 ( (<>) )
-import qualified Data.Text                     as Text
 import           Data.Text                      ( Text
                                                 , intercalate
                                                 , toLower
-                                                , toUpper
+
                                                 )
-import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile )
 import           Data.Tuple                     ( snd )
 import           GHC.Err                        ( error )
-import           GHC.Num                        ( Num((+)) )
 import           Palantype.Common.RawSteno      ( RawSteno )
 import           Palantype.Tools.Steno          ( Path )
-import           System.IO                      ( IO )
-import           Text.Read                      ( read )
 import           TextShow                       ( TextShow(showb, showt)
                                                 , fromText
                                                 )
 
 resolveCollision :: Text -> Text -> Text
 resolveCollision str _ = str
-
--- | word frequencies from UNI Leipzig based on
---   35 Mio. sentences
-readFrequencies :: IO (HashMap Text Int)
-readFrequencies = do
-    ls <- Lazy.lines <$> readFile "deu_news_2020_freq.txt"
-    let acc m l = case Lazy.head l of
-            '#' -> m
-            _   -> case Lazy.splitOn "\t" l of
-                [w, strFrequency] -> HashMap.insert
-                    (Lazy.toStrict w)
-                    (read $ Lazy.unpack strFrequency)
-                    m
-                _ -> error $ "could not read: " <> Lazy.unpack l
-    pure $ foldl' acc HashMap.empty ls
-
-freq :: HashMap Text Int -> Text -> Int
-freq freqs w =
-    let lc = toLower w
-        c  = toUpper (Text.singleton $ Text.head lc) <> Text.tail w
-    in  freq' lc + freq' c
-    where freq' word = fromMaybe 0 (HashMap.lookup word freqs)
 
 data StateCollision = StateCollision
     { stcLsStenoWord   :: [(RawSteno, Text)]
@@ -174,9 +146,10 @@ resolveCollisions freqs mapWordStenos mapStenoWords =
                     h : ts ->
                         let
                             (_, winner) :| runnerUps =
-                                NonEmpty.sortBy
-                                        (comparing $ Down . freq freqs . snd)
-                                    $  h
+                                -- NonEmpty.sortBy
+                                --      (comparing $ Down . freq freqs . snd)
+                                --   $ h
+                                       h
                                     :| ts
                             acc' (map, ls) ru =
                                 let (m'', mLoser) =
@@ -203,6 +176,8 @@ resolveCollisions freqs mapWordStenos mapStenoWords =
         length $ fromMaybe (error "nAlternatives: impossible") $ HashMap.lookup
             word
             m
+
+    freq _ _ = 0
 
     -- | remove an alternative, because it's been used for another word
     --   if there are no more alternatives, the word becomes a loser

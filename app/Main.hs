@@ -15,7 +15,7 @@ import           Data.Bool                      ( (&&)
                                                 )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((/=)) )
-import           Data.Foldable                  ( Foldable(maximum)
+import           Data.Foldable                  ( Foldable(maximum, foldl')
                                                 , for_
                                                 , traverse_
                                                 )
@@ -24,17 +24,16 @@ import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
 import qualified Data.HashSet                  as HashSet
-import           Data.List                      ( filter )
+import           Data.List                      ( filter, sortOn )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
                                                 )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, toLower, toUpper )
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as StrictIO
 import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile )
+import           Data.Text.Lazy.IO              ( readFile, writeFile )
 import           Data.Text.Lazy.Read            ( double )
-import           Data.Time                      ( UTCTime )
 import           Data.Time.Clock                ( getCurrentTime )
 import           Data.Time.Format               ( defaultTimeLocale
                                                 , formatTime
@@ -64,7 +63,7 @@ import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart
                                                     ( OSCHistScores
                                                     )
-                                                , OptionsSort
+                                                , OptionsSort (..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
@@ -72,6 +71,13 @@ import           BuildDict                      ( buildDict )
 import           Common                         ( appendLine, fileScores )
 import           RunPrepare                     ( prepare )
 import           WCL                            ( wcl )
+import Data.HashMap.Strict (HashMap)
+import Data.Int (Int)
+import qualified Data.HashMap.Strict as HashMap
+import Text.Read
+import GHC.Num (Num((+)))
+import Data.Maybe (fromMaybe)
+import Data.Ord (Down(Down))
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -133,7 +139,34 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
             <$> KL.hyphenate (KL.languageHyphenator lang') (Lazy.unpack l)
 
 sortByFrequency :: OptionsSort -> IO ()
-sortByFrequency _ = pure ()
+sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
+    ls <- Lazy.lines <$> readFile fileInput
+    freqs <- readFrequencies
+    let sorted = sortOn (Down <<< freq freqs <<< Lazy.toStrict) ls
+    writeFile fileOutput $ Lazy.unlines sorted
+  where
+    -- | word frequencies from UNI Leipzig based on
+    --   35 Mio. sentences
+    readFrequencies :: IO (HashMap Text Int)
+    readFrequencies = do
+        ls <- Lazy.lines <$> readFile fileFrequencies
+        let acc m l = case Lazy.head l of
+                '#' -> m
+                _   -> case Lazy.splitOn "\t" l of
+                    [w, strFrequency] -> HashMap.insert
+                        (Lazy.toStrict w)
+                        (read $ Lazy.unpack strFrequency)
+                        m
+                    _ -> error $ "could not read: " <> Lazy.unpack l
+        pure $ foldl' acc HashMap.empty ls
+
+    freq :: HashMap Text Int -> Text -> Int
+    freq freqs w =
+        let lc = toLower w
+            c  = toUpper (Text.singleton $ Text.head lc) <> Text.tail w
+        in  freq' lc + freq' c
+        where freq' word = fromMaybe 0 (HashMap.lookup word freqs)
+
 
 readScores :: FilePath -> IO [Double]
 readScores file = do
