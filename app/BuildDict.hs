@@ -7,12 +7,13 @@ module BuildDict where
 
 import           Args                           ( OptionsStenoDict(..) )
 import           Common                         ( appendLine
-                                                , freq
-                                                , readFrequencies
-                                                , removeFiles, writeJSONFile
+                                                , removeFiles
+                                                , writeJSONFile
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import Control.Category ( (<<<), Category(id), Category((.)) )
+import           Control.Category               ( (<<<), Category ((.)) )
+import           Control.Concurrent             ( getNumCapabilities )
+import           Control.Concurrent.Async       ( forConcurrently )
 import           Control.Monad                  ( foldM
                                                 , when
                                                 )
@@ -25,22 +26,27 @@ import           Data.Foldable                  ( Foldable(foldl', length)
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( ($>)
-                                                , (<$>), Functor (fmap)
+                                                , (<$>)
+                                                , Functor(fmap)
                                                 )
 import qualified Data.HashMap.Strict           as HashMap
+import qualified Data.HashSet                  as HashSet
 import           Data.Int                       ( Int )
-import           Data.List                      ( (++)
-                                                , sortOn, zip
-                                                )
+import           Data.List                      ( (++) )
+import           Data.List.Split                ( chunksOf )
 import           Data.Maybe                     ( Maybe(..)
-                                                , fromMaybe, catMaybes
+                                                , catMaybes
+                                                , fromMaybe
                                                 )
-import           Data.Monoid                    ( (<>), Monoid (mconcat) )
-import           Data.Ord                       ( Down(Down) )
+import           Data.Monoid                    ( (<>)
+                                                , Monoid(mconcat)
+                                                )
+import qualified Data.Text                     as Text
+import           Data.Text                      ( Text )
 import qualified Data.Text.IO                  as StrictIO
 import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile, writeFile )
-import           Data.Tuple                     ( snd )
+import           Data.Text.Lazy.IO              ( readFile )
+import           Data.Traversable               ( for )
 import           Formatting                     ( (%)
                                                 , fprint
                                                 )
@@ -50,9 +56,12 @@ import           GHC.Float                      ( Double )
 import           GHC.Num                        ( (+) )
 import           GHC.Real                       ( Fractional((/))
                                                 , Real
-                                                , realToFrac, RealFrac (ceiling), fromIntegral
+                                                , RealFrac(ceiling)
+                                                , fromIntegral
+                                                , realToFrac
                                                 )
 import           Palantype.Common               ( Lang(DE, EN) )
+import           Palantype.Common.RawSteno      ( RawSteno )
 import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
 import qualified Palantype.Tools.Collision     as Collision
@@ -75,14 +84,6 @@ import           TextShow                       ( TextShow(showt)
                                                 , showtl
                                                 )
 import           WCL                            ( wcl )
-import qualified Data.Text as Text
-import qualified Data.HashSet as HashSet
-import Data.Traversable (for)
-import Data.Text (Text)
-import Palantype.Common.RawSteno (RawSteno)
-import Control.Concurrent (getNumCapabilities)
-import Data.List.Split (chunksOf)
-import Control.Concurrent.Async (forConcurrently)
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -113,16 +114,12 @@ buildDict (OStDFile fileInput fileOutput lang) = do
     start <- getTime Monotonic
 
     let lsFiles =
-            [ fileDictNoParse
-            , fileDictDuplicates
-            , fileLost
-            , fileCollisions
-            ]
+            [fileDictNoParse, fileDictDuplicates, fileLost, fileCollisions]
     removeFiles lsFiles
 
     -- initial state with existing steno in output file
     fileExistsOutput <- doesFileExist fileOutput
-    mapStenoWord  <- if fileExistsOutput
+    mapStenoWord     <- if fileExistsOutput
         then do
             nLO <- wcl fileOutput
             putStrLn
@@ -193,30 +190,31 @@ buildDict (OStDFile fileInput fileOutput lang) = do
 
         lsStenos <- fmap mconcat $ forConcurrently jobs $ \hyphs ->
             fmap catMaybes $ for hyphs $ \hyph -> do
-                let
-                    hyph' = Lazy.toStrict hyph
-                    word' = Text.replace "|" "" hyph'
-                    word       = Lazy.fromStrict word'
-                    eRaws = parseSeries' hyph'
-                    mExisting  = HashMap.lookup word' mapWordStenosExisting
+                let hyph'     = Lazy.toStrict hyph
+                    word'     = Text.replace "|" "" hyph'
+                    word      = Lazy.fromStrict word'
+                    eRaws     = parseSeries' hyph'
+                    mExisting = HashMap.lookup word' mapWordStenosExisting
 
                 case (eRaws, mExisting) of
-                    (_, Just stenos) -> pure $ Just (hyph', stenos)
-                    (Right stenos, _) -> pure $ Just (hyph', stenos)
-                    (Left  (PEExceptionTable orig), _) -> print ("Error in exception table for: " <> orig) $> Nothing
-                    (Left (PEParsec _ _ ), _) -> appendLine fileDictNoParse word $> Nothing
+                    (_           , Just stenos) -> pure $ Just (hyph', stenos)
+                    (Right stenos, _          ) -> pure $ Just (hyph', stenos)
+                    (Left (PEExceptionTable orig), _) ->
+                        print ("Error in exception table for: " <> orig)
+                            $> Nothing
+                    (Left (PEParsec _ _), _) ->
+                        appendLine fileDictNoParse word $> Nothing
 
         let
             --      collision resolution stays sequential
             accDict :: DictState -> (Text, [RawSteno]) -> IO DictState
             accDict dst@DictState {..} (hyph', raws) = do
-                let
-                    word'       = Text.replace "|" "" hyph'
+                let word'      = Text.replace "|" "" hyph'
                     word       = Lazy.fromStrict word'
                     mDuplicate = HashMap.lookup word' dstMapWordStenos
 
                 case mDuplicate of
-                    Just _ -> appendLine fileDictDuplicates word $> dst
+                    Just _  -> appendLine fileDictDuplicates word $> dst
                     Nothing -> do
                         let (_, dst', isLost) = foldl'
                                 (Collision.resolve word')
@@ -230,15 +228,20 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                         pure dst'
 
         StrictIO.putStrLn "Resolving collisions ..."
-        DictState {..} <- foldM accDict (DictState HashMap.empty HashMap.empty) lsStenos
+        DictState {..} <- foldM accDict
+                                (DictState HashMap.empty HashMap.empty)
+                                lsStenos
 
         -- checking for lost words
         putStrLn $ "Writing lost words to " <> fileLost
-        let setAll = HashSet.fromList $ Text.replace "|" "" . Lazy.toStrict <$> ls
-        StrictIO.putStrLn $ "Number of unique words: " <> showt (HashSet.size setAll)
-        for_ (HashSet.toList setAll) $ \w -> case HashMap.lookup w dstMapWordStenos of
-          Just _ -> pure ()
-          Nothing -> appendLine fileLost (Lazy.fromStrict w)
+        let setAll =
+                HashSet.fromList $ Text.replace "|" "" . Lazy.toStrict <$> ls
+        StrictIO.putStrLn $ "Number of unique words: " <> showt
+            (HashSet.size setAll)
+        for_ (HashSet.toList setAll) $ \w ->
+            case HashMap.lookup w dstMapWordStenos of
+                Just _  -> pure ()
+                Nothing -> appendLine fileLost (Lazy.fromStrict w)
 
         removeFiles [fileOutput]
 
@@ -246,7 +249,12 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         writeJSONFile fileOutput $ HashMap.toList dstMapStenoWord
 
         nLO <- wcl fileOutput
-        StrictIO.putStrLn $ "Written " <> Text.pack fileOutput <> " ( " <> showt nLO <> " lines)"
+        StrictIO.putStrLn
+            $  "Written "
+            <> Text.pack fileOutput
+            <> " ( "
+            <> showt nLO
+            <> " lines)"
         -- TODO
         -- check for double entries in the final result
 
