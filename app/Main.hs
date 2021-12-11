@@ -3,7 +3,6 @@
 
 module Main where
 
-import           Control.Applicative            ( Applicative(pure) )
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
@@ -14,10 +13,10 @@ import           Data.Bool                      ( (&&)
                                                 , not
                                                 )
 import           Data.Either                    ( Either(..) )
-import           Data.Eq                        ( Eq((/=)) )
-import           Data.Foldable                  ( Foldable(foldl', maximum)
+import           Data.Eq                        ( Eq((/=), (==)) )
+import           Data.Foldable                  ( Foldable(maximum)
                                                 , for_
-                                                , traverse_
+
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
@@ -57,14 +56,14 @@ import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           System.Directory               ( listDirectory )
 import           System.FilePath                ( (</>)
                                                 , FilePath
-                                                , takeDirectory
+                                                , takeDirectory, takeExtension
                                                 )
 import           System.IO                      ( IO
                                                 , putStrLn, putStr
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
-import           TextShow                       ( TextShow(showt) )
+import           TextShow                       ( TextShow(showt, showtl) )
 
 import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart
@@ -77,15 +76,15 @@ import           Args                           ( OptionsHyphenate(..)
 import           BuildDict                      ( buildDict )
 import           Common                         ( appendLine
                                                 , fileScores, removeFiles
+                                                , freq, readFrequencies, writeJSONFile
                                                 )
-import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
-import           Data.Int                       ( Int )
-import           Data.Maybe                     ( fromMaybe, Maybe (..) )
+import           Data.Maybe                     ( Maybe (..), fromMaybe )
 import           Data.Ord                       ( Down(Down) )
 import           RunPrepare                     ( prepare )
-import           Text.Read
 import           WCL                            ( wcl )
+import qualified Data.Aeson as Aeson
+import Data.Tuple (snd)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -164,37 +163,28 @@ sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
         <> " ("
         <> show nLI
         <> " lines)"
-    ls    <- Lazy.lines <$> readFile fileInput
 
-    freqs <- readFrequencies
+    freqs <- readFrequencies fileFrequencies
 
-    putStr "Sorting ..."
-    let sorted = sortOn
-            (Down <<< freq freqs <<< replace "|" "" <<< Lazy.toStrict)
-            ls
-    putStrLn " done."
-    putStrLn $ "Writing file " <> fileOutput
-    writeFile fileOutput $ Lazy.unlines sorted
-  where
-    -- | word frequencies from UNI Leipzig based on
-    --   35 Mio. sentences
-    readFrequencies :: IO (HashMap Text Int)
-    readFrequencies = do
-        putStrLn $  "Reading frequency data from " <> fileFrequencies
-        ls <- Lazy.lines <$> readFile fileFrequencies
-        let acc m l = case Lazy.head l of
-                '#' -> m
-                _   -> case Lazy.splitOn "\t" l of
-                    [w, strFrequency] -> HashMap.insert
-                        (Lazy.toStrict w)
-                        (read $ Lazy.unpack strFrequency)
-                        m
-                    _ -> error $ "could not read: " <> Lazy.unpack l
-        pure $ foldl' acc HashMap.empty ls
+    if takeExtension fileInput == ".json"
+        then do
+            ls <- HashMap.toList . fromMaybe (error "Could not decode json file") <$> Aeson.decodeFileStrict' fileInput
 
-    freq :: HashMap Text Int -> Text -> Int
-    freq freqs w = fromMaybe 0 $ HashMap.lookup w freqs
+            StrictIO.putStr "Sorting ..."
+            let sorted = sortOn (Down <<< freq freqs <<< snd) ls
+            StrictIO.putStrLn " done."
 
+            writeJSONFile fileOutput sorted
+        else do
+            ls <- Lazy.lines <$> readFile fileInput
+
+            StrictIO.putStr "Sorting ..."
+            let sorted = sortOn
+                    (Down <<< freq freqs <<< replace "|" "" <<< Lazy.toStrict)
+                    ls
+            StrictIO.putStrLn " done."
+            StrictIO.putStrLn $ "Writing file " <> Text.pack fileOutput
+            writeFile fileOutput $ Lazy.unlines sorted
 
 readScores :: FilePath -> IO [Double]
 readScores file = do

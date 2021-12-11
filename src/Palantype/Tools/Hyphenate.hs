@@ -9,9 +9,13 @@ import           Data.Text                      ( Text )
 import           TextShow                       ( TextShow(showb)
                                                 , fromText
                                                 )
+import Control.Category ((<<<))
 
 newtype Hyphenated = Hyphenated { unHyphenated :: [Text] }
   deriving stock Eq
 
 instance TextShow Hyphenated where
     showb (Hyphenated txts) = fromText (mconcat $ intersperse "|" txts)
+
+toWord :: Hyphenated -> Text
+toWord = mconcat <<< unHyphenated

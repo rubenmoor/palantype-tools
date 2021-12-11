@@ -8,8 +8,10 @@ module Args
     , argOpts
     ) where
 
+import Data.Maybe (Maybe)
 import           Control.Applicative
 import           Data.Monoid                    ( Monoid(mempty) )
+import Data.Function (($))
 import           Data.Semigroup                 ( (<>) )
 import           Data.String                    ( String )
 import           Data.Text                      ( Text )
@@ -128,8 +130,7 @@ optsPrepare =
         = "Extract syllable patterns from one single line of the format: \
           \Direktive >>> Di|rek|ti|ve, die; -, -n (Weisung; Verhaltensregel)"
 
-    fileInput = option
-        auto
+    fileInput = strOption
         (  long "file-input"
         <> short 'i'
         <> value "entries.txt"
@@ -139,8 +140,7 @@ optsPrepare =
         <> showDefault
         )
 
-    fileOutput = option
-        auto
+    fileOutput = strOption
         (  long "file-output"
         <> short 'o'
         <> value "hyphenated-prepared.txt"
@@ -185,8 +185,7 @@ optsHyphenate =
         <> showDefault
         )
 
-    fileOutput = option
-        auto
+    fileOutput = strOption
         (  long "file-output"
         <> short 'o'
         <> value "hyphenated.txt"
@@ -214,8 +213,7 @@ optsStenoDict =
         = "Parse one word into a series of steno chords. The format is: \
           \\"Di|rek|ti|ve\"."
 
-    fileInput = option
-        auto
+    fileInput = strOption
         (  long "file-input"
         <> short 'i'
         <> value "hyphenated.txt"
@@ -225,8 +223,7 @@ optsStenoDict =
         <> showDefault
         )
 
-    fileOutput = option
-        auto
+    fileOutput = strOption
         (  long "file-output"
         <> short 'o'
         <> value "palantype.json"
@@ -249,7 +246,9 @@ optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
         (  long "file-input"
         <> short 'i'
         <> value "hyphenated.txt"
-        <> help "Input file with lines containing one word each."
+        <> help "Input file: Either a text file with lines containing one word \
+                \each or a JSON file (.json) with a dictionary of type STENO: \
+                \WORD."
         <> metavar "FILE"
         <> showDefault
         )
@@ -279,7 +278,9 @@ sortInfo =
     progDesc
         "Given a file with frequency information in the format WORD NUMBER, \
         \where NUMBER is the frequency, sort any file that contains words by \
-        \frequency, descending. The | symbol in words is ignored."
+        \frequency, descending. The | symbol in words is ignored. Files with \
+        \.json ending are expected to be dictionaries of type: STENO: WORD, \
+        \and are sorted by word frequency."
 
 optsShowChart :: Parser OptionsShowChart
 optsShowChart = pure OSCHistScores

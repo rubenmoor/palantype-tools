@@ -7,7 +7,10 @@
 , "Birne"     : "B~I+/NE"      // < Biene
 , "Bismark"   : "BIS/MAÜ+K"    // < Bismarck
 , "Borschtsch": "B~OʃD"
+, "Bouquet"   : "BU/GDE"
+, "Crêpe"     : "GDREP"
 // , "CO2"       : "GDMO+S"
+, "dass"      : "DAs"          // < das
 , "Dike"      : "D~I/GDE"      // < Dicke
 , "dm"        : "D/M"          // < dem
 , "Düne"      : "DÜ/NE"        // < Dünne
@@ -17,6 +20,7 @@
 , "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
 , "gebiert"   : "GE/B~I+D"     // < Gebiet
 , "Görz"      : "G~O+S"        // < Götz
+, "glamourös" : "GLA/MU/RÄOS"
 , "gram"      : "GRAÜM"        // < Gramm
 , "haken"     : "HAÜ/Kn"       // < hacken
 , "Ham"       : "HÄM"
@@ -45,6 +49,7 @@
 , "Lindbergh" : "LIND/BEÜK"    
 , "litt"      : "LI+D"         // < Lid
 , "Lit"       : "L~I+D"        // < Lied
+, "Madame"    : "MA/DAM"
 , "muh"       : "M~U+"         // < Mur
 , "Mus"       : "M~US"         // < muss
 , "Nietnagel" : "N~I+D/NA/GEL" // < Niednagel

@@ -36,7 +36,7 @@ import           Formatting                     ( (%)
                                                 , fprint
                                                 )
 import           Formatting.Clock               ( timeSpecs )
-import           Palantype.Tools.Hyphenate      ( Hyphenated(Hyphenated) )
+import           Palantype.Tools.Hyphenate      ( Hyphenated(Hyphenated), toWord )
 import           Palantype.Tools.Prepare        ( Exception(..)
                                                 , Result(..)
                                                 , parseEntry
@@ -121,7 +121,7 @@ prepare (OPrepFile fileInput fileOutput) = do
                             print err
                             appendLine filePrepareNoParse entry
                             pure Nothing
-                        Success   txts -> pure $ Just (entry', txts)
+                        Success   txts -> pure $ Just (toWord txts, txts)
                         Exception exc  -> Nothing <$ case exc of
                             ExceptionAbbreviation ->
                                 appendLine filePrepareAbbreviations entry
