@@ -49,6 +49,10 @@
 , "Lindbergh" : "LIND/BEÜK"    
 , "litt"      : "LI+D"         // < Lid
 , "Lit"       : "L~I+D"        // < Lied
+, "Log"       : "LO+K"         // < Lok
+, "Logbuch"   : "LOK/BUKʃ"
+, "Logdatei"  : "LOK/DA/DJEI"
+, "Logfile"   : "LOK/FAIL"
 , "Madame"    : "MA/DAM"
 , "muh"       : "M~U+"         // < Mur
 , "Mus"       : "M~US"         // < muss
