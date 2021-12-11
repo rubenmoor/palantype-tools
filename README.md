@@ -4,7 +4,7 @@ Create a steno dictionary for palantype style steno systems,
 i.e. a steno system that works well with any keyboard,
 as long as it supports n-key roll-over (cf. https://en.wikipedia.org/wiki/Rollover_(keyboard)).
 
-## WIP main workflow
+## Main Workflow
 
 ### 1. Research the language
 
@@ -28,7 +28,8 @@ Languages differ in important details.
 The frequency of so called phonems is important.
 Even though Palantype DE is built based on ortography,
 decisions need to be made on how to map all existing letters of some language
-on the 30 (or 32) steno keys.
+on the 30 (or 32) steno keys.        lsStenos
+
 Some choices are obvious and follow the nature of the language,
 e.g. the German "sch" is treated as a single steno key 'ʃ'.
 Other choices are entirely pragmatic, e.g. the suffixes "-en" and "-s" have their
@@ -38,7 +39,7 @@ The steno home row is filled with keys that are used with high frequency.
 Those are those keys that are involved in phonems that have high frequency.
 Otherwise chords get unnecessary difficult.
 
-### 2. Preliminary steno keyboard layout
+### 2. Create a preliminary steno keyboard layout
 
 For German, there are only 12 keys to implement all consonants that appear
 in the onset of a syllable.
@@ -54,7 +55,7 @@ Any preliminary layout is encoded in a straightforward way in a file like this:
 
 https://github.com/rubenmoor/my-palantype/blob/main/src/Palantype/DE/Keys.hs
 
-### 3. Primitives
+### 3. Define primitives
 
 Any letter that possibly exists in some word needs to appear in the `primitives dictionary` at least once.
 
@@ -70,7 +71,7 @@ By allowing several levels of greediness, the algorithm creates alternatives
 that are sometimes simply convenient and offer more options,
 but they are also essential to collision resolution.
 
-### 4. Word list
+### 4. Organize a word list
 
 Get one or more files that contain all words of the language.
 I found an open source list of words for German here:
@@ -107,7 +108,7 @@ over the algorithmic hyphenation:
 
     $> palantype-ops hyphenate -h hyphenated-checked --file-input words.txt
 
-### 6. Sorting the word list
+### 6. Sort the word list
 
 In order to put words that have a high natural frequency
 on top, you can sort any file. You need the frequency information, however.
@@ -150,6 +151,9 @@ Keep building small dictionary on a limited set of words and iteratively improve
 Once you reach some 100'000+ words in the steno dictionary, think about publishing
 your system as plover plug-in.
 
+> Note that you can sort the dictionary, too. Just use the .json-file as input for the 
+> sort command above. Sorting can be useful, e.g. for humans who read the file, but is never necessary.
+
 ### 7. Build language-independent dictionary
 
 WIP
@@ -157,3 +161,4 @@ WIP
 At any time, you can build the dictionary of commands that are independent of language like this
 
     $> TODO
+   
