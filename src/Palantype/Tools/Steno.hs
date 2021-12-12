@@ -134,6 +134,7 @@ import           TextShow                       ( TextShow(showb, showt)
 import qualified Palantype.Common.Indices as KI
 import Palantype.Common.Dictionary (kiCapNext)
 import qualified Palantype.DE.Keys as DE
+import Data.Traversable (Traversable(sequence))
 
 type Greediness = Int
 
@@ -248,46 +249,51 @@ parseSeries
     -> Either ParseError [RawSteno]
 parseSeries hyphenated =
     case HashMap.lookup unhyphenated mapExceptions of
-        Just raw -> case Raw.parseWord @key raw of
-            Right chords -> Right [Raw.unparts $ Raw.fromChord <$> chords]
-            Left err ->
-                Left
-                    $  PEExceptionTable
-                    $  unhyphenated
-                    <> ": "
-                    <> unRawSteno raw
-                    <> "; "
-                    <> Text.pack (show err)
-        Nothing ->
-            let
-                -- calculate result for lower case word
-                str = Text.encodeUtf8 $ toLower hyphenated
-                st  = State { stStrRawSteno = ""
-                            , stNLetters   = 0
-                            , stNChords    = 1
-                            , stMFinger    = Nothing
-                            , stMLastKey   = Nothing
-                            }
-
-                lsResultLc =
-                    [0 .. 4] <&> \maxG ->
-                        ((maxG, False), ) $ optimizeStenoSeries maxG st str
-
-                lsResult = if isCapitalized hyphenated
-
-                  -- capitalized words enter as no-optimized with the
-                  -- "capitalize next word"-chord added in front
-                  -- AND as c-optimized version, w/o extra chord
-                  then let lsNoCOpt = second (mapSuccess $ addCapChord @key) <$> lsResultLc
-                           lsYesCOpt = first (second $ const True) <$> lsResultLc
-                       in  lsNoCOpt ++ lsYesCOpt
-                  else lsResultLc
-            in
-                case sortOn (Down . uncurry scoreWithG) lsResult of
-                    (_, Failure raw err) : _ -> Left $ PEParsec raw err
-                    [] -> error "impossible"
-                    ls -> Right $ filterAlts ls
+        Just raws -> sequence $ checkException <$> raws
+        Nothing -> makeSteno
   where
+    makeSteno =
+        let
+            -- calculate result for lower case word
+            str = Text.encodeUtf8 $ toLower hyphenated
+            st  = State { stStrRawSteno = ""
+                        , stNLetters   = 0
+                        , stNChords    = 1
+                        , stMFinger    = Nothing
+                        , stMLastKey   = Nothing
+                        }
+
+            lsResultLc =
+                [0 .. 4] <&> \maxG ->
+                    ((maxG, False), ) $ optimizeStenoSeries maxG st str
+
+            lsResult = if isCapitalized hyphenated
+
+              -- capitalized words enter as no-optimized with the
+              -- "capitalize next word"-chord added in front
+              -- AND as c-optimized version, w/o extra chord
+              then let lsNoCOpt = second (mapSuccess $ addCapChord @key) <$> lsResultLc
+                       lsYesCOpt = first (second $ const True) <$> lsResultLc
+                   in  lsNoCOpt ++ lsYesCOpt
+              else lsResultLc
+        in
+           case sortOn (Down . uncurry scoreWithG) lsResult of
+               (_, Failure raw err) : _ -> Left $ PEParsec raw err
+               [] -> error "impossible"
+               ls -> Right $ filterAlts ls
+
+    checkException raw = case Raw.parseWord @key raw of
+        Right chords -> Right $ Raw.unparts $ Raw.fromChord <$> chords
+        Left err ->
+            Left
+                $  PEExceptionTable
+                $  unhyphenated
+                <> ": "
+                <> unRawSteno raw
+                <> "; "
+                <> Text.pack (show err)
+
+
     unhyphenated = replace "|" "" hyphenated
 
     filterAlts []                      = []
@@ -500,7 +506,7 @@ stripComments content =
 
 -- | full word exceptions
 -- exceptions that span several chords go here
-mapExceptions :: HashMap Text RawSteno
+mapExceptions :: HashMap Text [RawSteno]
 mapExceptions =
     let str = stripComments $(embedFile "exceptions.json5")
     in  case Aeson.eitherDecodeStrict str of

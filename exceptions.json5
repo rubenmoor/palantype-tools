@@ -1,202 +1,226 @@
-{ "Aorta"     : "A/~O/DJA"
-, "Ahne"      : "A/NE"
-, "Amman"     : "AM/MAÜN"      // < Ammann
-, "Aortenklappe": "A/~O/DJEN/GDLAP/BDE"
-, "Beautyfarm": "BJU/DJI/FAÜM" // more efficient, but wrong BO
-, "Beautycase": "BJU/DJI/GDAS" // more efficient, but wrong BO
-, "Birne"     : "B~I+/NE"      // < Biene
-, "Bismark"   : "BIS/MAÜ+K"    // < Bismarck
-, "Borschtsch": "B~OʃD"
-, "Bouquet"   : "BU/GDE"
-, "Crêpe"     : "GDREP"
-// , "CO2"       : "GDMO+S"
-, "dass"      : "DAs"          // < das
-, "Dike"      : "D~I/GDE"      // < Dicke
-, "dm"        : "D/M"          // < dem
-, "Düne"      : "DÜ/NE"        // < Dünne
-, "Dr"        : "D/R"          // < der 
-, "Egge"      : "EK/G"         // < Ecke
-, "Edinburgh" : "E/DIN/B~UK"
-, "Fluorit"   : "FLU/O/RI+D"   // < Fluorid
-, "gebiert"   : "GE/B~I+D"     // < Gebiet
-, "Görz"      : "G~O+S"        // < Götz
-, "glamourös" : "GLA/MU/RÄOS"
-, "gram"      : "GRAÜM"        // < Gramm
-, "haken"     : "HAÜ/Kn"       // < hacken
-, "Ham"       : "HÄM"
-, "Hamit"     : "HA/MI+D"
-, "Haydn"     : "HAI/DN"
-, "Hertz"     : "HEÜ+Ss"       // < Herz
-, "hey"       : "HÄI"
-, "high"      : "HEI"          // < Hai
-, "Huy"       : "HÜ"
-, "Iod"       : "J~OD"         // < Jod
-, "isst"      : "ISs"          // < ist
-, "Jahnn"     : "JAÜ+N"        // < Jahn
-, "Jo-Jo"     : "J~O/HIFn/J~O" // < Yo-Yo
-, "Jot"       : "JO+D"         // < Jod
-, "Kent"      : "GDE+ND"       // < gedient
-, "kJ"        : "GD/J"
-, "knabber"   : "GDNAP/BR"     // < knapper
-, "Knigge"    : "GDNIK/G"      // < knicke
-, "Kommiss"   : "GDOM/MISs"    // < Kommis
-, "Krake"     : "GDRAÜ/GDE"    // < Kracke
-, "Krauss"    : "GDRAUSs"      // < kraus
-, "Lake"      : "LAÜ/GDE"
-, "Laos"      : "LA/OS"        // < Lars
-, "Lar"       : "LAÜ+"         // < Lahr
-, "lass"      : "LASs"         // < las
-, "Lindbergh" : "LIND/BEÜK"    
-, "litt"      : "LI+D"         // < Lid
-, "Lit"       : "L~I+D"        // < Lied
-, "Log"       : "LO+K"         // < Lok
-, "Logbuch"   : "LOK/BUKʃ"
-, "Logdatei"  : "LOK/DA/DJEI"
-, "Logfile"   : "LOK/FAIL"
-, "Madame"    : "MA/DAM"
-, "muh"       : "M~U+"         // < Mur
-, "Mus"       : "M~US"         // < muss
-, "Nietnagel" : "N~I+D/NA/GEL" // < Niednagel
-, "Oud"       : "O/UD"
-, "Piek"      : "BD~I+K"       // < Pik
-, "Pils"      : "BDI+S"        // < Pilz
-, "Rappen"    : "RAP/BDn"      // < Raben    
-, "riet"      : "R~I+D"        // < Ried
-, "Robbe"     : "ROP/B"        // < Robe
-, "roh"       : "R~O+"         // < Rohr
-, "Rur"       : "R~U+"         // < Ruhr
-, "sang"      : "SAÜ+N"        // < sank
-, "Schweiß"   : "SWEIS"        // < Schweiz
-, "sin"       : "S~IN"         // < Sinn, Abk. sinus
-, "spuken"    : "BF~U/Kn"      // < spucken
-, "sfr"       : "SW/FR"        // Abkz. Schweizer Franken
-, "Speiseopfer": "BFEI/SE/OP/FEÜ"
-, "tan"       : "DJAÜN"         // < Tann
-, "tja"       : "DJA"   
-, "Truck"     : "DJRAK"
-, "Trum"      : "DJR~UM"       // < Trumm
-, "Tyr"       : "DJ~Ü+"        // < Tür
-, "Xiomara"   : "GDJI/O/MA/RA"
-, "wer"       : "WE"
-, "weh"       : "WE+"          
+{ "aber"        : ["A/BEÜ", "A/BR", "BR"]
+, "Ahne"        : ["A/NE"]
+, "alle"        : ["AL/LE", "LL"]
+, "Aorta"       : ["A/~O/DJA"]
+, "Amman"       : ["AM/MAÜN"]      // < Ammann
+, "Aortenklappe": ["A/~O/DJEN/GDLAP/BDE"]
+, "Beautyfarm"  : ["BJU/DJI/FAÜM"] // more efficient, but wrong BO
+, "Beautycase"  : ["BJU/DJI/GDAS"] // more efficient, but wrong BO
+, "Birne"       : ["B~I+/NE"]      // < Biene
+, "Bismark"     : ["BIS/MAÜ+K"]    // < Bismarck
+, "Borschtsch"  : ["B~OʃD"]
+, "Bouquet"     : ["BU/GDE"]
+, "Crêpe"       : ["GDREP"]
+// , "CO2"      : ["GDMO+S"]
+, "dabei"       : ["DA/BEI", "DA/BI", "DAP"]
+, "dass"        : ["DAs"]          // < das
+, "die"         : ["DI"]
+, "Dike"        : ["D~I/GDE"]      // < Dicke
+, "Dr"          : ["DR"]
+, "dm"          : ["D/M"]          // < dem
+, "Düne"        : ["DÜ/NE"]        // < Dünne
+, "Dr"          : ["D/R"]          // < der 
+, "Egge"        : ["EK/G"]         // < Ecke
+, "Edinburgh"   : ["E/DIN/B~UK"]
+, "eine"        : ["EIn", "EI/NE"]
+, "einer"       : ["EI/NEÜ", "EINs"]]
+, "Fluorit"     : ["FLU/O/RI+D"]   // < Fluorid
+, "gebiert"     : ["GE/B~I+D"]     // < Gebiet
+, "Görz"        : ["G~O+S"]        // < Götz
+, "glamourös"   : ["GLA/MU/RÄOS"]
+, "gram"        : ["GRAÜM"]        // < Gramm
+, "haben"       : ["HA/BEN", "HA/BN", "HAPn"]
+, "haken"       : ["HAÜ/Kn"]       // < hacken
+, "Ham"         : ["HÄM"]
+, "Hamit"       : ["HA/MI+D"]
+, "hatte"       : ["HA+D/DJE", "HAD/DJ", "HAD/DJE", "HA+D"]
+, "Haydn"       : ["HAI/DN"]
+, "Hertz"       : ["HEÜ+Ss"]       // < Herz
+, "hey"         : ["HÄI"]
+, "hie"         : ["HI"]           // < hier
+, "high"        : ["HEI"]          // < Hai
+, "Huy"         : ["HÜ"]
+, "immer"       : ["IM/MEÜ", "IM/MR", "IMs"]
+, "Iod"         : ["J~OD"]         // < Jod
+, "isst"        : ["ISs"]          // < ist
+, "Jahnn"       : ["JAÜ+N"]        // < Jahn
+, "Jo-Jo"       : ["J~O/HIFn/J~O"] // < Yo-Yo
+, "Jot"         : ["JO+D"]         // < Jod
+, "Kent"        : ["GDE+ND"]       // < gedient
+, "kJ"          : ["GD/J"]
+, "knabber"     : ["GDNAP/BR"]     // < knapper
+, "Knigge"      : ["GDNIK/G"]      // < knicke
+, "Kommiss"     : ["GDOM/MISs"]    // < Kommis
+, "können"      : ["GDÄON/NEN", "GDÄONn"]
+, "Krake"       : ["GDRAÜ/GDE"]    // < Kracke
+, "Krauss"      : ["GDRAUSs"]      // < kraus
+, "Lake"        : ["LAÜ/GDE"]
+, "Laos"        : ["LA/OS"]        // < Lars
+, "Lar"         : ["LAÜ+"]         // < Lahr
+, "lass"        : ["LASs"]         // < las
+, "Lindbergh"   : ["LIND/BEÜK"]    
+, "litt"        : ["LI+D"]         // < Lid
+, "Lit"         : ["L~I+D"]        // < Lied
+, "Log"         : ["LO+K"]         // < Lok
+, "Logbuch"     : ["LOK/BUKʃ"]
+, "Logdatei"    : ["LOK/DA/DJEI"]
+, "Logfile"     : ["LOK/FAIL"]
+, "Madame"      : ["MA/DAM"]
+, "muh"         : ["M~U+"]         // < Mur
+, "Mus"         : ["M~US"]         // < muss
+, "Nietnagel"   : ["N~I+D/NA/GEL"] // < Niednagel
+, "oder"        : ["O/DEÜ", "O/DR", "OD"]
+, "ohne"        : ["~O/NE", "~ON"]
+, "Oud"         : ["O/UD"]
+, "Piek"        : ["BD~I+K"]       // < Pik
+, "Pils"        : ["BDI+S"]        // < Pilz
+, "Rappen"      : ["RAP/BDn"]      // < Raben    
+, "riet"        : ["R~I+D"]        // < Ried
+, "Robbe"       : ["ROP/B"]        // < Robe
+, "roh"         : ["R~O+"]         // < Rohr
+, "Rur"         : ["R~U+"]         // < Ruhr
+, "sang"        : ["SAÜ+N"]        // < sank
+, "Schweiß"     : ["SWEIS"]        // < Schweiz
+, "sin"         : ["S~IN"]         // < Sinn, Abk. sinus
+, "spuken"      : ["BF~U/Kn"]      // < spucken
+, "sfr"         : ["SW/FR"]        // Abkz. Schweizer Franken
+, "Speiseopfer" : ["BFEI/SE/OP/FEÜ"]
+, "tan"         : ["DJAÜN"]         // < Tann
+, "tja"         : ["DJA"]   
+, "Truck"       : ["DJRAK"]
+, "Trum"        : ["DJR~UM"]       // < Trumm
+, "Tyr"         : ["DJ~Ü+"]        // < Tür
+, "unter"       : ["UN/DJEÜ", "UN/DJR", "UN+D"]
+, "Xiomara"     : ["GDJI/O/MA/RA"]
+, "war"         : ["WA"]           // < wahr
+, "wen"         : ["WN", "W-N", WEÜN"]
+, "wer"         : ["WE"]
+, "werden"      : ["WR/DN", "WEÜ/DEN", "WEÜND"]
+, "wieder"      : ["W~I/DEÜ", "W~I/DR", "W~I+"]
+, "wie"         : ["WI"]
+//, "weh"         : ["WE+"]          
+//, "Wehr"
+, "wurde"       : ["W~U/DE", "W~U/D", "W~UD"]
+, "zu"          : ["SHMU", "SU"]
+, "zur"          : ["SHM~U", "S~U"]
 //
 // chemical elements shorts
-, "H" : "SJEM/H"
-, "He": "SJEM/HE"
-, "Li": "SJEM/LI"
-, "Be": "SJEM/BE"
-, "B" : "SJEM/B"
-, "C" : "SJEM/GDM"
-, "N" : "SJEM/N"
-, "O" : "SJEM/O"
-, "F" : "SJEM/F"
-, "Ne": "SJEM/NE"
-, "Na": "SJEM/NA"
-, "Mg": "SJEM/M+K"
-, "Al": "SJEM/AL"
-, "Si": "SJEM/SI"
-, "P" : "SJEM/BD"
-, "S" : "SJEM/S"
-, "Cl": "SJEM/GDML"
-, "Ar": "SJEM/AÜ"
-, "K" : "SJEM/GD"
-, "Ca": "SJEM/GDMA"
-, "Sc": "SJEM/GDJ"
-, "Ti": "SJEM/DJI"
-, "V" : "SJEM/V"
-, "Cr": "SJEM/GDMR"
-, "Mn": "SJEM/MN"
-, "Fe": "SJEM/FE"
-, "Co": "SJEM/GDMO"
-, "Ni": "SJEM/NI"
-, "Cu": "SJEM/GDMU"
-, "Zn": "SJEM/SHN"
-, "Ga": "SJEM/GA"
-, "Ge": "SJEM/GE"
-, "As": "SJEM/AS"
-, "Se": "SJEM/SE"
-, "Br": "SJEM/BR"
-, "Kr": "SJEM/GDR"
-, "Rb": "SJEM/RP"
-, "Sr": "SJEM/SR"
-, "Y" : "SJEM/J"
-, "Zr": "SJEM/SHR"
-, "Nb": "SJEM/N+P"
-, "Mo": "SJEM/MO"
-, "Tc": "SJEM/DJK"
-, "Ru": "SJEM/RU"
-, "Rh": "SJEM/R~"
-, "Pd": "SJEM/BDD"
-, "Ag": "SJEM/A+K"
-, "Cd": "SJEM/GDMD"
-, "In": "SJEM/IN"
-, "Sn": "SJEM/SN"
-, "Sb": "SJEM/SP"
-, "Te": "SJEM/DJE"
-, "I" : "SJEM/I"
-, "Xe": "SJEM/GDJE"
-, "Cs": "SJEM/GDMS"
-, "Ba": "SJEM/BA"
-, "La": "SJEM/LA"
-, "Ce": "SJEM/GDME"
-, "Pr": "SJEM/BDR"
-, "Nd": "SJEM/ND"
-, "Pm": "SJEM/BDM"
-, "Sm": "SJEM/SM"
-, "Eu": "SJEM/EU"
-, "Gd": "SJEM/G-D"
-, "Tb": "SJEM/DJP"
-, "Dy": "SJEM/DJÜ"
-, "Ho": "SJEM/HO"
-, "Er": "SJEM/EÜ"
-, "Tm": "SJEM/BDM"
-, "Yb": "SJEM/JP"
-, "Lu": "SJEM/LU"
-, "Hf": "SJEM/HF"
-, "Ta": "SJEM/DJA"
-, "W" : "SJEM/W"
-, "Re": "SJEM/RE"
-, "Os": "SJEM/OS"
-, "Ir": "SJEM/~I"
-, "Pt": "SJEM/BD+D"
-, "Au": "SJEM/AU"
-, "Hg": "SJEM/HK"
-, "Tl": "SJEM/BDL"
-, "Pb": "SJEM/BDP"
-, "Bi": "SJEM/BI"
-, "Po": "SJEM/BDO"
-, "At": "SJEM/AD"
-, "Rn": "SJEM/RN"
-, "Fr": "SJEM/FR"
-, "Ra": "SJEM/RA"
-, "Ac": "SJEM/AK"
-, "Th": "SJEM/DJ~"
-, "Pa": "SJEM/BDA"
-, "U" : "SJEM/U"
-, "Np": "SJEM/NP"
-, "Pu": "SJEM/BDU"
-, "Am": "SJEM/AM"
-, "Cm": "SJEM/GDMM"
-, "Bk": "SJEM/BK"
-, "Cf": "SJEM/GDMF"
-, "Es": "SJEM/ES"
-, "Fm": "SJEM/FM"
-, "Md": "SJEM/MD"
-, "No": "SJEM/NO"
-, "Lr": "SJEM/L~"
-, "Rf": "SJEM/RF"
-, "Db": "SJEM/DP"
-, "Sg": "SJEM/SK"
-, "Bh": "SJEM/BH"
-, "Hs": "SJEM/HS"
-, "Mt": "SJEM/M+D"
-, "Ds": "SJEM/DS"
-, "Rg": "SJEM/RG"
-, "Cn": "SJEM/GDMN"
-, "Nh": "SJEM/N~"
-, "Fl": "SJEM/FL"
-, "Mc": "SJEM/MK"
-, "Lv": "SJEM/LF"
-, "Ts": "SJEM/DJS"
-, "Og": "SJEM/OK"
+, "H" : ["SJEM/H"]
+, "He": ["SJEM/HE"]
+, "Li": ["SJEM/LI"]
+, "Be": ["SJEM/BE"]
+, "B" : ["SJEM/B"]
+, "C" : ["SJEM/GDM"]
+, "N" : ["SJEM/N"]
+, "O" : ["SJEM/O"]
+, "F" : ["SJEM/F"]
+, "Ne": ["SJEM/NE"]
+, "Na": ["SJEM/NA"]
+, "Mg": ["SJEM/M+K"]
+, "Al": ["SJEM/AL"]
+, "Si": ["SJEM/SI"]
+, "P" : ["SJEM/BD"]
+, "S" : ["SJEM/S"]
+, "Cl": ["SJEM/GDML"]
+, "Ar": ["SJEM/AÜ"]
+, "K" : ["SJEM/GD"]
+, "Ca": ["SJEM/GDMA"]
+, "Sc": ["SJEM/GDJ"]
+, "Ti": ["SJEM/DJI"]
+, "V" : ["SJEM/V"]
+, "Cr": ["SJEM/GDMR"]
+, "Mn": ["SJEM/MN"]
+, "Fe": ["SJEM/FE"]
+, "Co": ["SJEM/GDMO"]
+, "Ni": ["SJEM/NI"]
+, "Cu": ["SJEM/GDMU"]
+, "Zn": ["SJEM/SHN"]
+, "Ga": ["SJEM/GA"]
+, "Ge": ["SJEM/GE"]
+, "As": ["SJEM/AS"]
+, "Se": ["SJEM/SE"]
+, "Br": ["SJEM/BR"]
+, "Kr": ["SJEM/GDR"]
+, "Rb": ["SJEM/RP"]
+, "Sr": ["SJEM/SR"]
+, "Y" : ["SJEM/J"]
+, "Zr": ["SJEM/SHR"]
+, "Nb": ["SJEM/N+P"]
+, "Mo": ["SJEM/MO"]
+, "Tc": ["SJEM/DJK"]
+, "Ru": ["SJEM/RU"]
+, "Rh": ["SJEM/R~"]
+, "Pd": ["SJEM/BDD"]
+, "Ag": ["SJEM/A+K"]
+, "Cd": ["SJEM/GDMD"]
+, "In": ["SJEM/IN"]
+, "Sn": ["SJEM/SN"]
+, "Sb": ["SJEM/SP"]
+, "Te": ["SJEM/DJE"]
+, "I" : ["SJEM/I"]
+, "Xe": ["SJEM/GDJE"]
+, "Cs": ["SJEM/GDMS"]
+, "Ba": ["SJEM/BA"]
+, "La": ["SJEM/LA"]
+, "Ce": ["SJEM/GDME"]
+, "Pr": ["SJEM/BDR"]
+, "Nd": ["SJEM/ND"]
+, "Pm": ["SJEM/BDM"]
+, "Sm": ["SJEM/SM"]
+, "Eu": ["SJEM/EU"]
+, "Gd": ["SJEM/G-D"]
+, "Tb": ["SJEM/DJP"]
+, "Dy": ["SJEM/DJÜ"]
+, "Ho": ["SJEM/HO"]
+, "Er": ["SJEM/EÜ"]
+, "Tm": ["SJEM/BDM"]
+, "Yb": ["SJEM/JP"]
+, "Lu": ["SJEM/LU"]
+, "Hf": ["SJEM/HF"]
+, "Ta": ["SJEM/DJA"]
+, "W" : ["SJEM/W"]
+, "Re": ["SJEM/RE"]
+, "Os": ["SJEM/OS"]
+, "Ir": ["SJEM/~I"]
+, "Pt": ["SJEM/BD+D"]
+, "Au": ["SJEM/AU"]
+, "Hg": ["SJEM/HK"]
+, "Tl": ["SJEM/BDL"]
+, "Pb": ["SJEM/BDP"]
+, "Bi": ["SJEM/BI"]
+, "Po": ["SJEM/BDO"]
+, "At": ["SJEM/AD"]
+, "Rn": ["SJEM/RN"]
+, "Fr": ["SJEM/FR"]
+, "Ra": ["SJEM/RA"]
+, "Ac": ["SJEM/AK"]
+, "Th": ["SJEM/DJ~"]
+, "Pa": ["SJEM/BDA"]
+, "U" : ["SJEM/U"]
+, "Np": ["SJEM/NP"]
+, "Pu": ["SJEM/BDU"]
+, "Am": ["SJEM/AM"]
+, "Cm": ["SJEM/GDMM"]
+, "Bk": ["SJEM/BK"]
+, "Cf": ["SJEM/GDMF"]
+, "Es": ["SJEM/ES"]
+, "Fm": ["SJEM/FM"]
+, "Md": ["SJEM/MD"]
+, "No": ["SJEM/NO"]
+, "Lr": ["SJEM/L~"]
+, "Rf": ["SJEM/RF"]
+, "Db": ["SJEM/DP"]
+, "Sg": ["SJEM/SK"]
+, "Bh": ["SJEM/BH"]
+, "Hs": ["SJEM/HS"]
+, "Mt": ["SJEM/M+D"]
+, "Ds": ["SJEM/DS"]
+, "Rg": ["SJEM/RG"]
+, "Cn": ["SJEM/GDMN"]
+, "Nh": ["SJEM/N~"]
+, "Fl": ["SJEM/FL"]
+, "Mc": ["SJEM/MK"]
+, "Lv": ["SJEM/LF"]
+, "Ts": ["SJEM/DJS"]
+, "Og": ["SJEM/OK"]
 }

@@ -34,7 +34,6 @@ import           Data.Functor                   ( (<$>)
                                                 , void
                                                 )
 import           Data.List                      ( (++)
-                                                , intersperse
                                                 )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
