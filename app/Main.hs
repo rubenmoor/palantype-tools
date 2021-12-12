@@ -23,7 +23,7 @@ import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
 import           Data.List                      ( filter
-                                                , sortOn
+                                                , sortOn, head
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
@@ -172,7 +172,6 @@ sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
 
             StrictIO.putStr "Sorting ..."
             let sorted = sortOn (Down <<< freq freqs <<< snd) ls
-            StrictIO.putStrLn " done."
 
             writeJSONFile fileOutput sorted
         else do
@@ -180,7 +179,7 @@ sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
 
             StrictIO.putStr "Sorting ..."
             let sorted = sortOn
-                    (Down <<< freq freqs <<< replace "|" "" <<< Lazy.toStrict)
+                    (Down <<< freq freqs <<< replace "|" "" <<< head <<< Text.splitOn " " <<< Lazy.toStrict)
                     ls
             StrictIO.putStrLn " done."
             StrictIO.putStrLn $ "Writing file " <> Text.pack fileOutput
