@@ -23,7 +23,7 @@
 , "Egge"        : ["EK/G"]         // < Ecke
 , "Edinburgh"   : ["E/DIN/B~UK"]
 , "eine"        : ["EIn", "EI/NE"]
-, "einer"       : ["EI/NEÜ", "EINs"]]
+, "einer"       : ["EI/NEÜ", "EINs"]
 , "Fluorit"     : ["FLU/O/RI+D"]   // < Fluorid
 , "gebiert"     : ["GE/B~I+D"]     // < Gebiet
 , "Görz"        : ["G~O+S"]        // < Götz
@@ -90,10 +90,10 @@
 , "Truck"       : ["DJRAK"]
 , "Trum"        : ["DJR~UM"]       // < Trumm
 , "Tyr"         : ["DJ~Ü+"]        // < Tür
-, "unter"       : ["UN/DJEÜ", "UN/DJR", "UN+D"]
+, "unter"       : ["UN/DJEÜ", "UN/DJR", "U+ND"]
 , "Xiomara"     : ["GDJI/O/MA/RA"]
 , "war"         : ["WA"]           // < wahr
-, "wen"         : ["WN", "W-N", WEÜN"]
+, "wen"         : ["WN", "W-N", "WEÜN"]
 , "wer"         : ["WE"]
 , "werden"      : ["WR/DN", "WEÜ/DEN", "WEÜND"]
 , "wieder"      : ["W~I/DEÜ", "W~I/DR", "W~I+"]

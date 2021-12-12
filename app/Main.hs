@@ -59,11 +59,11 @@ import           System.FilePath                ( (</>)
                                                 , takeDirectory, takeExtension
                                                 )
 import           System.IO                      ( IO
-                                                , putStrLn, putStr
+                                                , putStrLn
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
-import           TextShow                       ( TextShow(showt, showtl) )
+import           TextShow                       ( TextShow(showt) )
 
 import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart

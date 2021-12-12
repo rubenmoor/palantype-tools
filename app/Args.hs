@@ -8,10 +8,8 @@ module Args
     , argOpts
     ) where
 
-import Data.Maybe (Maybe)
 import           Control.Applicative
 import           Data.Monoid                    ( Monoid(mempty) )
-import Data.Function (($))
 import           Data.Semigroup                 ( (<>) )
 import           Data.String                    ( String )
 import           Data.Text                      ( Text )
