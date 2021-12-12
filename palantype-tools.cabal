@@ -30,7 +30,7 @@ library
         Palantype.Tools.Hyphenate
 
     build-depends:
-        base ^>=4.13.0.0
+        base
       , aeson
       , bytestring
       , bytestring-trie
@@ -80,11 +80,12 @@ executable palantype-ops
       , RunPrepare
 
     build-depends:
-        base ^>=4.13.0.0
+        base
       , aeson
       , async
       , bytestring
       , clock
+      , concurrent-extra
       , containers
       , directory
       , filepath

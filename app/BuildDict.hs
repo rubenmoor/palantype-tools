@@ -14,6 +14,7 @@ import           Control.Applicative            ( Applicative(pure) )
 import           Control.Category               ( (<<<), Category ((.)) )
 import           Control.Concurrent             ( getNumCapabilities )
 import           Control.Concurrent.Async       ( forConcurrently )
+import qualified Control.Concurrent.Lock as Lock
 import           Control.Monad                  ( foldM
                                                 , when
                                                 )
@@ -188,6 +189,8 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         let d    = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
             jobs = chunksOf d ls
 
+        lock <- Lock.new
+
         lsStenos <- fmap mconcat $ forConcurrently jobs $ \hyphs ->
             fmap catMaybes $ for hyphs $ \hyph -> do
                 let hyph'     = Lazy.toStrict hyph
@@ -202,8 +205,8 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                     (Left (PEExceptionTable orig), _) ->
                         print ("Error in exception table for: " <> orig)
                             $> Nothing
-                    (Left (PEParsec _ _), _) ->
-                        appendLine fileDictNoParse word $> Nothing
+                    (Left (PEParsec _ _), _) -> do
+                        Lock.with lock $ appendLine fileDictNoParse word $> Nothing
 
         let
             --      collision resolution stays sequential
