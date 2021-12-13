@@ -19,7 +19,6 @@ import           Control.Monad                  ( foldM
                                                 , when
                                                 )
 import qualified Data.Aeson                    as Aeson
-import           Data.Bool                      ( Bool(..) )
 import           Data.Either                    ( Either(..) )
 import           Data.Foldable                  ( Foldable(foldl', length)
                                                 , for_
@@ -219,10 +218,7 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                 case mDuplicate of
                     Just _  -> appendLine fileDictDuplicates word $> dst
                     Nothing -> do
-                        let (_, dst', isLost) = foldl'
-                                (Collision.resolve word')
-                                (length raws, dst, False)
-                                raws
+                        let (dst', isLost) = Collision.resolve word' raws dst
                         when isLost
                             $  appendLine fileCollisions
                             $  word
