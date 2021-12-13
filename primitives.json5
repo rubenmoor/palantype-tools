@@ -48,6 +48,7 @@
 , [ "a|g" , [0, "AÜK"]]
 , [ "ah"  , [0, "AÜ"]]
 , [ "ahr" , [0, "AÜ"]]
+, [ "a|k", [1, "AÜ/GD"]]
 // TODO: greedier: ah|r: [0, "AÜ"]
 , [ "ar"  , [0, "AÜ"]]
 , [ "år"  , [0, "AÜ"]]          // Ux00E5
@@ -91,6 +92,7 @@
 //                              pattern eau, thus: full word exception
 , [ "bi|o", [2, "BJO"]]
 , [ "böe" , [0, "BÄO/E"]] // Böe = "Bö"
+, [ "bt"  , [0, "+PD"]]
 , [ "c"   , [0, "GDM"]]      // TODO: documentation; solution for c-/k- collisions
 , [ "c"   , [1, "GD"]]       
 , [ "c"   , [0, "+K"]]
@@ -180,7 +182,7 @@
 , [ "g|g" , [2, "G"]]
 , [ "gui" , [0, "GI"]]
 , [ "h"   , [0, "H"]]
-, [ "ha|k", [1, "HAÜ/GD"]]
+, [ "hei|ßa", [0, "HEI/SA+"]] // TODO: check if ß in the onset causes more problems
 , [ "höff", [0, "HÄO+F"]]
 , [ "i"   , [0, "I"]]
 , [ "í"   , [0, "I"]]
@@ -229,6 +231,7 @@
 , [ "mm"  , [0, "-M"]]
 , [ "m|m" , [2, "-M"]]
 , [ "me|"  , [3, "M-"]]
+, [ "mi|"  , [3, "M-"]]
 , [ "mia" , [0, "MI/A"]]
 , [ "misst", [0, "MISs"]]
 // TODO: "un" N
@@ -355,7 +358,8 @@
 , [ "tio" , [2, "DJO"]]
 , [ "tja" , [1, "DJA"]]
 , [ "ti|o", [2, "DJO"]]
-, [ "tt"  , [0, "-D"]]      // t|t isn't logically possible
+, [ "tt"  , [0, "+D"]]      // t|t isn't logically possible
+, [ "tt"  , [1, "-D"]]
 , [ "trio", [0, "DJRI/O"]]
 , [ "trio", [2, "DJRO"]]
 , [ "ts"  , [0, "SF"]]
@@ -407,6 +411,7 @@
 , [ "ver|" , [3, "F"]]
 , [ "w"   , [0, "W"]]
 , [ "w"   , [0, "-F"]]
+, [ "wieder", [3, "WI+"]]
 , [ "x"   , [0, "GDJ"]]      // TODO: documentation
 , [ "x"   , [0, "KS"]]
 , [ "y"   , [0, "J"]]
@@ -656,15 +661,15 @@
 , [ "asse" , [0, "AS"]]
 , [ "beige", [0, "BEʃ"]]
 , [ "bou|le",[0, "BU/LE"]]    // e.g. boulevard
-, [ "carte", [0, "GDAÜD"]]    // think "kart"
+, [ "carte", [0, "GDMAÜD"]]    // think "kart"
 , [ "change", [0, "SJÄINʃ"]]
 , [ "charme", [0, "SJAÜM"]]
 , [ "cierge", [0, "S~Iʃ"]]
 , [ "ci|e|rge", [0, "S~Iʃ"]]
-, [ "cole" , [0, "GDOL"]]     // e.g. Nicole
-, [ "cou|pon", [0, "GDU/BDON"]]
-, [ "creme", [0, "GDREM"]]
-, [ "coupe", [0, "GDUP"]]     // schweizerisch
+, [ "cole" , [0, "GDMOL"]]     // e.g. Nicole
+, [ "cou|pon", [0, "GDMU/BDON"]]
+, [ "creme", [0, "GDMREM"]]
+, [ "coupe", [0, "GDMUP"]]     // schweizerisch
 , [ "dou|ble", [0, "DU/BEL"]]
 , [ "eau"  , [0, "O"]]        // e.g. Chateau
 , [ "elle" , [0, "EL"]]
