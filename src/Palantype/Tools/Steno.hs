@@ -11,7 +11,12 @@
 
 module Palantype.Tools.Steno where
 
-import           Control.Applicative            ( Applicative((*>), (<*), pure, (<*>))
+import           Control.Applicative            ( Applicative
+                                                    ( (*>)
+                                                    , (<*)
+                                                    , (<*>)
+                                                    , pure
+                                                    )
                                                 )
 import           Control.Category               ( (<<<)
                                                 , Category((.))
@@ -28,12 +33,18 @@ import           Data.Aeson                     ( FromJSON(parseJSON)
                                                 )
 import qualified Data.Aeson                    as Aeson
 import           Data.Aeson.Types               ( Parser )
-import           Data.Bifunctor                 ( Bifunctor(second, first) )
-import           Data.Bool                      ( Bool(False, True), (&&), not )
-import           Data.ByteString                ( ByteString )
+import           Data.Bifunctor                 ( Bifunctor(first, second) )
+import           Data.Bool                      ( (&&)
+                                                , Bool(False, True)
+                                                , not
+                                                )
+import           Data.ByteString                ( ByteString
+                                                , isInfixOf
+                                                )
 import qualified Data.ByteString               as BS
 import           Data.Char                      ( digitToInt
-                                                , isDigit, isUpper
+                                                , isDigit
+                                                , isUpper
                                                 )
 import           Data.Either                    ( Either(Left, Right)
                                                 , isLeft
@@ -41,10 +52,12 @@ import           Data.Either                    ( Either(Left, Right)
 import           Data.Eq                        ( Eq((/=), (==)) )
 import           Data.FileEmbed                 ( embedFile )
 import           Data.Foldable                  ( Foldable
-                                                    ( length
+                                                    ( foldl'
+                                                    , length
                                                     , sum
                                                     , toList
                                                     )
+                                                , any
                                                 , maximumBy
                                                 )
 import           Data.Function                  ( ($)
@@ -63,33 +76,32 @@ import           Data.List                      ( (++)
                                                 , filter
                                                 , head
                                                 , intersperse
-
                                                 , sortOn
-
                                                 )
 import           Data.Map                       ( Map )
 import qualified Data.Map                      as Map
-import           Data.Maybe                     ( Maybe(Just, Nothing) )
+import           Data.Maybe                     ( Maybe(Just, Nothing)
+                                                , catMaybes
+                                                )
 import           Data.Monoid                    ( (<>)
-                                                , mconcat, Monoid (mempty)
+                                                , Monoid(mempty)
+                                                , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
                                                 , Ord((<=))
                                                 , comparing
                                                 )
-import           Data.Ratio                     ( Rational
-                                                )
+import           Data.Ratio                     ( Rational )
 import           Data.Text                      ( Text
-
                                                 , replace
                                                 , toLower
                                                 )
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
+import           Data.Traversable               ( Traversable(sequence) )
 import           Data.Trie                      ( Trie )
 import qualified Data.Trie                     as Trie
-import           Data.Tuple                     ( uncurry
-                                                )
+import           Data.Tuple                     ( uncurry )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -102,11 +114,13 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 )
 import           Palantype.Common               ( Finger
                                                 , Palantype
-
                                                 )
+import           Palantype.Common.Dictionary    ( kiCapNext )
+import qualified Palantype.Common.Indices      as KI
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno, unRawSteno)
                                                 )
 import qualified Palantype.Common.RawSteno     as Raw
+import qualified Palantype.DE.Keys             as DE
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
@@ -118,8 +132,9 @@ import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
                                                as Parsec
 import           Text.ParserCombinators.ReadP   ( (+++)
+                                                , option
                                                 , satisfy
-                                                , string, option
+                                                , string
                                                 )
 import           Text.Printf                    ( printf )
 import           Text.Read                      ( Read(readListPrec, readPrec)
@@ -131,16 +146,12 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import qualified Palantype.Common.Indices as KI
-import Palantype.Common.Dictionary (kiCapNext)
-import qualified Palantype.DE.Keys as DE
-import Data.Traversable (Traversable(sequence))
 
 type Greediness = Int
 
 data SeriesData = SeriesData
     { sdHyphenated :: Text
-    , sdRawSteno      :: RawSteno
+    , sdRawSteno   :: RawSteno
     , sdScore      :: Score
     , sdPath       :: Path
     }
@@ -183,9 +194,9 @@ instance Hashable Path where
     hashWithSalt s = hashWithSalt s . showt
 
 instance TextShow Path where
-    showb PathException    = fromText "Exception"
+    showb PathException = fromText "Exception"
     showb (PathOptimize g oC) =
-      fromText "Opt" <> showb g <> if oC then fromText "C" else mempty
+        fromText "Opt" <> showb g <> if oC then fromText "C" else mempty
 
 instance Read Path where
     readPrec = readP_to_Prec $ \_ -> exception +++ optimize
@@ -223,17 +234,17 @@ instance TextShow ParseError where
 isCapitalized :: Text -> Bool
 isCapitalized "" = error "isCapitalized: empty string"
 isCapitalized str =
-  let (h, rest) = Text.splitAt 1 str
-      c = head $ Text.unpack h
-  in  isUpper c && Text.toLower rest == rest
+    let (h, rest) = Text.splitAt 1 str
+        c         = head $ Text.unpack h
+    in  isUpper c && Text.toLower rest == rest
 
 {-|
 Add the "capitalize next word" chord in front
 -}
-addCapChord :: forall key. Palantype key => State key -> State key
+addCapChord :: forall key . Palantype key => State key -> State key
 addCapChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiCapNext) <> "/" <> stStrRawSteno
-    , stNChords    = stNChords + 1
+    , stNChords     = stNChords + 1
     }
 
 -- | Find steno chords for a given, hyphenated word, e.g. "Ge|sund|heit"
@@ -243,44 +254,54 @@ addCapChord st@State {..} = st
 --   or steno that uses the same number of chords or letters, but requires
 --   higher greediness
 parseSeries
-    :: forall key
-     . Palantype key
-    => Text
-    -> Either ParseError [RawSteno]
-parseSeries hyphenated =
-    case HashMap.lookup unhyphenated mapExceptions of
-        Just raws -> sequence $ checkException <$> raws
-        Nothing -> makeSteno
+    :: forall key . Palantype key => Text -> Either ParseError [RawSteno]
+parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
+    Just raws -> sequence $ checkException <$> raws
+    Nothing   -> makeSteno
   where
     makeSteno =
         let
+            (trie, patternsG) = primitives
+
             -- calculate result for lower case word
-            str = Text.encodeUtf8 $ toLower hyphenated
-            st  = State { stStrRawSteno = ""
-                        , stNLetters   = 0
-                        , stNChords    = 1
-                        , stMFinger    = Nothing
-                        , stMLastKey   = Nothing
-                        }
+            str               = Text.encodeUtf8 $ toLower hyphenated
+            st                = State { stStrRawSteno = ""
+                                      , stNLetters    = 0
+                                      , stNChords     = 1
+                                      , stMFinger     = Nothing
+                                      , stMLastKey    = Nothing
+                                      }
+
+            levels =
+                catMaybes
+                    $   patternsG
+                    <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
+                            then Just g
+                            else Nothing
 
             lsResultLc =
-                [0 .. 4] <&> \maxG ->
-                    ((maxG, False), ) $ optimizeStenoSeries maxG st str
+                levels <&> \maxG ->
+                    ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
 
             lsResult = if isCapitalized hyphenated
 
               -- capitalized words enter as no-optimized with the
               -- "capitalize next word"-chord added in front
               -- AND as c-optimized version, w/o extra chord
-              then let lsNoCOpt = second (mapSuccess $ addCapChord @key) <$> lsResultLc
-                       lsYesCOpt = first (second $ const True) <$> lsResultLc
-                   in  lsNoCOpt ++ lsYesCOpt
-              else lsResultLc
+                then
+                    let
+                        lsNoCOpt =
+                            second (mapSuccess $ addCapChord @key)
+                                <$> lsResultLc
+                        lsYesCOpt = first (second $ const True) <$> lsResultLc
+                    in
+                        lsNoCOpt ++ lsYesCOpt
+                else lsResultLc
         in
-           case sortOn (Down . uncurry scoreWithG) lsResult of
-               (_, Failure raw err) : _ -> Left $ PEParsec raw err
-               [] -> error "impossible"
-               ls -> Right $ filterAlts ls
+            case sortOn (Down . uncurry scoreWithG) lsResult of
+                (_, Failure raw err) : _ -> Left $ PEParsec raw err
+                []                       -> error "impossible"
+                ls                       -> Right $ filterAlts ls
 
     checkException raw = case Raw.parseWord @key raw of
         Right chords -> Right $ Raw.unparts $ Raw.fromChord <$> chords
@@ -299,8 +320,7 @@ parseSeries hyphenated =
     filterAlts []                      = []
     filterAlts ((_, Failure _ _) : as) = filterAlts as
     filterAlts ((_, Success state) : as) =
-        let
-            rawSteno = stStrRawSteno state
+        let rawSteno = stStrRawSteno state
             distinct (_, Failure _ _) = False
             distinct (_, Success st2) = rawSteno /= stStrRawSteno st2
         in  RawSteno rawSteno : filterAlts (filter distinct as)
@@ -309,7 +329,10 @@ parseSeries hyphenated =
 --   This scoring serves to sort the result, no result is discarded
 --   Given the efficiency of a steno code, lower greediness is preferred
 scoreWithG
-    :: forall k . (Greediness, Bool) -> Result (State k) -> (Rational, Greediness, Bool, Int)
+    :: forall k
+     . (Greediness, Bool)
+    -> Result (State k)
+    -> (Rational, Greediness, Bool, Int)
 scoreWithG (g, cOpt) result =
     let Score {..} = score result
     in  (scorePrimary, negate g, not cOpt, scoreSecondary)
@@ -367,17 +390,17 @@ instance TextShow a => TextShow (Result a) where
 
 mapSuccess :: (a -> a) -> Result a -> Result a
 mapSuccess _ r@(Failure _ _) = r
-mapSuccess f (Success x) = Success $ f x
+mapSuccess f (  Success x  ) = Success $ f x
 
 data State key = State
     -- { stPartsSteno :: [KeysOrSlash key]
     { stStrRawSteno :: Text
-    , stNLetters   :: CountLetters
-    , stNChords    :: CountChords
-    , stMFinger    :: Maybe Finger
+    , stNLetters    :: CountLetters
+    , stNChords     :: CountChords
+    , stMFinger     :: Maybe Finger
     -- | for compatibility with original palantype that relies on key order
     --   rather than on finger, because several keys per finger are allowed
-    , stMLastKey   :: Maybe key
+    , stMLastKey    :: Maybe key
     }
 
 instance Palantype key => TextShow (State key) where
@@ -425,39 +448,38 @@ score' State {..} =
 optimizeStenoSeries
     :: forall key
      . Palantype key
-    => Greediness
+    => Trie [(Greediness, RawSteno)]
+    -> Greediness
     -> State key
     -> ByteString
     -> Result (State key)
-optimizeStenoSeries _ st "" = Success st
-optimizeStenoSeries g st str | BS.head str == bsPipe =
+optimizeStenoSeries _ _ st "" = Success st
+optimizeStenoSeries trie g st str | BS.head str == bsPipe =
     let newState = State { stStrRawSteno = stStrRawSteno st <> "/"
-                         , stNLetters   = stNLetters st
-                         , stNChords    = stNChords st + 1
-                         , stMFinger    = Nothing
-                         , stMLastKey   = Nothing
+                         , stNLetters    = stNLetters st
+                         , stNChords     = stNChords st + 1
+                         , stMFinger     = Nothing
+                         , stMLastKey    = Nothing
                          }
         str' = BS.tail str
-        r1   = optimizeStenoSeries g newState str'
-        r2   = optimizeStenoSeries g st str'
+        r1   = optimizeStenoSeries trie g newState str'
+        r2   = optimizeStenoSeries trie g st str'
     in  maximumBy (comparing score) [r1, r2]
-optimizeStenoSeries g st str =
-    let matches =
-            filterGreediness $ flatten $ Trie.matches primitives str
+optimizeStenoSeries trie g st str =
+    let matches = filterGreediness $ flatten $ Trie.matches trie str
 
         matchToResult (consumed, result, rem) =
             case parseKey result (stMFinger st) (stMLastKey st) of
                 Left err -> Failure (view _2 result) err
                 Right ((mFinger, mLK), strRaw) ->
-                    let
-                        newState = State
+                    let newState = State
                             { stStrRawSteno = stStrRawSteno st <> strRaw
                             , stNLetters = stNLetters st + countLetters consumed
-                            , stNChords    = stNChords st + countChords strRaw
-                            , stMFinger    = mFinger
-                            , stMLastKey   = mLK
+                            , stNChords     = stNChords st + countChords strRaw
+                            , stMFinger     = mFinger
+                            , stMLastKey    = mLK
                             }
-                    in  optimizeStenoSeries g newState rem
+                    in  optimizeStenoSeries trie g newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -483,14 +505,14 @@ optimizeStenoSeries g st str =
         :: (Greediness, RawSteno)
         -> Maybe Finger
         -> Maybe key
-        -> Either
-               Parsec.ParseError
-               ((Maybe Finger, Maybe key), Text)
+        -> Either Parsec.ParseError ((Maybe Finger, Maybe key), Text)
     parseKey (_, RawSteno s) mFinger mLastKey =
-        let ePair = evalParser keysWithSlash (mFinger, mLastKey) "" s
+        let
+            ePair = evalParser keysWithSlash (mFinger, mLastKey) "" s
             makeRawStr =
-              mconcat <<< intersperse "/" <<< fmap (mconcat <<< fmap showt)
-        in  second makeRawStr <$> ePair
+                mconcat <<< intersperse "/" <<< fmap (mconcat <<< fmap showt)
+        in
+            second makeRawStr <$> ePair
 
     keysWithSlash :: Parsec Text (Maybe Finger, Maybe key) [[key]]
     keysWithSlash =
@@ -531,7 +553,7 @@ instance Palantype key => FromJSON (PrimMap key) where
                 [k, Array v] -> pure (k, v)
                 _            -> fail $ "malformed entry: " <> show jv
 
-            key        <- parseJSON k
+            key    <- parseJSON k
             (g, r) <- case toList v of
                 [vG, vRaw] -> do
                     g   <- parseJSON vG
@@ -549,7 +571,7 @@ instance Palantype key => FromJSON (PrimMap key) where
                 <> Text.unpack key
                 <> ": "
                 <> show r
-            let keyBs   = Text.encodeUtf8 key
+            let keyBs = Text.encodeUtf8 key
 
             pure $ Map.insertWith (++) keyBs [(g, r)] m
 
@@ -558,11 +580,14 @@ instance Palantype key => FromJSON (PrimMap key) where
     parseJSON _ = mzero
 
 -- | the primitives as defined in "primitives.json" parsed to a TRIE
-primitives
-    :: Trie [(Greediness, RawSteno)]
+primitives :: (Trie [(Greediness, RawSteno)], [(Greediness, [ByteString])])
 primitives =
-    let str     = stripComments $(embedFile "primitives.json5")
-        primMap = case Aeson.eitherDecodeStrict str of
+    let str = stripComments $(embedFile "primitives.json5")
+        ls  = Map.toList $ unPrimMap $ case Aeson.eitherDecodeStrict str of
             Right m   -> m :: PrimMap DE.Key
             Left  err -> error $ "Could not decode primitives.json5: " <> err
-    in  Trie.fromList $ Map.toList $ unPrimMap primMap
+
+        accPatternsG m (bstr, entries) =
+            foldl' (\m' (g, _) -> Map.insertWith (++) g [bstr] m') m entries
+        mapPatternsG = foldl' accPatternsG Map.empty ls
+    in  (Trie.fromList ls, Map.toList mapPatternsG)
