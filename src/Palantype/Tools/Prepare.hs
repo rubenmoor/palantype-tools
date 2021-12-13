@@ -23,7 +23,6 @@ import           Data.Char                      ( Char
                                                 , isLower
                                                 )
 import           Data.Either                    ( Either(..)
-                                                , isRight
                                                 )
 import           Data.Eq                        ( (==) )
 import           Data.Foldable                  ( Foldable(elem)
@@ -37,15 +36,14 @@ import           Data.List                      ( (++)
                                                 )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
-                                                , isNothing
+                                                , isNothing, isJust
                                                 )
 import           Data.Semigroup                 ( Semigroup((<>)) )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( String )
-import           Data.Text                      ( Text )
+import           Data.Text                      ( Text, isInfixOf )
 import qualified Data.Text                     as Text
-import           Data.Tuple                     ( fst )
 import           GHC.Generics                   ( Generic )
 import           Prelude                        ( Applicative((*>), (<*), pure)
                                                 , Eq((/=))
@@ -65,17 +63,17 @@ import           Text.Parsec                    ( ParseError
                                                 , many
                                                 , many1
                                                 , manyTill
-                                                , noneOf
+
                                                 , notFollowedBy
                                                 , oneOf
-                                                , parse
+
                                                 , runParser
                                                 , satisfy
                                                 , sepBy1
                                                 , setState
                                                 , space
                                                 , string
-                                                , try
+                                                , try, optionMaybe
                                                 )
 import           Text.Parsec.Error              ( Message(Message) )
 import           Text.ParserCombinators.Parsec.Error
@@ -125,15 +123,14 @@ instance TextShow Exception where
 setExplicitExceptions :: Set Text
 setExplicitExceptions = Set.fromList ["AStA", "IGeL", "kN"]
 
-contains :: Text -> Text -> Bool
-contains haystack needle = fst (Text.breakOn needle haystack) /= haystack
-
 -- | turn "zusammenhang[s]los >>> zu|sam|men|hang[s]|los ..." into
 --   [ Success (SyllableData "zusammenhanglos" ["zu", "sam", "men", "hang", "los"])
 --   , Success (SyllableData "zusammenhangslos" ["zu", "sam", "men", "hangs", "los"])
 --   ]
 parseEntry :: Text -> [Result]
-parseEntry str | str `contains` "falsche Schreibung für" =
+parseEntry str | "falsche Schreibung für" `isInfixOf` str =
+    [Exception ExceptionMisspelling]
+parseEntry str | "alte Schreibung für" `isInfixOf` str =
     [Exception ExceptionMisspelling]
 parseEntry txt = parseEntry' <$> parseOptionalChars txt
   where
@@ -163,11 +160,11 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
     --   ("zusammenhangslos", "zu|sam|men|hangs|los ...")
     word :: Parsec Text (Maybe Exception) (Text, Text)
     word = do
+        isSuffix <- isJust <$> optionMaybe (try $ string "...")
+        when isSuffix $ setState $ Just ExceptionEllipsis
         void $ many $ try (satisfy (not . isLetter) *> notFollowedBy sep)
         result <- Text.pack . catMaybes <$> manyTill someChar (try sep)
         when (Text.length result == 1) $ setState $ Just ExceptionSingleLetter
-        when (isRight $ parse ellipsis "" result) $ setState $ Just
-            ExceptionEllipsis
         when (Text.toUpper result == result) $ setState $ Just ExceptionAcronym
         when (result `Set.member` setExplicitExceptions) $ setState $ Just
             ExceptionExplicit
@@ -175,14 +172,17 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
         pure (result, rem)
       where
         sep      = void $ many1 space *> string ">>>" *> many1 space
-        ellipsis = void $ many (noneOf ".") *> string "..."
 
     someChar :: Parsec Text (Maybe Exception) (Maybe Char)
     someChar = do
         c    <- anyChar
         mExc <- getState
         when (isNothing mExc) $ case c of
-            '.' -> setState $ Just ExceptionAbbreviation
+            '.' -> do
+                isEllipsis <- isJust <$> optionMaybe (try $ string "..")
+                setState $ if isEllipsis
+                    then Just ExceptionEllipsis
+                    else Just ExceptionAbbreviation
             ' ' -> setState $ Just ExceptionMultiple
             _ | not (isLetter c || c `elem` ("-!®" :: String)) ->
                 setState $ Just $ ExceptionSpecialChar c
