@@ -15,7 +15,7 @@ import           Data.Bool                      ( (&&)
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((/=), (==)) )
 import           Data.Foldable                  ( Foldable(maximum)
-                                                , for_
+                                                , for_, traverse_
 
                                                 )
 import           Data.Function                  ( ($) )
@@ -154,36 +154,40 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
     putStrLn $ fileOutput <> " (" <> show nLO <> " lines) written."
 
 sortByFrequency :: OptionsSort -> IO ()
-sortByFrequency (OptionsSort fileInput fileFrequencies fileOutput) = do
-
-    nLI <- wcl fileInput
-    putStrLn
-        $  "Reading words from file "
-        <> fileInput
-        <> " ("
-        <> show nLI
-        <> " lines)"
+sortByFrequency (OptionsSort fileFrequencies files) = do
 
     freqs <- readFrequencies fileFrequencies
 
-    if takeExtension fileInput == ".json"
-        then do
-            ls <- HashMap.toList . fromMaybe (error "Could not decode json file") <$> Aeson.decodeFileStrict' fileInput
+    traverse_ (sortFile freqs) files
+  where
+    sortFile freqs file = do
+      nLI <- wcl file
+      putStrLn
+          $  "Reading words from file "
+          <> file
+          <> " ("
+          <> show nLI
+          <> " lines)"
 
-            StrictIO.putStr "Sorting ..."
-            let sorted = sortOn (Down <<< freq freqs <<< snd) ls
+      if takeExtension file == ".json"
+          then do
+              ls <- HashMap.toList . fromMaybe (error "Could not decode json file") <$> Aeson.decodeFileStrict' file
 
-            writeJSONFile fileOutput sorted
-        else do
-            ls <- Lazy.lines <$> readFile fileInput
+              StrictIO.putStr "Sorting ..."
+              let sorted = sortOn (Down <<< freq freqs <<< snd) ls
+              StrictIO.putStrLn " done."
 
-            StrictIO.putStr "Sorting ..."
-            let sorted = sortOn
-                    (Down <<< freq freqs <<< replace "|" "" <<< head <<< Text.splitOn " " <<< Lazy.toStrict)
-                    ls
-            StrictIO.putStrLn " done."
-            StrictIO.putStrLn $ "Writing file " <> Text.pack fileOutput
-            writeFile fileOutput $ Lazy.unlines sorted
+              writeJSONFile file sorted
+          else do
+              ls <- Text.lines <$> StrictIO.readFile file
+
+              StrictIO.putStr "Sorting ..."
+              let sorted = sortOn
+                      (Down <<< freq freqs <<< replace "|" "" <<< head <<< Text.splitOn " ")
+                      ls
+              StrictIO.putStrLn " done."
+              StrictIO.putStrLn $ "Writing file " <> Text.pack file
+              writeFile file $ Lazy.fromStrict $ Text.unlines sorted
 
 readScores :: FilePath -> IO [Double]
 readScores file = do

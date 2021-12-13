@@ -75,7 +75,7 @@ data OptionsStenoDict
 -- | input file: list of words
 --   frequency data
 --   output file: sorted list of words
-data OptionsSort = OptionsSort FilePath FilePath FilePath
+data OptionsSort = OptionsSort FilePath [FilePath]
 
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
@@ -238,17 +238,17 @@ stenoWordsInfo =
            \remainder is written to \"steno-words-noparse.txt\"."
 
 optsSort :: Parser OptionsSort
-optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
+optsSort = OptionsSort <$> fileFrequencyData <*> some file
   where
-    fileInput = strOption
-        (  long "file-input"
+    file = strOption
+        (  long "file"
         <> short 'i'
-        <> value "hyphenated.txt"
-        <> help "Input file: Either a text file with lines containing one word \
-                \each or a JSON file (.json) with a dictionary of type STENO: \
-                \WORD."
+        <> help "The provided files have to be either a text file with lines \
+                \that contain a word first, then either nothing or other \
+                \content separated by space. \
+                \Or a JSON file (.json) with a dictionary of type STENO: \
+                \WORD. Each file is sorted and replaced by the sorted version."
         <> metavar "FILE"
-        <> showDefault
         )
 
     fileFrequencyData = strOption
@@ -259,17 +259,6 @@ optsSort = OptionsSort <$> fileInput <*> fileFrequencyData <*> fileOutput
         <> metavar "FILE"
         <> showDefault
         )
-
-    fileOutput = strOption
-        (  long "file-output"
-        <> short 'o'
-        <> value "hyphenated-sorted.txt"
-        <> help
-               "Output file with lines containing one word each, sorted by frequency in descending order."
-        <> metavar "FILE"
-        <> showDefault
-        )
-
 
 sortInfo :: InfoMod a
 sortInfo =
