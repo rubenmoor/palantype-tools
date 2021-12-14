@@ -95,7 +95,7 @@ executable palantype-ops
       , optparse-applicative
       , palantype-tools
       , parsec
-      , split
+      , vector-split
       , streamly
       , strict
       , strict-base

@@ -12,7 +12,7 @@ import           Common                         ( appendLine
                                                 , writeJSONFile
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( (<<<) )
+import           Control.Category               ( (<<<), Category ((.)) )
 import           Control.Concurrent             ( getNumCapabilities )
 import           Control.Concurrent.Async       ( forConcurrently )
 import qualified Control.Concurrent.Lock       as Lock
@@ -35,7 +35,6 @@ import qualified Data.HashMap.Strict           as HashMap
 import qualified Data.HashSet                  as HashSet
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++) )
-import           Data.List.Split                ( chunksOf )
 import           Data.Maybe                     ( Maybe(..)
                                                 , fromMaybe
                                                 )
@@ -88,6 +87,7 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import qualified Data.Vector.Split as Vector
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -179,8 +179,8 @@ buildDict (OStDFile fileInput fileOutput lang) = do
 
         putStr $ "Reading input file " <> fileInput <> " ..."
         hFlush stdout
-        lsWord <- Text.lines <$> Text.readFile fileInput
-        let l = length lsWord
+        vecWord <- Vector.fromList . Text.lines <$> Text.readFile fileInput
+        let l = Vector.length vecWord
         putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -197,7 +197,7 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         lock <- Lock.new
 
         let d    = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
-            jobs = Vector.fromList <$> chunksOf d lsWord
+            jobs = Vector.chunksOf d vecWord
 
             parseWord hyph = do
                 let word      = Text.replace "|" "" hyph
@@ -248,13 +248,11 @@ buildDict (OStDFile fileInput fileOutput lang) = do
 
         -- checking for lost words
         putStr $ "Writing lost words to " <> fileLost <> " ..."
-        let setAll = HashSet.fromList $ Text.replace "|" "" <$> lsWord
-        u <- for_ (HashSet.toList setAll) $ \w ->
-            case HashMap.lookup w dstMapWordStenos of
+        u <- for_ vecWord $ \w ->
+            case HashMap.lookup (Text.replace "|" "" w) dstMapWordStenos of
                 Just _  -> pure ()
                 Nothing -> appendLine fileLost w
         putStrLn $ u `seq` " done."
-        putStrLn $ "Number of unique words: " <> show (HashSet.size setAll)
 
         removeFiles [fileOutput]
 
