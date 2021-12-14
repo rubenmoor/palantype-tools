@@ -2,6 +2,7 @@ module Args
     ( Task(..)
     , OptionsPrepare(..)
     , OptionsHyphenate(..)
+    , OptionsHyphenateMode(..)
     , OptionsStenoDict(..)
     , OptionsShowChart(..)
     , OptionsSort(..)
@@ -29,10 +30,11 @@ import           Options.Applicative            ( InfoMod
                                                 , showDefault
                                                 , strOption
                                                 , subparser
-                                                , value
+                                                , value, switch
                                                 )
 import           Palantype.Common               ( Lang(DE) )
 import           System.IO                      ( FilePath )
+import Data.Bool (Bool)
 
 data Task
 
@@ -58,9 +60,15 @@ data OptionsPrepare
   = OPrepFile FilePath FilePath
   | OPrepArg Text
 
-data OptionsHyphenate
-  = OHyphFile FilePath [FilePath] FilePath Lang
-  | OHyphArg Lang Text
+data OptionsHyphenate = OptionsHyphenate [FilePath] Lang OptionsHyphenateMode
+
+--   = OHyphFile FilePath [FilePath] FilePath Lang
+--   | OHyphArg Lang Text
+
+data OptionsHyphenateMode
+  = OHMFile FilePath FilePath
+  | OHMArg  Text
+
 
 -- TODO
 data OptionsShowChart = OSCHistScores
@@ -69,7 +77,7 @@ data OptionsStenoDict
   -- | input file: hyphenated words
   --   output file: if the output file exists,
   --   its entries are taken into account
-  = OStDFile FilePath FilePath Lang
+  = OStDFile FilePath FilePath Bool Lang
   | OStDArg Lang Text
 
 -- | input file: list of words
@@ -92,7 +100,7 @@ task = subparser
            (info (TaskHyphenate <$> optsHyphenate <* helper) hyphenateInfo)
     <> command
            "stenoDict"
-           (info (TaskStenoDict <$> optsStenoDict <* helper) stenoWordsInfo)
+           (info (TaskStenoDict <$> optsStenoDict <* helper) stenoDictInfo)
     <> command "sort" (info (TaskSort <$> optsSort <* helper) sortInfo)
     <> command
            "showChart"
@@ -156,9 +164,13 @@ prepareInfo =
 
 optsHyphenate :: Parser OptionsHyphenate
 optsHyphenate =
-    (OHyphFile <$> fileInput <*> some fileHyphenated <*> fileOutput <*> lang)
-        <|> (OHyphArg <$> lang <*> arg argHlp)
+    OptionsHyphenate <$> some fileHyphenated <*> lang <*> optsHyphMode
   where
+
+    optsHyphMode :: Parser OptionsHyphenateMode
+    optsHyphMode =
+            (OHMFile <$> fileInput <*> fileOutput)
+        <|> (OHMArg <$> arg argHlp)
 
     fileInput = strOption
         (  long "file-input"
@@ -204,7 +216,7 @@ hyphenateInfo =
 
 optsStenoDict :: Parser OptionsStenoDict
 optsStenoDict =
-    (OStDFile <$> fileInput <*> fileOutput <*> lang)
+    (OStDFile <$> fileInput <*> fileOutput <*> switchAppend <*> lang)
         <|> (OStDArg <$> lang <*> arg argHlp)
   where
     argHlp
@@ -230,12 +242,17 @@ optsStenoDict =
         <> showDefault
         )
 
-stenoWordsInfo :: InfoMod a
-stenoWordsInfo =
-    progDesc
-        "Read the file \"syllables.txt\" and parse every word into a series \
-           \of steno chords. The result is written to \"steno-words.txt\". The \
-           \remainder is written to \"steno-words-noparse.txt\"."
+    switchAppend = switch
+        (  long "append"
+        <> short 'p'
+        <> help "Use the already existing output file, read the data and build a new \
+                \dictionary incrementally."
+        )
+
+stenoDictInfo :: InfoMod a
+stenoDictInfo =
+    progDesc "Read the input file and parse every word into a series \
+           \of steno chords."
 
 optsSort :: Parser OptionsSort
 optsSort = OptionsSort <$> fileFrequencyData <*> some file

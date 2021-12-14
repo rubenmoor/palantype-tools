@@ -7,7 +7,6 @@ import           Common                         ( appendLine
                                                 , removeFiles
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( Category((.)) )
 import           Control.Monad                  ( foldM )
 import           Data.Eq                        ( Eq((==)) )
 import           Data.Foldable                  ( Foldable(length)
@@ -79,7 +78,6 @@ prepare (OPrepFile fileInput fileOutput) = do
             , filePrepareSpecialChar
             , filePrepareSingleLetter
             , filePrepareEllipsis
-            , filePrepareAcronyms
             , filePrepareExplicitExceptions
             ]
     removeFiles lsFiles
@@ -133,8 +131,6 @@ prepare (OPrepFile fileInput fileOutput) = do
                                 appendLine filePrepareSingleLetter entry
                             ExceptionEllipsis ->
                                 appendLine filePrepareEllipsis entry
-                            ExceptionAcronym ->
-                                appendLine filePrepareAcronyms entry
                             ExceptionExplicit ->
                                 appendLine filePrepareExplicitExceptions entry
                             ExceptionMisspelling -> pure ()
@@ -168,6 +164,5 @@ prepare (OPrepFile fileInput fileOutput) = do
     filePrepareSpecialChar        = "prepare-specialchar.txt"
     filePrepareSingleLetter       = "prepare-singleletter.txt"
     filePrepareEllipsis           = "prepare-ellipsis.txt"
-    filePrepareAcronyms           = "prepare-acronyms.txt"
     filePrepareNoParse            = "prepare-noparse.txt"
     filePrepareExplicitExceptions = "prepare-explicitexceptions.txt"

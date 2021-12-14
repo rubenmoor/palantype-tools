@@ -5,6 +5,7 @@
 , "Amman"       : ["AM/MAÜN"]      // < Ammann
 , "Aortenklappe": ["A/~O/DJEN/GDLAP/BDE"]
 , "AvD"         : ["A/F/D"]
+, "BR"          : ["B/R"]
 , "bah"         : ["BAÜ+"]         // < bar
 , "Beautyfarm"  : ["BJU/DJI/FAÜM"] // more efficient, but wrong BO
 , "Beautycase"  : ["BJU/DJI/GDAS"] // more efficient, but wrong BO
@@ -58,6 +59,7 @@
 , "Laos"        : ["LA/OS"]        // < Lars
 , "Lar"         : ["LAÜ+"]         // < Lahr
 , "lass"        : ["LASs"]         // < las
+, "Lausanne"    : ["LO/SAN"]
 , "Lek"         : ["BDJNK/LEÜK"]
 , "Lindbergh"   : ["LIND/BEÜK"]    
 // , "litt"        : ["LI+D"]         // < Lid
@@ -95,6 +97,7 @@
 , "Speiseopfer" : ["BFEI/SE/OP/FEÜ"]
 , "stad"        : ["SDAÜD"]        // austria "still"
 , "stob"        : ["SD~OP"]        // < stopp, stop
+, "Suisse"      : ["SWIS"]
 , "Sie"         : ["S~I"]          // > Sir
 , "tan"         : ["DJAÜN"]        // < Tann
 , "Tête-à-Tête" : ["BDJNK/DJED/HINF/A/HINF/DJED", "BDJNK/DJED"]

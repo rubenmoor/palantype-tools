@@ -115,6 +115,7 @@
 , [ "ck"  , [0, "GD"]]
 , [ "ck"  , [0, "K"]]
 , [ "d"   , [0, "D"]]
+, [ "daq" , [0, "DAK"]]     // e.g. Nasdaq
 , [ "d|d" , [2, "D"]]
 , [ "de|"  , [3, "D-"]]
 , [ "dh"  , [0, "D"]]       // Abu-Dhabi, Buddhist
@@ -126,6 +127,7 @@
 , [ "dsch", [0, "ʃD"]]       // dsch in coda, like schd TODO: documentation
 , [ "dt"  , [1, "-D"]]
 , [ "dt"  , [0, "-D/DJ"]]
+, [ "duis", [0, "DÜS"]]
 , [ "e"   , [0, "E"]]
 //, [ "e"   , [2, "s"]]
 // , "e"   : [0, "e"] // TODO: greedier: -e
@@ -150,6 +152,7 @@
 , [ "ei|ß", [0, "EI+S"]]
 , [ "ei|ß", [5, "EIS"]]
 , [ "ei|ß", [5, "EI/S"]]
+, [ "ej"  , [0, "EI"]]
 , [ "en"  , [4, "N-"]] 
 , [ "en"  , [4, "n"]]        // TODO: greedier: "ren" -> n
 // TODO: ent-: ENT should be valid, too, because BDN adds little efficiency
@@ -341,7 +344,7 @@
 , [ "ss"  , [1, "S"]]
 , [ "s|s" , [2, "S"]]
 , [ "st"  , [0, "SD"]]
-, [ "sou|ve|rän", [0, "SU/FE/RÄN"]]
+, [ "sou|ve|rä", [0, "SU/FE/RÄ"]]
 , [ "sz"  , [0, "SF"]]      // sz = z = SF
 , [ "t"   , [0, "DJ"]]
 , [ "t"   , [0, "+D"]]
@@ -412,27 +415,32 @@
 , [ "w"   , [0, "W"]]
 , [ "w"   , [0, "-F"]]
 , [ "wieder", [3, "WI+"]]
-, [ "x"   , [0, "GDJ"]]      // TODO: documentation
-, [ "x"   , [0, "KS"]]
-, [ "y"   , [0, "J"]]
-, [ "y"   , [0, "ÄI"]]
-, [ "y"   , [1, "I"]]
-, [ "yo"  , [0, "Ü/O"]]
-, [ "yr"  , [0, "~Ü"]]
-, [ "z"   , [0, "SHM"]]
-, [ "z"   , [0, "+S"]]
-, [ "zio" , [0, "SHMI/O"]]
-, [ "zio" , [3, "SHMO"]]
+, [ "x"    , [0, "GDJ"]]      // TODO: documentation
+, [ "x"    , [0, "KS"]]
+, [ "y"    , [0, "J"]]
+, [ "y"    , [0, "ÄI"]]
+, [ "y"    , [1, "I"]]
+, [ "yo"   , [0, "Ü/O"]]
+, [ "yr"   , [0, "~Ü"]]
+, [ "z"    , [0, "SHM"]]
+, [ "z"    , [0, "+S"]]
+, [ "zia"  , [0, "SHMI/A"]]
+, [ "zia"  , [3, "SHMA"]]
+, [ "zi|a" , [3, "SHMA"]]
+, [ "zio"  , [0, "SHMI/O"]]
+, [ "zio"  , [3, "SHMO"]]
 , [ "zi|o" , [3, "SHMO"]]
-, [ "zw"  , [0, "SHW"]]      // TODO: documentation
-, [ "-"   , [0, "HINF"]]
+, [ "zw"   , [0, "SHW"]]      // TODO: documentation
+, [ "-"    , [0, "HINF"]]
 // zt  : [0, "+SD"] -- default zt -> "SD"
 // english
 , [ "ace"    , [0, "ÄIS"]]
 , [ "air"    , [0, "Ä"]]       // think "är"
 , [ "ake"    , [0, "ÄIK"]]
 , [ "ape"    , [0, "ÄIP"]]      // e.g. tape, ape, grape
-, [ "ate"    , [0, "ÄID"]]
+, [ "ate"    , [0, "ÄI+D"]]
+, [ "ate"    , [1, "ÄID"]]
+, [ "ates"   , [0, "ÄIs"]]
 , [ "ay"     , [0, "ÄI"]]
 , [ "bane"   , [0, "BÄIN"]]
 , [ "base"   , [0, "BÄIS"]]
@@ -444,6 +452,7 @@
 , [ "book"   , [0, "BUK"]]
 , [ "boiled" , [0, "BEULD"]]
 , [ "break"  , [0, "BRÄIK"]]
+, [ "bourne" , [0, "B~ON"]]
 , [ "buil"   , [0, "BIL"]]      // e.g. bodybuilding
 , [ "busi|ness", [0, "BIS/NES"]]
 , [ "bute"   , [0, "BJUD"]]
@@ -483,6 +492,7 @@
 , [ "ear"    , [1, "~I"]]
 , [ "ease"   , [0, "IS"]]
 , [ "em|pire", [0, "EM/BDAI/R"]] // TODO: documentation, very irregular
+, [ "enge"   , [0, "ENʃ"]]      // e.g. challenge
 , [ "fea|ture", [0, "FI/SJ~U"]]
 , [ "feed"   , [0, "F~ID"]]
 , [ "file"   , [0, "FAIL"]]
@@ -537,7 +547,8 @@
 , [ "laxed"  , [0, "LÄKSD"]]    // e.g. relaxed
 , [ "lay"    , [0, "LÄI"]]
 , [ "lea|der", [0, "LI/DEÜ"]]
-, [ "leak"   , [0, "L~IK"]]
+, [ "league" , [0, "L~IK"]]
+, [ "leak"   , [0, "LI+K"]]
 , [ "lear"   , [0, "LEÜ"]]      // e.g. learning
 , [ "lea|s"  , [0, "L~I/S"]]    // e.g. leasing, leasen
 , [ "lege"   , [0, "LEʃD"]]     // e.g. college
@@ -586,7 +597,6 @@
 , [ "puzz"   , [0, "BDAS"]]
 , [ "queen"  , [0, "GDWIN"]]
 , [ "rank"   , [0, "RÄ+N"]]
-, [ "rate"   , [0, "RÄID"]]
 , [ "ride"   , [0, "RAID"]]
 , [ "roa"    , [0, "RO"]]        // e.g. off-road, roaming
 , [ "royce"  , [0, "REUS"]]
@@ -603,6 +613,8 @@
 , [ "shire"  , [0, "SJEÜ"]]
 , [ "shore"  , [0, "SJ~O"]]
 , [ "sign"   , [0, "SAIN"]]
+, [ "site"   , [0, "SAI+D"]]
+, [ "site"   , [1, "SAID"]]
 , [ "sive"   , [0, "SIF"]]     // e.g. inclusive
 , [ "spare"  , [0, "SDJÄ"]]
 , [ "speech" , [0, "BFIʃD"]]  // speech, like spitsch (like spischt)
@@ -635,7 +647,7 @@
 , [ "tou"    , [0, "DJU" ]]     // e.g. touren
 , [ "tour"   , [0, "DJ~U" ]]    // e.g. tour
 , [ "trai"   , [0, "BDRÄI"]]    // e.g. trainieren
-, [ "tube"   , [0, "DJUP"]]     // youtube
+, [ "you|tube", [0, "JU/DJUP"]]     // youtube
 , [ "ture"   , [0, "SJ~U"]]     // TODO: maybe make more distinct. future, feature, nature
 , [ "tw"     , [0, "DW"]]       // e.g. twerken
 , [ "twee"   , [0, "DW~I"]]      // e.g. twee|ten
@@ -699,8 +711,8 @@
 , [ "jacque", [0, "JAK"]]
 , [ "joule" , [0, "J~UL"]]
 , [ "komment", [0, "GDOM/M~O"]]
-, [ "louis", [0, "LU/I"]]
-, [ "louise", [0, "LU/IS"]]
+, [ "lou|is", [0, "LU/I"]]
+, [ "lou|ise", [0, "LU/IS"]]
 , [ "luxe" , [0, "LÜKS"]]
 , [ "mage" , [0, "MAʃ"]]      // hommage
 , [ "mou|la", [0, "MU/LA"]]   // e.g. Remoulade
@@ -739,6 +751,7 @@
 , [ "ville" , [0, "FIL"]]     // e.g. Brazzaville
 , [ "vite"  , [0, "FID"]]
 , [ "yenne" , [0, "JEN"]]     // e.g. Cayenne
+, [ "young" , [0, "JA+N"]]
 // neerlandais
 , [ "dijk"  , [0, "DEIK"]]
 // japonese?

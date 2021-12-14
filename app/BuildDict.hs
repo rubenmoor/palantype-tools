@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
-{-# LANGUAGE PackageImports #-}
 
 module BuildDict where
 
@@ -12,18 +11,18 @@ import           Common                         ( appendLine
                                                 , writeJSONFile
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( (<<<), Category ((.)) )
+import           Control.Category               ( (<<<)
+                                                , Category((.))
+                                                )
 import           Control.Concurrent             ( getNumCapabilities )
 import           Control.Concurrent.Async       ( forConcurrently )
 import qualified Control.Concurrent.Lock       as Lock
-import           Control.Monad                  ( when, (<$!>) )
+import           Control.Monad                  ( (<$!>)
+                                                , when
+                                                )
 import qualified Data.Aeson                    as Aeson
 import           Data.Either                    ( Either(..) )
-import           Data.Foldable                  ( Foldable
-                                                    ( foldl'
-                                                    , foldr
-                                                    , length
-                                                    )
+import           Data.Foldable                  ( Foldable(foldl')
                                                 , for_
                                                 , traverse_
                                                 )
@@ -32,23 +31,23 @@ import           Data.Functor                   ( ($>)
                                                 , (<$>)
                                                 )
 import qualified Data.HashMap.Strict           as HashMap
-import qualified Data.HashSet                  as HashSet
 import           Data.Int                       ( Int )
-import           Data.List                      ( (++) )
 import           Data.Maybe                     ( Maybe(..)
                                                 , fromMaybe
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , mconcat
                                                 )
-import qualified Data.Strict.List              as Strict
-import           Data.Strict.List               ( List((:!), Nil) )
-import "strict"  Data.Strict.Tuple              ( Pair((:!:)) )
+import           Data.Strict.Tuple              ( Pair((:!:)) )
 import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import qualified Data.Text.IO                  as Text
 import           Data.Traversable               ( traverse )
 import qualified Data.Vector                   as Vector
+import           Data.Vector                    ( (++)
+                                                , Vector
+                                                )
+import qualified Data.Vector.Split             as Vector
 import           Formatting                     ( (%)
                                                 , fprint
                                                 )
@@ -87,7 +86,6 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
-import qualified Data.Vector.Split as Vector
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -113,7 +111,7 @@ buildDict (OStDArg lang str) = do
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 
-buildDict (OStDFile fileInput fileOutput lang) = do
+buildDict (OStDFile fileInput fileOutput bAppend lang) = do
 
     start <- getTime Monotonic
 
@@ -122,8 +120,7 @@ buildDict (OStDFile fileInput fileOutput lang) = do
     removeFiles lsFiles
 
     -- initial state with existing steno in output file
-    fileExistsOutput <- doesFileExist fileOutput
-    mapStenoWord     <- if fileExistsOutput
+    mapStenoWord     <- if bAppend
         then do
             nLO <- wcl fileOutput
             putStr
@@ -131,13 +128,14 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                 <> fileOutput
                 <> " ("
                 <> show nLO
-                <> " lines), if this is undesired, delete the file first. ..."
+                <> " lines) ..."
             hFlush stdout
             mMap <- Aeson.decodeFileStrict' fileOutput
             putStrLn $ mMap `seq` " done."
             pure $ fromMaybe (error "Could not decode file.") mMap
         else pure HashMap.empty
-    let accFlip m (steno, word) = HashMap.insertWith (++) word [steno] m
+    let accFlip m (steno, word) =
+            HashMap.insertWith (++) word (Vector.singleton steno) m
         mapWordStenos =
             foldl' accFlip HashMap.empty $ HashMap.toList mapStenoWord
 
@@ -201,41 +199,42 @@ buildDict (OStDFile fileInput fileOutput lang) = do
 
             parseWord hyph = do
                 let word      = Text.replace "|" "" hyph
-                    eRaws     = toStrictList <$!> parseSeries' hyph
+                    eRaws     = Vector.fromList <$!> parseSeries' hyph
                     mExisting = HashMap.lookup word mapWordStenosExisting
 
                 case (eRaws, mExisting) of
-                    (_, Just stenos) -> pure (hyph :!: toStrictList stenos)
-                    (Right stenos, _) -> pure (hyph :!: stenos)
+                    (_           , Just stenos) -> pure (hyph :!: stenos)
+                    (Right stenos, _          ) -> pure (hyph :!: stenos)
                     (Left (PEExceptionTable orig), _) ->
                         print ("Error in exception table for: " <> orig)
-                            $> (hyph :!: Nil)
-                    (Left (PEParsec _ _), _) -> do
+                            $> (hyph :!: Vector.empty)
+                    (Left (PEParsec raw _), _) -> do
                         Lock.with lock
-                            $  appendLine fileDictNoParse word
-                            $> (hyph :!: Nil)
+                            $  appendLine fileDictNoParse (Text.unwords [word, hyph, showt raw])
+                            $> (hyph :!: Vector.empty)
 
         vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
         putStrLn $ vecStenos `seq` " done."
 
         let
             --      collision resolution stays sequential
-            accDict
-                :: DictState -> Pair Text (Strict.List RawSteno) -> IO DictState
-            accDict dst@DictState {..} (hyph :!: raws') = do
+            accDict :: DictState -> Pair Text (Vector RawSteno) -> IO DictState
+            accDict dst@DictState {..} (hyph :!: raws) = do
                 let word       = Text.replace "|" "" hyph
                     mDuplicate = HashMap.lookup word dstMapWordStenos
-                    raws       = fromStrictList raws'
 
                 case mDuplicate of
                     Just _  -> appendLine fileDictDuplicates word $> dst
                     Nothing -> do
-                        let (dst', isLost) = Collision.resolve word raws dst
+                        let (dst', isLost) =
+                                Collision.resolve word (Vector.toList raws) dst
                         when isLost
                             $  appendLine fileCollisions
                             $  word
                             <> " "
-                            <> Text.intercalate " " (showt <$> raws)
+                            <> Text.intercalate
+                                   " "
+                                   (Vector.toList $ showt <$> raws)
                         pure dst'
 
         putStr "Resolving collisions ..."
@@ -270,13 +269,3 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         -- TODO scoring stats
         -- pure $ HashMap.toList stMapWordStenos <&> \(_, sds) ->
         --     maximum $ scorePrimary . sdScore <$> sds
-
-append' :: forall a . Strict.List a -> Strict.List a -> Strict.List a
-append' Nil       ys = ys
-append' (x :! xs) ys = x :! (xs `append'` ys)
-
-toStrictList :: [a] -> Strict.List a
-toStrictList = foldr (:!) Nil
-
-fromStrictList :: Strict.List a -> [a]
-fromStrictList = foldr (:) []

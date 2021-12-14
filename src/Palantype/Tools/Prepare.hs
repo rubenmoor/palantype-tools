@@ -1,26 +1,30 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE DerivingStrategies #-}
 
-module Palantype.Tools.Prepare where
+module Palantype.Tools.Prepare
+    ( pseudoSyllable
+    , Result (..)
+    , Exception (..)
+    , parseEntry
+    ) where
 
 import           Control.Applicative            ( Alternative((<|>))
                                                 , Applicative((<*>))
                                                 )
-import           Control.Category               ( Category((.)) )
+import           Control.Category               ( Category((.)) , id)
 import           Control.Monad                  ( Monad((>>=))
                                                 , MonadPlus(mzero)
-                                                , when
+                                                , when, guard
                                                 )
 import           Data.Bool                      ( (&&)
                                                 , Bool(False)
-                                                , bool
                                                 , not
                                                 , otherwise
                                                 , (||)
                                                 )
 import           Data.Char                      ( Char
                                                 , isLetter
-                                                , isLower
+                                                , isLower, isUpper
                                                 )
 import           Data.Either                    ( Either(..)
                                                 )
@@ -36,7 +40,7 @@ import           Data.List                      ( (++)
                                                 )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
-                                                , isNothing, isJust
+                                                , isNothing, isJust, maybe
                                                 )
 import           Data.Semigroup                 ( Semigroup((<>)) )
 import           Data.Set                       ( Set )
@@ -109,7 +113,6 @@ data Exception
   | ExceptionSpecialChar Char
   | ExceptionSingleLetter
   | ExceptionEllipsis
-  | ExceptionAcronym
   | ExceptionExplicit
   | ExceptionMisspelling
   deriving stock (Generic)
@@ -165,7 +168,6 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
         void $ many $ try (satisfy (not . isLetter) *> notFollowedBy sep)
         result <- Text.pack . catMaybes <$> manyTill someChar (try sep)
         when (Text.length result == 1) $ setState $ Just ExceptionSingleLetter
-        when (Text.toUpper result == result) $ setState $ Just ExceptionAcronym
         when (result `Set.member` setExplicitExceptions) $ setState $ Just
             ExceptionExplicit
         rem <- getInput
@@ -193,40 +195,40 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
             _   -> Just c
 
     -- | parse "zu|sam|men|hangs|los" into ["zu", "sam", "men", "hangs", "los"]
+    --   given "zusammenhangslos" as state
     syllables :: Parsec Text String [Text]
     syllables = do
         (x : _) <- getState
         void $ many $ satisfy (/= x)
-        mconcat <$> sepBy1 ((++) <$> optionalHyphen <*> syllable)
-                           (try (char '|') <|> lookAhead (next '-'))
+        mFirstPs <- optionMaybe $ try $ pseudoSyllable <* (char '|' <|> lookAhead (next '-'))
+        rem <- mconcat <$> sepBy1 ((++) <$> optionalHyphen <*> syllable)
+                           (char '|' <|> lookAhead (next '-'))
+        pure $ maybe id (++) mFirstPs rem
 
       where
-        syllable       = try bmio <|> try pseudoSyllable <|> realSyllable
+        syllable       = try acronym <|> try bmio <|> realSyllable
 
-        pseudoSyllable = do
-            v1 <- vowel
-            (v1 :) <$> (try bmio <|> pseudoSyllable')
+        end = do
+          st <- getState
+          if null st then pure () else mzero
+
+        acronym = do
+            chrs <- many1 uc
+            end
+            pure $ Text.singleton <$> chrs
           where
-            pseudoSyllable' = do
-                c1  <- Text.pack <$> many1 lcConsonantWOY
-                v2  <- vowel
-                rem <- Text.pack <$> many nextChar
-                pure [c1 <> v2 <> rem]
-
-        bmio = do
-            bm <- try (next 'b') <|> next 'm'
-            i  <- next 'i'
-            o  <- next 'o'
-            pure [Text.pack [bm, i], Text.singleton o]
+            uc = do
+                c <- nextChar
+                guard (isUpper c)
+                pure c
 
         realSyllable = try hendl <|> (pure . Text.pack <$> many1 nextChar)
           where
             hendl :: Parsec Text String [Text]
             hendl = do
 
-                let syllableEnd =
-                        void (oneOf "|-")
-                            <|> (getState >>= bool mzero (pure ()) . null)
+                let
+                    syllableEnd = void (oneOf "|-") <|> end
 
                     consonantL = do
                         c <- Text.singleton <$> consonant
@@ -243,32 +245,6 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
 
         optionalHyphen = try (pure . Text.singleton <$> next '-') <|> pure []
 
-        nextChar :: Parsec Text String Char
-        nextChar = getState >>= \case
-            (x : xs) | x /= '-' -> do
-                setState xs
-                char x
-            _ -> mzero
-
-        next :: Char -> Parsec Text String Char
-        next c = getState >>= \case
-            (x : xs) | x == c -> do
-                setState xs
-                char x
-            _ -> mzero
-
-        vowel = getState >>= \case
-            (x : xs) | x `elem` ('y' : 'Y' : vowels) -> do
-                setState xs
-                Text.singleton <$> char x
-            _ -> mzero
-
-        lcConsonantWOY = getState >>= \case
-            (x : xs) | isLower x && x `notElem` ('y' : 'Y' : '-' : vowels) -> do
-                setState xs
-                char x
-            _ -> mzero
-
         consonant = getState >>= \case
             (x : xs) | x `notElem` ('-' : vowels) -> do
                 setState xs
@@ -277,6 +253,9 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
 
 vowels :: String
 vowels = "AEIOUÄÖÜÁÀÂÅÉÈÊÍÓÔÚaeiouäöüáàâåéèêëíóôøû"
+
+-- vowelsWY :: String
+-- vowelsWY = 'y' : 'Y' : vowels
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str = case runParser optionalChars () "" str of
@@ -307,3 +286,50 @@ replaceFirst needle replacement haystack
       otherwise = Text.concat
         [front, replacement, Text.drop (Text.length needle) back]
     where (front, back) = Text.breakOn needle haystack
+
+pseudoSyllable :: Parsec Text String [Text]
+pseudoSyllable = do
+    v1 <- vowel
+    (v1 :) <$> (try bmio <|> pseudoSyllable')
+  where
+    pseudoSyllable' = do
+        c1  <- Text.pack <$> many1 lcConsonantWY
+        v2  <- vowel
+        rem <- Text.pack <$> many nextChar
+        pure [c1 <> v2 <> rem]
+
+bmio :: Parsec Text String [Text]
+bmio = do
+    bm <- try (next 'b') <|> next 'm'
+    i  <- next 'i'
+    o  <- next 'o'
+    pure [Text.pack [bm, i], Text.singleton o]
+
+nextChar :: Parsec Text String Char
+nextChar = getState >>= \case
+    (x : xs) | x /= '-' -> do
+        setState xs
+        char x
+    _ -> mzero
+
+next :: Char -> Parsec Text String Char
+next c = getState >>= \case
+    (x : xs) | x == c -> do
+        setState xs
+        char x
+    _ -> mzero
+
+vowel :: Parsec Text String Text
+vowel = getState >>= \case
+    (x : xs) | x `elem` ('y' : 'Y' : vowels) -> do
+        setState xs
+        Text.singleton <$> char x
+    _ -> mzero
+
+
+lcConsonantWY :: Parsec Text String Char
+lcConsonantWY = getState >>= \case
+    (x : xs) | isLower x && x `notElem` ('-' : vowels) -> do
+        setState xs
+        char x
+    _ -> mzero

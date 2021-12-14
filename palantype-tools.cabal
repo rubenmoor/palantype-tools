@@ -95,15 +95,14 @@ executable palantype-ops
       , optparse-applicative
       , palantype-tools
       , parsec
-      , vector-split
       , streamly
       , strict
-      , strict-base
       , text
       , text-show
       , time
       , unordered-containers
       , vector
+      , vector-split
     default-extensions:
         FlexibleContexts
         LambdaCase
