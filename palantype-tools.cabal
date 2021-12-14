@@ -97,10 +97,13 @@ executable palantype-ops
       , parsec
       , split
       , streamly
+      , strict
+      , strict-base
       , text
       , text-show
       , time
       , unordered-containers
+      , vector
     default-extensions:
         FlexibleContexts
         LambdaCase

@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE PackageImports #-}
 
 module BuildDict where
 
@@ -11,23 +12,24 @@ import           Common                         ( appendLine
                                                 , writeJSONFile
                                                 )
 import           Control.Applicative            ( Applicative(pure) )
-import           Control.Category               ( (<<<), Category ((.)) )
+import           Control.Category               ( (<<<) )
 import           Control.Concurrent             ( getNumCapabilities )
 import           Control.Concurrent.Async       ( forConcurrently )
-import qualified Control.Concurrent.Lock as Lock
-import           Control.Monad                  ( foldM
-                                                , when
-                                                )
+import qualified Control.Concurrent.Lock       as Lock
+import           Control.Monad                  ( when, (<$!>) )
 import qualified Data.Aeson                    as Aeson
 import           Data.Either                    ( Either(..) )
-import           Data.Foldable                  ( Foldable(foldl', length)
+import           Data.Foldable                  ( Foldable
+                                                    ( foldl'
+                                                    , foldr
+                                                    , length
+                                                    )
                                                 , for_
                                                 , traverse_
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( ($>)
                                                 , (<$>)
-                                                , Functor(fmap)
                                                 )
 import qualified Data.HashMap.Strict           as HashMap
 import qualified Data.HashSet                  as HashSet
@@ -35,23 +37,25 @@ import           Data.Int                       ( Int )
 import           Data.List                      ( (++) )
 import           Data.List.Split                ( chunksOf )
 import           Data.Maybe                     ( Maybe(..)
-                                                , catMaybes
                                                 , fromMaybe
                                                 )
 import           Data.Monoid                    ( (<>)
-                                                , Monoid(mconcat)
+                                                , mconcat
                                                 )
+import qualified Data.Strict.List              as Strict
+import           Data.Strict.List               ( List((:!), Nil) )
+import "strict"  Data.Strict.Tuple              ( Pair((:!:)) )
 import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
-import qualified Data.Text.IO                  as StrictIO
-import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile )
-import           Data.Traversable               ( for )
+import qualified Data.Text.IO                  as Text
+import           Data.Traversable               ( traverse )
+import qualified Data.Vector                   as Vector
 import           Formatting                     ( (%)
                                                 , fprint
                                                 )
 import           Formatting.Clock               ( timeSpecs )
 import           GHC.Err                        ( error )
+import           GHC.Exts                       ( seq )
 import           GHC.Float                      ( Double )
 import           GHC.Num                        ( (+) )
 import           GHC.Real                       ( Fractional((/))
@@ -75,14 +79,14 @@ import           System.Clock                   ( Clock(Monotonic)
 import           System.Directory               ( doesFileExist )
 import           System.IO                      ( FilePath
                                                 , IO
+                                                , hFlush
                                                 , print
                                                 , putStr
                                                 , putStrLn
+                                                , stdout
                                                 )
 import           Text.Show                      ( Show(show) )
-import           TextShow                       ( TextShow(showt)
-                                                , showtl
-                                                )
+import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
 
 fileDictDuplicates :: FilePath
@@ -106,8 +110,8 @@ buildDict (OStDArg lang str) = do
             EN -> parseSeries @EN.Key
 
     case parseSeries' str of
-        Left  err -> StrictIO.putStrLn $ showt err
-        Right sds -> traverse_ (StrictIO.putStrLn <<< showt) sds
+        Left  err -> Text.putStrLn $ showt err
+        Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 
 buildDict (OStDFile fileInput fileOutput lang) = do
 
@@ -122,14 +126,15 @@ buildDict (OStDFile fileInput fileOutput lang) = do
     mapStenoWord     <- if fileExistsOutput
         then do
             nLO <- wcl fileOutput
-            putStrLn
+            putStr
                 $  "Reading data from output file: "
                 <> fileOutput
                 <> " ("
                 <> show nLO
-                <> " lines)."
-            putStrLn "If this is undesired, delete the file first."
+                <> " lines), if this is undesired, delete the file first. ..."
+            hFlush stdout
             mMap <- Aeson.decodeFileStrict' fileOutput
+            putStrLn $ mMap `seq` " done."
             pure $ fromMaybe (error "Could not decode file.") mMap
         else pure HashMap.empty
     let accFlip m (steno, word) = HashMap.insertWith (++) word [steno] m
@@ -172,8 +177,11 @@ buildDict (OStDFile fileInput fileOutput lang) = do
 
     runBuildDict mapWordStenosExisting = do
 
-        ls <- Lazy.lines <$> readFile fileInput
-        let l = length ls
+        putStr $ "Reading input file " <> fileInput <> " ..."
+        hFlush stdout
+        lsWord <- Text.lines <$> Text.readFile fileInput
+        let l = length lsWord
+        putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
@@ -182,65 +190,71 @@ buildDict (OStDFile fileInput fileOutput lang) = do
                 EN -> parseSeries @EN.Key
 
         nj <- getNumCapabilities
-        StrictIO.putStr $ "\nRunning " <> showt nj <> " jobs.\n\n"
-        StrictIO.putStrLn "Optimizing steno chords ..."
-
-        let d    = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
-            jobs = chunksOf d ls
+        putStr $ "\nRunning " <> show nj <> " jobs.\n\n"
+        putStr "Optimizing steno chords ..."
+        hFlush stdout
 
         lock <- Lock.new
 
-        lsStenos <- fmap mconcat $ forConcurrently jobs $ \hyphs ->
-            fmap catMaybes $ for hyphs $ \hyph -> do
-                let hyph'     = Lazy.toStrict hyph
-                    word'     = Text.replace "|" "" hyph'
-                    word      = Lazy.fromStrict word'
-                    eRaws     = parseSeries' hyph'
-                    mExisting = HashMap.lookup word' mapWordStenosExisting
+        let d    = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
+            jobs = Vector.fromList <$> chunksOf d lsWord
+
+            parseWord hyph = do
+                let word      = Text.replace "|" "" hyph
+                    eRaws     = toStrictList <$!> parseSeries' hyph
+                    mExisting = HashMap.lookup word mapWordStenosExisting
 
                 case (eRaws, mExisting) of
-                    (_           , Just stenos) -> pure $ Just (hyph', stenos)
-                    (Right stenos, _          ) -> pure $ Just (hyph', stenos)
+                    (_, Just stenos) -> pure (hyph :!: toStrictList stenos)
+                    (Right stenos, _) -> pure (hyph :!: stenos)
                     (Left (PEExceptionTable orig), _) ->
                         print ("Error in exception table for: " <> orig)
-                            $> Nothing
+                            $> (hyph :!: Nil)
                     (Left (PEParsec _ _), _) -> do
-                        Lock.with lock $ appendLine fileDictNoParse word $> Nothing
+                        Lock.with lock
+                            $  appendLine fileDictNoParse word
+                            $> (hyph :!: Nil)
+
+        vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
+        putStrLn $ vecStenos `seq` " done."
 
         let
             --      collision resolution stays sequential
-            accDict :: DictState -> (Text, [RawSteno]) -> IO DictState
-            accDict dst@DictState {..} (hyph', raws) = do
-                let word'      = Text.replace "|" "" hyph'
-                    word       = Lazy.fromStrict word'
-                    mDuplicate = HashMap.lookup word' dstMapWordStenos
+            accDict
+                :: DictState -> Pair Text (Strict.List RawSteno) -> IO DictState
+            accDict dst@DictState {..} (hyph :!: raws') = do
+                let word       = Text.replace "|" "" hyph
+                    mDuplicate = HashMap.lookup word dstMapWordStenos
+                    raws       = fromStrictList raws'
 
                 case mDuplicate of
                     Just _  -> appendLine fileDictDuplicates word $> dst
                     Nothing -> do
-                        let (dst', isLost) = Collision.resolve word' raws dst
+                        let (dst', isLost) = Collision.resolve word raws dst
                         when isLost
                             $  appendLine fileCollisions
                             $  word
                             <> " "
-                            <> Lazy.intercalate " " (showtl <$> raws)
+                            <> Text.intercalate " " (showt <$> raws)
                         pure dst'
 
-        StrictIO.putStrLn "Resolving collisions ..."
-        DictState {..} <- foldM accDict
-                                (DictState HashMap.empty HashMap.empty)
-                                lsStenos
+        putStr "Resolving collisions ..."
+        hFlush stdout
+        DictState {..} <- Vector.foldM'
+            accDict
+            (DictState HashMap.empty HashMap.empty)
+            vecStenos
+        putStrLn $ dstMapWordStenos `seq` " done."
 
         -- checking for lost words
-        putStrLn $ "Writing lost words to " <> fileLost
-        let setAll =
-                HashSet.fromList $ Text.replace "|" "" . Lazy.toStrict <$> ls
-        StrictIO.putStrLn $ "Number of unique words: " <> showt
-            (HashSet.size setAll)
-        for_ (HashSet.toList setAll) $ \w ->
+        putStr $ "Writing lost words to " <> fileLost <> " ..."
+        let setAll = HashSet.fromList $ Text.replace "|" "" <$> lsWord
+        u <- for_ (HashSet.toList setAll) $ \w ->
             case HashMap.lookup w dstMapWordStenos of
                 Just _  -> pure ()
-                Nothing -> appendLine fileLost (Lazy.fromStrict w)
+                Nothing -> appendLine fileLost w
+        putStrLn $ u `seq` " done."
+        putStrLn $ "Number of unique words: " <> show (HashSet.size setAll)
 
         removeFiles [fileOutput]
 
@@ -248,15 +262,23 @@ buildDict (OStDFile fileInput fileOutput lang) = do
         writeJSONFile fileOutput $ HashMap.toList dstMapStenoWord
 
         nLO <- wcl fileOutput
-        StrictIO.putStrLn
+        Text.putStrLn
             $  "Written "
             <> Text.pack fileOutput
             <> " ( "
             <> showt nLO
             <> " lines)"
-        -- TODO
-        -- check for double entries in the final result
 
         -- TODO scoring stats
         -- pure $ HashMap.toList stMapWordStenos <&> \(_, sds) ->
         --     maximum $ scorePrimary . sdScore <$> sds
+
+append' :: forall a . Strict.List a -> Strict.List a -> Strict.List a
+append' Nil       ys = ys
+append' (x :! xs) ys = x :! (xs `append'` ys)
+
+toStrictList :: [a] -> Strict.List a
+toStrictList = foldr (:!) Nil
+
+fromStrictList :: Strict.List a -> [a]
+fromStrictList = foldr (:) []

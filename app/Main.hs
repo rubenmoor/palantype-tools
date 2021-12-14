@@ -29,17 +29,11 @@ import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
                                                 )
 import           Data.Text                      ( Text
-                                                , replace
-
-
                                                 )
 import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as StrictIO
-import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( readFile
-                                                , writeFile
-                                                )
-import           Data.Text.Lazy.Read            ( double )
+import qualified Data.Text.IO              as Text
+import           Data.Text.Read            ( double )
 import           Data.Time.Clock                ( getCurrentTime )
 import           Data.Time.Format               ( defaultTimeLocale
                                                 , formatTime
@@ -59,7 +53,7 @@ import           System.FilePath                ( (</>)
                                                 , takeDirectory, takeExtension
                                                 )
 import           System.IO                      ( IO
-                                                , putStrLn
+                                                , putStrLn, putStr, hFlush, stdout
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
@@ -85,6 +79,7 @@ import           RunPrepare                     ( prepare )
 import           WCL                            ( wcl )
 import qualified Data.Aeson as Aeson
 import Data.Tuple (snd)
+import GHC.Exts (seq)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -125,11 +120,11 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
         nLines <- wcl file
         putStrLn $ file <> " (" <> show nLines <> " lines)"
 
-    let hasContent line = not (Lazy.null line) && Lazy.head line /= '#'
+    let hasContent line = not (Text.null line) && Text.head line /= '#'
 
-    lsExisting <- filter hasContent . mconcat <$> traverse (fmap Lazy.lines <<< readFile) filesHyphenated
+    lsExisting <- filter hasContent . mconcat <$> traverse (fmap Text.lines <<< Text.readFile) filesHyphenated
 
-    let mapExisting = HashMap.fromList $ (\w -> (replace "|" "" w, w)) . Lazy.toStrict <$> lsExisting
+    let mapExisting = HashMap.fromList $ (\w -> (Text.replace "|" "" w, w)) <$> lsExisting
 
     nLines <- wcl fileInput
     putStrLn
@@ -138,16 +133,16 @@ hyphenate (OHyphFile fileInput filesHyphenated fileOutput lang) = do
         <> " ("
         <> show nLines
         <> " lines)"
-    ls <- Lazy.lines <$> readFile fileInput
+    ls <- Text.lines <$> Text.readFile fileInput
 
     putStrLn $ "Writing to " <> fileOutput
-    appendLine fileOutput $ "# " <> Lazy.pack
+    appendLine fileOutput $ "# " <> Text.pack
         (formatTime defaultTimeLocale "%y%m%d-%T" now)
 
     for_ ls $ \l -> do
-        let hyph = case HashMap.lookup (Lazy.toStrict l) mapExisting of
-              Just h -> Lazy.fromStrict h
-              Nothing -> Lazy.intercalate "|" $ Lazy.pack <$> KL.hyphenate (KL.languageHyphenator lang') (Lazy.unpack l)
+        let hyph = case HashMap.lookup l mapExisting of
+              Just h -> h
+              Nothing -> Text.intercalate "|" $ Text.pack <$> KL.hyphenate (KL.languageHyphenator lang') (Text.unpack l)
         appendLine fileOutput hyph
 
     nLO <- wcl fileOutput
@@ -162,36 +157,43 @@ sortByFrequency (OptionsSort fileFrequencies files) = do
   where
     sortFile freqs file = do
       nLI <- wcl file
-      putStrLn
+      putStr
           $  "Reading words from file "
           <> file
           <> " ("
           <> show nLI
-          <> " lines)"
+          <> " lines) ..."
+      hFlush stdout
 
       if takeExtension file == ".json"
           then do
               ls <- HashMap.toList . fromMaybe (error "Could not decode json file") <$> Aeson.decodeFileStrict' file
+              putStrLn $ ls `seq` " done."
 
-              StrictIO.putStr "Sorting ..."
+              putStr "Sorting ..."
+              hFlush stdout
               let sorted = sortOn (Down <<< freq freqs <<< snd) ls
-              StrictIO.putStrLn " done."
+              putStrLn " done."
 
               writeJSONFile file sorted
           else do
               ls <- Text.lines <$> StrictIO.readFile file
+              putStrLn $ ls `seq` " done."
 
-              StrictIO.putStr "Sorting ..."
+              putStr "Sorting ..."
+              hFlush stdout
               let sorted = sortOn
-                      (Down <<< freq freqs <<< replace "|" "" <<< head <<< Text.splitOn " ")
+                      (Down <<< freq freqs <<< Text.replace "|" "" <<< head <<< Text.splitOn " ")
                       ls
-              StrictIO.putStrLn " done."
-              StrictIO.putStrLn $ "Writing file " <> Text.pack file
-              writeFile file $ Lazy.fromStrict $ Text.unlines sorted
+              putStrLn $ sorted `seq` " done."
+              putStr $ "Writing file " <> file <> " ..."
+              hFlush stdout
+              u <- Text.writeFile file $ Text.unlines sorted
+              putStrLn $ u `seq` " done."
 
 readScores :: FilePath -> IO [Double]
 readScores file = do
-    fmap readDouble . Lazy.lines <$> readFile file
+    fmap readDouble . Text.lines <$> Text.readFile file
   where
     readDouble str = case double str of
         Right (d, _) -> d

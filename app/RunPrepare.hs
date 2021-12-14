@@ -26,11 +26,8 @@ import           Data.Maybe                     ( Maybe(Just, Nothing)
 import           Data.Monoid                    ( (<>) )
 import           Data.Ord                       ( Ord((>)) )
 import           Data.Text                      ( Text )
-import qualified Data.Text.IO                  as StrictIO
-import qualified Data.Text.Lazy                as Lazy
-import           Data.Text.Lazy.IO              ( hGetContents
-                                                , writeFile
-                                                )
+import qualified Data.Text                      as Text
+import qualified Data.Text.IO                  as Text
 import           Data.Traversable               ( for )
 import           Formatting                     ( (%)
                                                 , fprint
@@ -69,8 +66,8 @@ prepare :: OptionsPrepare -> IO ()
 prepare (OPrepArg str) = do
     for_ (parseEntry str) $ \case
         Success hyph -> do
-            StrictIO.putStrLn $ showt hyph
-        other -> StrictIO.putStrLn $ showt other
+            Text.putStrLn $ showt hyph
+        other -> Text.putStrLn $ showt other
 
 prepare (OPrepFile fileInput fileOutput) = do
     start <- getTime Monotonic
@@ -89,7 +86,7 @@ prepare (OPrepFile fileInput fileOutput) = do
 
     handle <- openFile fileInput ReadMode
     hSetNewlineMode handle universalNewlineMode
-    entries <- Lazy.lines <$> hGetContents handle
+    entries <- Text.lines <$> Text.hGetContents handle
 
     let
         -- | in case of duplicate entries, try and find the
@@ -104,12 +101,12 @@ prepare (OPrepFile fileInput fileOutput) = do
         preferLessWeird h1@(Hyphenated ls1) h2@(Hyphenated ls2) =
             if length ls1 > length ls2 then h1 else h2
 
-        accM st entry | Lazy.head entry == '#' = pure st
+        accM st entry | Text.head entry == '#' = pure st
         accM st entry                          = do
 
         -- eliminate duplicate entries after parsing
-            let entry'     = Lazy.toStrict entry
-                lsResult   = parseEntry entry'
+            let
+                lsResult   = parseEntry entry
                 hyphenated = head lsResult
                 last       = stLastResult st
                 m          = stMap st
@@ -129,7 +126,7 @@ prepare (OPrepFile fileInput fileOutput) = do
                                 appendLine filePrepareMultiple entry
                             ExceptionSpecialChar c ->
                                 appendLine filePrepareSpecialChar
-                                    $  Lazy.singleton c
+                                    $  Text.singleton c
                                     <> " "
                                     <> entry
                             ExceptionSingleLetter ->
@@ -149,8 +146,8 @@ prepare (OPrepFile fileInput fileOutput) = do
     StatePrepare { stMap = m } <- foldM accM initialState entries
 
     putStrLn $ "Writing file " <> fileOutput
-    writeFile fileOutput
-        $  Lazy.intercalate "\n" (Lazy.fromStrict . showt <$> HashMap.elems m)
+    Text.writeFile fileOutput
+        $  Text.intercalate "\n" (showt <$> HashMap.elems m)
         <> "\n"
 
     putStrLn ""
