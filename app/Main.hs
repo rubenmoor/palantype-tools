@@ -13,18 +13,19 @@ import           Data.Bool                      ( (&&)
                                                 , not
                                                 )
 import           Data.Either                    ( Either(..) )
-import           Data.Eq                        ( Eq((/=), (==)) )
+import           Data.Eq                        ( Eq((/=)) )
 import           Data.Foldable                  ( Foldable(maximum)
+                                                , all
                                                 , for_
-                                                , traverse_
+
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
 import           Data.List                      ( filter
-                                                , head
-                                                , sortOn
+
+
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
@@ -50,13 +51,13 @@ import           System.Directory               ( listDirectory )
 import           System.FilePath                ( (</>)
                                                 , FilePath
                                                 , takeDirectory
-                                                , takeExtension
+
                                                 )
 import           System.IO                      ( IO
-                                                , hFlush
-                                                , putStr
+
+
                                                 , putStrLn
-                                                , stdout
+
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
@@ -67,30 +68,27 @@ import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart
                                                     ( OSCHistScores
                                                     )
-                                                , OptionsSort(..)
+
                                                 , Task(..)
                                                 , argOpts
                                                 )
 import           BuildDict                      ( buildDict )
 import           Common                         ( appendLine
                                                 , fileScores
-                                                , freq
-                                                , readFrequencies
                                                 , removeFiles
-                                                , writeJSONFile
                                                 )
-import qualified Data.Aeson                    as Aeson
+import           Data.Char                      ( isUpper )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Maybe                     ( Maybe(..)
-                                                , fromMaybe
+
                                                 )
-import           Data.Ord                       ( Down(Down) )
-import           Data.Tuple                     ( snd )
-import           GHC.Exts                       ( seq )
+import           Data.String                    ( String )
+import           Palantype.Tools.Prepare        ( pseudoSyllable )
 import           RunPrepare                     ( prepare )
+import           Text.Parsec                    ( runParser
+                                                )
 import           WCL                            ( wcl )
-import Data.Foldable (all)
-import Data.Char (isUpper)
+import Sort (sortByFrequency)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -134,9 +132,13 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
 
                 -- exception: acronym
                 then Text.intersperse '|' str
-                else Text.intercalate "|" $ Text.pack <$> KL.hyphenate
-                    (KL.languageHyphenator lang')
-                    (Text.unpack str)
+                else
+                    let
+                        klhyph = KL.hyphenate (KL.languageHyphenator lang')
+                            $ Text.unpack str
+                        hyph = hyphPseudoSyllable klhyph
+                    in
+                        Text.intercalate "|" hyph
 
     case mode of
         OHMFile fileInput fileOutput -> do
@@ -165,57 +167,14 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
                 $ putStrLn "Existing hypenation pattern."
             Text.putStrLn $ hyphenate' str
 
-sortByFrequency :: OptionsSort -> IO ()
-sortByFrequency (OptionsSort fileFrequencies files) = do
-
-    freqs <- readFrequencies fileFrequencies
-
-    traverse_ (sortFile freqs) files
   where
-    sortFile freqs file = do
-        nLI <- wcl file
-        putStr
-            $  "Reading words from file "
-            <> file
-            <> " ("
-            <> show nLI
-            <> " lines) ..."
-        hFlush stdout
-
-        if takeExtension file == ".json"
-            then do
-                ls <-
-                    HashMap.toList
-                    .   fromMaybe (error "Could not decode json file")
-                    <$> Aeson.decodeFileStrict' file
-                putStrLn $ ls `seq` " done."
-
-                putStr "Sorting ..."
-                hFlush stdout
-                let sorted = sortOn (Down <<< freq freqs <<< snd) ls
-                putStrLn " done."
-
-                writeJSONFile file sorted
-            else do
-                ls <- Text.lines <$> Text.readFile file
-                putStrLn $ ls `seq` " done."
-
-                putStr "Sorting ..."
-                hFlush stdout
-                let
-                    sorted = sortOn
-                        (   Down
-                        <<< freq freqs
-                        <<< Text.replace "|" ""
-                        <<< head
-                        <<< Text.splitOn " "
-                        )
-                        ls
-                putStrLn $ sorted `seq` " done."
-                putStr $ "Writing file " <> file <> " ..."
-                hFlush stdout
-                u <- Text.writeFile file $ Text.unlines sorted
-                putStrLn $ u `seq` " done."
+    hyphPseudoSyllable :: [String] -> [Text]
+    hyphPseudoSyllable [] = error "hyphPseudoSyllable: impossible"
+    hyphPseudoSyllable (s : rem) =
+        let ss = case runParser pseudoSyllable s "" (Text.pack s) of
+                Left  _     -> [Text.pack s]
+                Right sylls -> sylls
+        in  ss <> (Text.pack <$> rem)
 
 readScores :: FilePath -> IO [Double]
 readScores file = do

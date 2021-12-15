@@ -3,18 +3,21 @@
 
 module Palantype.Tools.Prepare
     ( pseudoSyllable
-    , Result (..)
-    , Exception (..)
+    , Result(..)
+    , Exception(..)
     , parseEntry
     ) where
 
 import           Control.Applicative            ( Alternative((<|>))
                                                 , Applicative((<*>))
                                                 )
-import           Control.Category               ( Category((.)) , id)
+import           Control.Category               ( Category((.))
+                                                , id
+                                                )
 import           Control.Monad                  ( Monad((>>=))
                                                 , MonadPlus(mzero)
-                                                , when, guard
+                                                , guard
+                                                , when
                                                 )
 import           Data.Bool                      ( (&&)
                                                 , Bool(False)
@@ -24,10 +27,10 @@ import           Data.Bool                      ( (&&)
                                                 )
 import           Data.Char                      ( Char
                                                 , isLetter
-                                                , isLower, isUpper
+                                                , isLower
+                                                , isUpper
                                                 )
-import           Data.Either                    ( Either(..)
-                                                )
+import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( (==) )
 import           Data.Foldable                  ( Foldable(elem)
                                                 , notElem
@@ -36,19 +39,23 @@ import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , void
                                                 )
-import           Data.List                      ( (++)
-                                                )
+import           Data.List                      ( (++) )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
-                                                , isNothing, isJust, maybe
+                                                , isJust
+                                                , isNothing
+                                                , maybe
                                                 )
 import           Data.Semigroup                 ( Semigroup((<>)) )
 import           Data.Set                       ( Set )
 import qualified Data.Set                      as Set
 import           Data.String                    ( String )
-import           Data.Text                      ( Text, isInfixOf )
+import           Data.Text                      ( Text
+                                                , isInfixOf
+                                                )
 import qualified Data.Text                     as Text
 import           GHC.Generics                   ( Generic )
+import           Palantype.Tools.Hyphenate      ( Hyphenated(..) )
 import           Prelude                        ( Applicative((*>), (<*), pure)
                                                 , Eq((/=))
                                                 , Foldable(null)
@@ -67,17 +74,16 @@ import           Text.Parsec                    ( ParseError
                                                 , many
                                                 , many1
                                                 , manyTill
-
                                                 , notFollowedBy
                                                 , oneOf
-
+                                                , optionMaybe
                                                 , runParser
                                                 , satisfy
                                                 , sepBy1
                                                 , setState
                                                 , space
                                                 , string
-                                                , try, optionMaybe
+                                                , try
                                                 )
 import           Text.Parsec.Error              ( Message(Message) )
 import           Text.ParserCombinators.Parsec.Error
@@ -89,7 +95,6 @@ import           TextShow                       ( TextShow(..)
                                                 , fromText
                                                 )
 import           TextShow.Generic               ( genericShowbPrec )
-import Palantype.Tools.Hyphenate (Hyphenated (..))
 
 data Result
   = Success Hyphenated
@@ -172,8 +177,7 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
             ExceptionExplicit
         rem <- getInput
         pure (result, rem)
-      where
-        sep      = void $ many1 space *> string ">>>" *> many1 space
+        where sep = void $ many1 space *> string ">>>" *> many1 space
 
     someChar :: Parsec Text (Maybe Exception) (Maybe Char)
     someChar = do
@@ -200,17 +204,21 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
     syllables = do
         (x : _) <- getState
         void $ many $ satisfy (/= x)
-        mFirstPs <- optionMaybe $ try $ pseudoSyllable <* (char '|' <|> lookAhead (next '-'))
+        mFirstPs <-
+            optionMaybe
+            $  try
+            $  pseudoSyllable
+            <* (void (char '|') <|> void (lookAhead (next '-')) <|> end)
         rem <- mconcat <$> sepBy1 ((++) <$> optionalHyphen <*> syllable)
-                           (char '|' <|> lookAhead (next '-'))
+                                  (char '|' <|> lookAhead (next '-'))
         pure $ maybe id (++) mFirstPs rem
 
       where
-        syllable       = try acronym <|> try bmio <|> realSyllable
+        syllable = try acronym <|> try bmio <|> realSyllable
 
-        end = do
-          st <- getState
-          if null st then pure () else mzero
+        end      = do
+            st <- getState
+            if null st then pure () else mzero
 
         acronym = do
             chrs <- many1 uc
@@ -227,10 +235,9 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
             hendl :: Parsec Text String [Text]
             hendl = do
 
-                let
-                    syllableEnd = void (oneOf "|-") <|> end
+                let syllableEnd = void (oneOf "|-") <|> end
 
-                    consonantL = do
+                    consonantL  = do
                         c <- Text.singleton <$> consonant
                         l <- Text.singleton <$> next 'l'
                         lookAhead syllableEnd
@@ -245,7 +252,7 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
 
         optionalHyphen = try (pure . Text.singleton <$> next '-') <|> pure []
 
-        consonant = getState >>= \case
+        consonant      = getState >>= \case
             (x : xs) | x `notElem` ('-' : vowels) -> do
                 setState xs
                 char x

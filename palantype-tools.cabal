@@ -78,6 +78,7 @@ executable palantype-ops
       , Common
       , WCL
       , RunPrepare
+      , Sort
 
     build-depends:
         base
@@ -102,6 +103,7 @@ executable palantype-ops
       , time
       , unordered-containers
       , vector
+      , vector-algorithms
       , vector-split
     default-extensions:
         FlexibleContexts

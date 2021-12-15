@@ -43,6 +43,7 @@
 , [ "aa"  , [0, "A/A"]]
 , [ "aar" , [1, "AÜ"]]
 , [ "aar" , [0, "A/AÜ"]]
+, [ "abend", [0, "A/BEND"]]
 , [ "ae"  , [0, "AI"]]         // e.g. aerodynamisch
 , [ "ag"  , [0, "AÜK"]]
 , [ "a|g" , [0, "AÜK"]]
