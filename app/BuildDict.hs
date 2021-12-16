@@ -86,6 +86,7 @@ import           System.IO                      ( FilePath
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import Data.Strict (Strict(toStrict))
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
