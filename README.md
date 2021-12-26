@@ -4,7 +4,31 @@ Create a steno dictionary for palantype style steno systems,
 i.e. a steno system that works well with any keyboard,
 as long as it supports n-key roll-over (cf. https://en.wikipedia.org/wiki/Rollover_(keyboard)).
 
-## Main Workflow
+## Workflow summary
+
+Create file "hyphenated-prepared.txt":
+
+    $ palantype-ops prepare
+
+Use files with verified hyphenation information to read "german.utf8.dic",
+hyphenate each word and write the output to "hyphenated.txt":
+
+    $ palantype-ops hyphenate -h hyphenated-prepared.txt -h hyphenated-checked-DE.txt
+
+Join the files with hyphenated words:
+
+    $ cp hyphenated-prepared.txt hyphenated-all.txt
+    $ cat hyphenated.txt >> hyphenated-all.txt
+
+Build the steno dict, takes about 50 minutes:
+
+    $ palantype-ops stenoDict -i hyphenated-all.txt +RTS -N -A64M
+
+Sorting relevant files based on word frequency information:
+
+    $ palantype-ops sort -i palantype.json -i buildDict-collisions.txt -i buildDict-noparse.txt
+
+## Full Workflow
 
 ### 1. Research the language
 
@@ -131,7 +155,7 @@ You can take the first 100'000 words from your sorted file and build a dictionar
 > In order to make use of parallel computing, use
 >
 >     $> palantype-ops stenoDict -i hyphenated-top100k.txt +RTS -N
->    
+>
 > where the -N option will run a number of processes equal to the number of cores on your system.
 > Explicitly specify the desired number of jobs by putting a number there, e.g. -N4.
 
@@ -140,7 +164,7 @@ Check the output for potential problems.
 - `buildDict-noparse.txt` contains words that could not be translated in to steno chords,
   typically because primitives are missing.
 - `buildDict-collisions.txt` contains words that resulted in steno that is already in use for other words.
-    
+
 Keep building small dictionary on a limited set of words and iteratively improve
 
     1. the list of steno keys
@@ -151,7 +175,7 @@ Keep building small dictionary on a limited set of words and iteratively improve
 Once you reach some 100'000+ words in the steno dictionary, think about publishing
 your system as plover plug-in.
 
-> Note that you can sort the dictionary, too. Just use the .json-file as input for the 
+> Note that you can sort the dictionary, too. Just use the .json-file as input for the
 > sort command above. Sorting can be useful, e.g. for humans who read the file, but is never necessary.
 
 ### 7. Build language-independent dictionary
@@ -161,4 +185,3 @@ WIP
 At any time, you can build the dictionary of commands that are independent of language like this
 
     $> TODO
-   

@@ -5,8 +5,7 @@ module Palantype.Tools.Collision where
 import           Data.Bool                      ( Bool (..))
 import           Data.Eq                        ( Eq((==)) )
 import           Data.Function                  ( ($) )
-import           Data.HashMap.Internal.Strict   ( HashMap )
-import qualified Data.HashMap.Strict           as HashMap
+import qualified Data.Map.Strict           as Map
 import           Data.Int                       ( Int )
 import           Data.List                      ( delete
                                                 , length
@@ -31,22 +30,23 @@ import           Palantype.Common.RawSteno      ( RawSteno )
 import Data.Foldable (Foldable(foldl'))
 import Data.Functor ((<&>))
 import Data.Tuple (snd)
+import Data.Map.Strict (Map)
 
 data DictState = DictState
-    { dstMapWordStenos :: HashMap Text [RawSteno]
-    , dstMapStenoWord :: HashMap RawSteno Text
+    { dstMapWordStenos :: Map Text [RawSteno]
+    , dstMapStenoWord :: Map RawSteno Text
     }
 
 resolve :: Text -> [RawSteno] -> DictState -> (DictState, Bool)
 resolve word raws dst@DictState{..} =
     let
         -- look up collisions ...
-        mNAlts raw = HashMap.lookup raw dstMapStenoWord <&> \collision ->
+        mNAlts raw = Map.lookup raw dstMapStenoWord <&> \collision ->
             -- ... and for every collisions the number of alternatives
             -- of the existing word, i.e. the gravity of the collision
             -- where 1 implicates that `raw` is inviable (soft squeeze B)
             (length $ fromMaybe (error "resolve: impossible") $
-                     HashMap.lookup collision dstMapWordStenos
+                     Map.lookup collision dstMapWordStenos
             -- and while we're at it, save the colliding word, too
             , collision)
 
@@ -68,8 +68,8 @@ accAllocate
 accAllocate word (nAlts, DictState{..}, _) (raw, Nothing) =
     ( nAlts
     , DictState
-        { dstMapWordStenos = HashMap.insertWith (++) word [raw] dstMapWordStenos
-        , dstMapStenoWord  = HashMap.insert raw word dstMapStenoWord}
+        { dstMapWordStenos = Map.insertWith (++) word [raw] dstMapWordStenos
+        , dstMapStenoWord  = Map.insert raw word dstMapStenoWord}
     , False
     )
 
@@ -86,10 +86,10 @@ accAllocate word
         -- soft squeeze A: new word w/o alternatives; existing word loses one alternative
         (1, _) -> (nAlts, DictState
                   { dstMapWordStenos =
-                        HashMap.insert word [raw] $
-                        HashMap.adjust (delete raw) collisionWord dstMapWordStenos
+                        Map.insert word [raw] $
+                        Map.adjust (delete raw) collisionWord dstMapWordStenos
                   , dstMapStenoWord  =
-                        HashMap.insert raw word dstMapStenoWord
+                        Map.insert raw word dstMapStenoWord
                   }, False)
 
         -- soft squeeze B: existing word w/o alternatives; new word loses one alternative
@@ -103,10 +103,10 @@ accAllocate word
 
         -- new word has less alternatives: new word wins, existing word loses one alternative
         _ | nAlts < collisionNAlts -> (nAlts, DictState
-                  { dstMapWordStenos = HashMap.insertWith (++) word [raw] $
-                        HashMap.adjust (delete raw) collisionWord dstMapWordStenos
+                  { dstMapWordStenos = Map.insertWith (++) word [raw] $
+                        Map.adjust (delete raw) collisionWord dstMapWordStenos
                   , dstMapStenoWord  =
-                        HashMap.insert raw word dstMapStenoWord
+                        Map.insert raw word dstMapStenoWord
                   }, False)
 
         -- avoid missing patterns warning

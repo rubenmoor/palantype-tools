@@ -1,12 +1,10 @@
 module Common where
 
 import Control.Monad (when)
-import Data.Foldable (Foldable (toList), for_)
+import Data.Foldable (Foldable (toList, foldMap), for_)
 import Data.Function (($))
-import Data.Functor (Functor, (<$>))
 import Data.Semigroup (Semigroup ((<>)))
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import Data.Time (
     UTCTime,
@@ -15,7 +13,6 @@ import Data.Time (
  )
 import GHC.Exts (seq)
 import GHC.IO (FilePath)
-import Palantype.Common.RawSteno (RawSteno)
 import System.Directory (
     doesFileExist,
     removeFile,
@@ -25,9 +22,11 @@ import System.IO (
     hFlush,
     putStr,
     putStrLn,
-    stdout,
+    stdout, Handle, IOMode (WriteMode), withBinaryFile
  )
-import TextShow (TextShow (showt))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Builder.Internal as BSB
+import Control.Category ((<<<))
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles files = for_ files $ \file -> do
@@ -45,17 +44,28 @@ fileScores time =
         <> formatTime defaultTimeLocale "%y%m%d-%T" time
         <> ".txt"
 
-writeJSONFile :: forall l. (Foldable l, Functor l) => FilePath -> l (RawSteno, Text) -> IO ()
+writeJSONFile :: forall l. Foldable l => FilePath -> l (ByteString, ByteString) -> IO ()
 writeJSONFile file ls = do
     putStr $ "Writing file " <> file <> " ..."
     hFlush stdout
     u <-
-        Text.writeFile file $
-            "{\n"
-                <> Text.intercalate ",\n" (toList $ formatJSONLine <$> ls)
-                <> "\n}\n"
+        writeFile file $
+            BSB.byteString "{\n"
+                <> foldMap ((<> ",\n") <<< BSB.byteString <<< formatJSONLine) (toList ls)
+                <> BSB.byteString "\n}\n"
     putStrLn $ u `seq` " done."
   where
-    formatJSONLine :: (RawSteno, Text) -> Text
+    formatJSONLine :: (ByteString, ByteString) -> ByteString
     formatJSONLine (raw, word) =
-        "\"" <> showt raw <> "\": \"" <> word <> "\""
+        "\"" <> raw <> "\": \"" <> word <> "\""
+
+-- using bytestring 0.10 and 0.11.1
+-- `writeFile` is in bytestring 0.11.2
+hPutBuilder :: Handle -> BSB.Builder -> IO ()
+hPutBuilder h = BSB.hPut h <<< BSB.putBuilder
+
+modifyFile :: IOMode -> FilePath -> BSB.Builder -> IO ()
+modifyFile mode f bld = withBinaryFile f mode (`hPutBuilder` bld)
+
+writeFile :: FilePath -> BSB.Builder -> IO ()
+writeFile = modifyFile WriteMode
