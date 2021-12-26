@@ -83,7 +83,7 @@ import           Text.Parsec                    ( ParseError
                                                 , setState
                                                 , space
                                                 , string
-                                                , try
+                                                , try, (<?>), sepBy
                                                 )
 import           Text.Parsec.Error              ( Message(Message) )
 import           Text.ParserCombinators.Parsec.Error
@@ -95,6 +95,7 @@ import           TextShow                       ( TextShow(..)
                                                 , fromText
                                                 )
 import           TextShow.Generic               ( genericShowbPrec )
+import TextShow.Debug.Trace (traceTextShow)
 
 data Result
   = Success Hyphenated
@@ -206,10 +207,12 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
         void $ many $ satisfy (/= x)
         mFirstPs <-
             optionMaybe
-            $  try
-            $  pseudoSyllable
-            <* (void (char '|') <|> void (lookAhead (next '-')) <|> end)
-        rem <- mconcat <$> sepBy1 ((++) <$> optionalHyphen <*> syllable)
+            $ try $ pseudoSyllable
+                <*    ( void (char '|')
+                    <|> void (lookAhead $ next '-')
+                    <|> end <?> "optional pseudo syllable: |, -, END"
+                      )
+        rem <- mconcat <$> sepBy ((++) <$> optionalHyphen <*> syllable)
                                   (char '|' <|> lookAhead (next '-'))
         pure $ maybe id (++) mFirstPs rem
 
@@ -300,14 +303,14 @@ pseudoSyllable = do
     (v1 :) <$> (try bmio <|> pseudoSyllable')
   where
     pseudoSyllable' = do
-        c1  <- Text.pack <$> many1 lcConsonantWY
+        c1  <- Text.singleton <$> lcConsonantWY
         v2  <- vowel
         rem <- Text.pack <$> many nextChar
         pure [c1 <> v2 <> rem]
 
 bmio :: Parsec Text String [Text]
 bmio = do
-    bm <- try (next 'b') <|> next 'm'
+    bm <- next 'b' <|> next 'm'
     i  <- next 'i'
     o  <- next 'o'
     pure [Text.pack [bm, i], Text.singleton o]

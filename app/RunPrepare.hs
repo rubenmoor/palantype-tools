@@ -112,8 +112,7 @@ prepare (OPrepFile fileInput fileOutput) = do
                 then pure HashMap.empty
                 else do
                     lsMSyllables <- for lsResult $ \case
-                        Failure err -> do
-                            print err
+                        Failure _ -> do
                             appendLine filePrepareNoParse entry
                             pure Nothing
                         Success   txts -> pure $ Just (toWord txts, txts)
