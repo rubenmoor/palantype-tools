@@ -44,7 +44,7 @@ import           System.IO                      ( IO
                                                 , IOMode(ReadMode)
                                                 , hSetNewlineMode
                                                 , openFile
-                                                , print
+
                                                 , putStr
                                                 , putStrLn
                                                 , universalNewlineMode
@@ -72,13 +72,13 @@ prepare (OPrepFile fileInput fileOutput) = do
     start <- getTime Monotonic
     let lsFiles =
             [ fileOutput
-            , filePrepareNoParse
-            , filePrepareAbbreviations
-            , filePrepareMultiple
-            , filePrepareSpecialChar
-            , filePrepareSingleLetter
-            , filePrepareEllipsis
-            , filePrepareExplicitExceptions
+            , fileNoParse
+            , fileAbbreviations
+            , fileMultiple
+            , fileSpecialChar
+            , fileSingleLetter
+            , fileEllipsis
+            , fileExplicitExceptions
             ]
     removeFiles lsFiles
 
@@ -113,25 +113,27 @@ prepare (OPrepFile fileInput fileOutput) = do
                 else do
                     lsMSyllables <- for lsResult $ \case
                         Failure _ -> do
-                            appendLine filePrepareNoParse entry
+                            appendLine fileNoParse entry
                             pure Nothing
                         Success   txts -> pure $ Just (toWord txts, txts)
                         Exception exc  -> Nothing <$ case exc of
                             ExceptionAbbreviation ->
-                                appendLine filePrepareAbbreviations entry
+                                appendLine fileAbbreviations entry
+                            ExceptionHyphen ->
+                                appendLine fileHyphen entry
                             ExceptionMultiple ->
-                                appendLine filePrepareMultiple entry
+                                appendLine fileMultiple entry
                             ExceptionSpecialChar c ->
-                                appendLine filePrepareSpecialChar
+                                appendLine fileSpecialChar
                                     $  Text.singleton c
                                     <> " "
                                     <> entry
                             ExceptionSingleLetter ->
-                                appendLine filePrepareSingleLetter entry
+                                appendLine fileSingleLetter entry
                             ExceptionEllipsis ->
-                                appendLine filePrepareEllipsis entry
+                                appendLine fileEllipsis entry
                             ExceptionExplicit ->
-                                appendLine filePrepareExplicitExceptions entry
+                                appendLine fileExplicitExceptions entry
                             ExceptionMisspelling -> pure ()
                     pure $ HashMap.fromList $ catMaybes lsMSyllables
             pure $ st { stLastResult = hyphenated
@@ -158,10 +160,11 @@ prepare (OPrepFile fileInput fileOutput) = do
     fprint (timeSpecs % "\n") start stop
 
   where
-    filePrepareAbbreviations      = "prepare-abbreviations.txt"
-    filePrepareMultiple           = "prepare-multiple.txt"
-    filePrepareSpecialChar        = "prepare-specialchar.txt"
-    filePrepareSingleLetter       = "prepare-singleletter.txt"
-    filePrepareEllipsis           = "prepare-ellipsis.txt"
-    filePrepareNoParse            = "prepare-noparse.txt"
-    filePrepareExplicitExceptions = "prepare-explicitexceptions.txt"
+    fileAbbreviations      = "prepare-abbreviations.txt"
+    fileMultiple           = "prepare-multiple.txt"
+    fileSpecialChar        = "prepare-specialchar.txt"
+    fileSingleLetter       = "prepare-singleletter.txt"
+    fileEllipsis           = "prepare-ellipsis.txt"
+    fileNoParse            = "prepare-noparse.txt"
+    fileExplicitExceptions = "prepare-explicitexceptions.txt"
+    fileHyphen             = "prepare-hyphen.txt"

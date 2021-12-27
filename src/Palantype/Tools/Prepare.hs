@@ -9,7 +9,7 @@ module Palantype.Tools.Prepare
     ) where
 
 import           Control.Applicative            ( Alternative((<|>))
-                                                , Applicative((<*>))
+
                                                 )
 import           Control.Category               ( Category((.))
                                                 , id
@@ -28,7 +28,7 @@ import           Data.Bool                      ( (&&)
 import           Data.Char                      ( Char
                                                 , isLetter
                                                 , isLower
-                                                , isUpper
+
                                                 )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( (==) )
@@ -39,7 +39,7 @@ import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , void
                                                 )
-import           Data.List                      ( (++) )
+import           Data.List                      ( (++), all )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
                                                 , isJust
@@ -75,11 +75,11 @@ import           Text.Parsec                    ( ParseError
                                                 , many1
                                                 , manyTill
                                                 , notFollowedBy
-                                                , oneOf
+
                                                 , optionMaybe
                                                 , runParser
                                                 , satisfy
-                                                , sepBy1
+
                                                 , setState
                                                 , space
                                                 , string
@@ -95,7 +95,6 @@ import           TextShow                       ( TextShow(..)
                                                 , fromText
                                                 )
 import           TextShow.Generic               ( genericShowbPrec )
-import TextShow.Debug.Trace (traceTextShow)
 
 data Result
   = Success Hyphenated
@@ -115,6 +114,7 @@ instance TextShow Result where
 
 data Exception
   = ExceptionAbbreviation
+  | ExceptionHyphen
   | ExceptionMultiple
   | ExceptionSpecialChar Char
   | ExceptionSingleLetter
@@ -171,6 +171,7 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
     word = do
         isSuffix <- isJust <$> optionMaybe (try $ string "...")
         when isSuffix $ setState $ Just ExceptionEllipsis
+
         void $ many $ try (satisfy (not . isLetter) *> notFollowedBy sep)
         result <- Text.pack . catMaybes <$> manyTill someChar (try sep)
         when (Text.length result == 1) $ setState $ Just ExceptionSingleLetter
@@ -191,7 +192,8 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
                     then Just ExceptionEllipsis
                     else Just ExceptionAbbreviation
             ' ' -> setState $ Just ExceptionMultiple
-            _ | not (isLetter c || c `elem` ("-!®" :: String)) ->
+            '-' -> setState $ Just ExceptionHyphen
+            _ | not (isLetter c || c `elem` ("!®" :: String)) ->
                 setState $ Just $ ExceptionSpecialChar c
             _ -> pure ()
         pure $ case c of
@@ -209,36 +211,24 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
             optionMaybe
             $ try $ pseudoSyllable
                 <*    ( void (char '|')
-                    <|> void (lookAhead $ next '-')
-                    <|> end <?> "optional pseudo syllable: |, -, END"
+                    <|> end <?> "optional pseudo syllable: | or END"
                       )
-        rem <- mconcat <$> sepBy ((++) <$> optionalHyphen <*> syllable)
-                                  (char '|' <|> lookAhead (next '-'))
+        rem <- mconcat <$> sepBy syllable (char '|')
         pure $ maybe id (++) mFirstPs rem
 
       where
-        syllable = try acronym <|> try bmio <|> realSyllable
+        syllable = try bmio <|> realSyllable
 
         end      = do
             st <- getState
             if null st then pure () else mzero
-
-        acronym = do
-            chrs <- many1 uc
-            end
-            pure $ Text.singleton <$> chrs
-          where
-            uc = do
-                c <- nextChar
-                guard (isUpper c)
-                pure c
 
         realSyllable = try hendl <|> (pure . Text.pack <$> many1 nextChar)
           where
             hendl :: Parsec Text String [Text]
             hendl = do
 
-                let syllableEnd = void (oneOf "|-") <|> end
+                let syllableEnd = void (char '|') <|> end
 
                     consonantL  = do
                         c <- Text.singleton <$> consonant
@@ -253,10 +243,8 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
                 (c2, l) <- consonantL
                 pure [chrs <> c1 <> c2, l]
 
-        optionalHyphen = try (pure . Text.singleton <$> next '-') <|> pure []
-
         consonant      = getState >>= \case
-            (x : xs) | x `notElem` ('-' : vowels) -> do
+            (x : xs) | x `notElem` vowels -> do
                 setState xs
                 char x
             _ -> mzero
@@ -299,14 +287,16 @@ replaceFirst needle replacement haystack
 
 pseudoSyllable :: Parsec Text String [Text]
 pseudoSyllable = do
-    v1 <- vowel
+    v1 <- Text.singleton <$> vowel
     (v1 :) <$> (try bmio <|> pseudoSyllable')
   where
     pseudoSyllable' = do
         c1  <- Text.pack <$> many1 lcConsonantWY
         v2  <- vowel
-        rem <- Text.pack <$> many nextChar
-        pure [c1 <> v2 <> rem]
+        guard (isLower v2)
+        rem <- many nextChar
+        guard $ all isLower rem
+        pure [c1 <> Text.singleton v2 <> Text.pack rem]
 
 bmio :: Parsec Text String [Text]
 bmio = do
@@ -317,7 +307,7 @@ bmio = do
 
 nextChar :: Parsec Text String Char
 nextChar = getState >>= \case
-    (x : xs) | x /= '-' -> do
+    (x : xs) -> do
         setState xs
         char x
     _ -> mzero
@@ -329,17 +319,17 @@ next c = getState >>= \case
         char x
     _ -> mzero
 
-vowel :: Parsec Text String Text
+vowel :: Parsec Text String Char
 vowel = getState >>= \case
     (x : xs) | x `elem` ('y' : 'Y' : vowels) -> do
         setState xs
-        Text.singleton <$> char x
+        char x
     _ -> mzero
 
 
 lcConsonantWY :: Parsec Text String Char
 lcConsonantWY = getState >>= \case
-    (x : xs) | isLower x && x `notElem` ('-' : vowels) -> do
+    (x : xs) | isLower x && x `notElem` vowels -> do
         setState xs
         char x
     _ -> mzero
