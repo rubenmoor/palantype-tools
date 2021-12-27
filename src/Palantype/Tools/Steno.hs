@@ -36,7 +36,7 @@ import           Data.Aeson.Types               ( Parser )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
 import           Data.Bool                      ( (&&)
                                                 , Bool(False, True)
-                                                , not
+                                                , not, otherwise
                                                 )
 import           Data.ByteString                ( ByteString
                                                 , isInfixOf
@@ -44,7 +44,7 @@ import           Data.ByteString                ( ByteString
 import qualified Data.ByteString               as BS
 import           Data.Char                      ( digitToInt
                                                 , isDigit
-                                                , isUpper
+                                                , isUpper, isLower
                                                 )
 import           Data.Either                    ( Either(Left, Right)
                                                 , isLeft
@@ -115,18 +115,19 @@ import           GHC.Real                       ( Fractional((/), fromRational)
 import           Palantype.Common               ( Finger
                                                 , Palantype
                                                 )
-import           Palantype.Common.Dictionary    ( kiCapNext )
+import           Palantype.Common.Dictionary    ( kiCapNext, kiAcronym )
 import qualified Palantype.Common.Indices      as KI
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno, unRawSteno)
                                                 )
 import qualified Palantype.Common.RawSteno     as Raw
 import qualified Palantype.DE.Keys             as DE
+import qualified Text.Parsec                    as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
                                                 , evalParser
                                                 , sepBy1
-                                                , setState
+                                                , setState, many1, many, try, runParser
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
@@ -146,6 +147,7 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
+import Data.String (String)
 
 type Greediness = Int
 
@@ -233,10 +235,7 @@ instance TextShow ParseError where
 
 isCapitalized :: Text -> Bool
 isCapitalized "" = error "isCapitalized: empty string"
-isCapitalized str =
-    let (h, rest) = Text.splitAt 1 str
-        c         = head $ Text.unpack h
-    in  isUpper c && Text.toLower rest == rest
+isCapitalized str = isUpper $ Text.head str
 
 {-|
 Add the "capitalize next word" chord in front
@@ -245,6 +244,12 @@ addCapChord :: forall key . Palantype key => State key -> State key
 addCapChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiCapNext) <> "/" <> stStrRawSteno
     , stNChords     = stNChords + 1
+    }
+
+addAcronymChord :: forall key. Palantype key => State key -> State key
+addAcronymChord st@State {..} = st
+    { stStrRawSteno = showt (KI.toRaw @key kiAcronym) <> "/" <> stStrRawSteno
+    , stNChords = stNChords + 1
     }
 
 -- | Find steno chords for a given, hyphenated word, e.g. "Ge|sund|heit"
@@ -264,7 +269,13 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
             (trie, patternsG) = primitives
 
             -- calculate result for lower case word
-            str               = Text.encodeUtf8 $ toLower hyphenated
+
+            (hyphenated', isAcronym) = case runParser acronym () "" hyphenated of
+                Right syls -> (Text.intercalate "|" syls, True)
+                Left _ -> (hyphenated, False)
+
+            str = Text.encodeUtf8 $ toLower hyphenated'
+
             st                = State { stStrRawSteno = ""
                                       , stNLetters    = 0
                                       , stNChords     = 1
@@ -283,20 +294,17 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
                 levels <&> \maxG ->
                     ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
 
-            lsResult = if isCapitalized hyphenated
-
-              -- capitalized words enter as no-optimized with the
-              -- "capitalize next word"-chord added in front
-              -- AND as c-optimized version, w/o extra chord
-                then
-                    let
-                        lsNoCOpt =
-                            second (mapSuccess $ addCapChord @key)
-                                <$> lsResultLc
-                        lsYesCOpt = first (second $ const True) <$> lsResultLc
-                    in
-                        lsNoCOpt ++ lsYesCOpt
-                else lsResultLc
+            lsResult
+              | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+              | isCapitalized hyphenated =
+                 let
+                     lsNoCOpt =
+                         second (mapSuccess $ addCapChord @key)
+                             <$> lsResultLc
+                     lsYesCOpt = first (second $ const True) <$> lsResultLc
+                 in
+                     lsNoCOpt ++ lsYesCOpt
+              | otherwise = lsResultLc
         in
             case sortOn (Down . uncurry scoreWithG) lsResult of
                 (_, Failure raw err) : _ -> Left $ PEParsec raw err
@@ -591,3 +599,20 @@ primitives =
             foldl' (\m' (g, _) -> Map.insertWith (++) g [bstr] m') m entries
         mapPatternsG = foldl' accPatternsG Map.empty ls
     in  (Trie.fromList ls, Map.toList mapPatternsG)
+
+acronym :: Parsec Text () [Text]
+acronym = do
+    s1 <- acronymSyllable
+    -- an acronym requires two "acronym syllables" at minimum
+    -- i.e. it must start with an uppercase letter and it must contain
+    -- at least one additional uppercase letter later
+    ss <- many1 acronymSyllable
+    pure $ s1 : ss
+  where
+
+    -- an "acronym syllable" is an uppercase letter, optionally
+    -- followed by lowercase letters
+    acronymSyllable = do
+      ucl <- Parsec.satisfy isUpper
+      lcls <- many $ Parsec.satisfy isLower
+      pure $ Text.pack $ ucl : lcls
