@@ -27,6 +27,8 @@ import System.IO (
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Builder.Internal as BSB
 import Control.Category ((<<<))
+import qualified Data.ByteString as BS
+import Data.Functor ((<$>))
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles files = for_ files $ \file -> do
@@ -50,9 +52,9 @@ writeJSONFile file ls = do
     hFlush stdout
     u <-
         writeFile file $
-            BSB.byteString "{\n"
-                <> foldMap ((<> ",\n") <<< BSB.byteString <<< formatJSONLine) (toList ls)
-                <> BSB.byteString "\n}\n"
+            BSB.byteString $ "{\n"
+                <> BS.intercalate ",\n" (formatJSONLine <$> toList ls)
+                <> "\n}\n"
     putStrLn $ u `seq` " done."
   where
     formatJSONLine :: (ByteString, ByteString) -> ByteString

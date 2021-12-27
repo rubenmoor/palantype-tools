@@ -303,7 +303,7 @@ pseudoSyllable = do
     (v1 :) <$> (try bmio <|> pseudoSyllable')
   where
     pseudoSyllable' = do
-        c1  <- Text.singleton <$> lcConsonantWY
+        c1  <- Text.pack <$> many1 lcConsonantWY
         v2  <- vowel
         rem <- Text.pack <$> many nextChar
         pure [c1 <> v2 <> rem]

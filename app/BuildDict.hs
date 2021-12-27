@@ -17,8 +17,8 @@ import Control.Category (
     Category ((.)),
     (<<<),
  )
-import Control.Concurrent (getNumCapabilities)
-import Control.Concurrent.Async (forConcurrently)
+import Control.Concurrent (getNumCapabilities, newMVar, modifyMVarMasked, modifyMVar)
+import Control.Concurrent.Async (forConcurrently, replicateConcurrently)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
     when,
@@ -88,7 +88,7 @@ import System.Clock (
     Clock (Monotonic),
     getTime,
  )
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, doesDirectoryExist)
 import System.IO (
     FilePath,
     IO,
@@ -189,8 +189,10 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
     runBuildDict mapWordStenosExisting = do
         putStr $ "Reading input file " <> fileInput <> " ..."
         hFlush stdout
-        vecWord <- Vector.fromList . Text.lines <$> Text.readFile fileInput
-        let l = Vector.length vecWord
+        ls <- Text.lines <$> Text.readFile fileInput
+        let
+            vecWord = Vector.fromList ls
+            l = Vector.length vecWord
         putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -205,6 +207,7 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
         hFlush stdout
 
         lock <- Lock.new
+        mvarLs <- newMVar ls
 
         let d = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
             jobs = Vector.chunksOf d vecWord
@@ -225,7 +228,19 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
                             appendLine fileDictNoParse (Text.unwords [word, hyph, showt raw])
                                 $> (hyph :!: Vector.empty)
 
-        vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
+            loop rs = do
+                mJob <- modifyMVar mvarLs $ pure . \case
+                    [] -> ([], Nothing)
+                    (j:js) -> (js, Just j)
+                case mJob of
+                    Just hyph -> do
+                        p <- parseWord hyph
+                        loop $ p : rs
+                    Nothing -> pure rs
+
+        vecStenos <- Vector.fromList . mconcat <$> replicateConcurrently nj (loop [])
+
+        -- vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
         putStrLn $ vecStenos `seq` " done."
 
         let --      collision resolution stays sequential
