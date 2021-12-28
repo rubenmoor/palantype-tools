@@ -127,7 +127,7 @@ import           Text.Parsec                    ( Parsec
                                                 , eof
                                                 , evalParser
                                                 , sepBy1
-                                                , setState, many1, many, try, runParser
+                                                , setState, many1, many, try, runParser, getInput
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
@@ -270,8 +270,9 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
 
             -- calculate result for lower case word
 
-            (hyphenated', isAcronym) = case runParser acronym () "" hyphenated of
-                Right syls -> (Text.intercalate "|" syls, True)
+            eAcronym = runParser ((,) <$> acronym <*> getInput) () "" hyphenated
+            (hyphenated', isAcronym) = case eAcronym of
+                Right (syls, rem) -> (Text.intercalate "|" syls <> rem, True)
                 Left _ -> (hyphenated, False)
 
             str = Text.encodeUtf8 $ toLower hyphenated'

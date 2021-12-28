@@ -9,7 +9,7 @@ import Args (OptionsStenoDict (..))
 import Common (
     appendLine,
     removeFiles,
-    writeJSONFile,
+    writeJSONFile, writeFile
  )
 import Control.Applicative (Applicative (pure))
 import Control.Arrow ((***))
@@ -17,17 +17,16 @@ import Control.Category (
     Category ((.)),
     (<<<),
  )
-import Control.Concurrent (getNumCapabilities, newMVar, modifyMVarMasked, modifyMVar)
-import Control.Concurrent.Async (forConcurrently, replicateConcurrently)
+import Control.Concurrent (getNumCapabilities, newMVar, modifyMVar)
+import Control.Concurrent.Async (replicateConcurrently)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
-    when,
-    (<$!>),
+    when, foldM, (<$!>)
  )
 import qualified Data.Aeson as Aeson
 import Data.Either (Either (..))
 import Data.Foldable (
-    Foldable (foldl'),
+    Foldable (foldl', length, toList, foldMap),
     for_,
     traverse_,
  )
@@ -51,13 +50,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
-import Data.Traversable (traverse)
-import Data.Vector (
-    Vector,
-    (++),
- )
-import qualified Data.Vector as Vector
-import qualified Data.Vector.Split as Vector
 import Formatting (
     fprint,
     (%),
@@ -70,8 +62,6 @@ import GHC.Num ((+))
 import GHC.Real (
     Fractional ((/)),
     Real,
-    RealFrac (ceiling),
-    fromIntegral,
     realToFrac,
  )
 import Palantype.Common (Lang (DE, EN))
@@ -88,12 +78,11 @@ import System.Clock (
     Clock (Monotonic),
     getTime,
  )
-import System.Directory (doesFileExist, doesDirectoryExist)
+import System.Directory (doesFileExist)
 import System.IO (
     FilePath,
     IO,
     hFlush,
-    print,
     putStr,
     putStrLn,
     stdout,
@@ -101,6 +90,13 @@ import System.IO (
 import Text.Show (Show (show))
 import TextShow (TextShow (showt))
 import WCL (wcl)
+import qualified Data.Vector as Vector
+import Data.Vector ((++), Vector)
+import Sort (getMapFrequencies)
+import Data.List (sortOn)
+import Data.Ord (Down(Down))
+import Data.Tuple (snd)
+import qualified Data.ByteString.Builder as BSB
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -125,26 +121,31 @@ buildDict (OStDArg lang str) = do
     case parseSeries' str of
         Left err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
-buildDict (OStDFile fileInput fileOutput bAppend lang) = do
+buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
     start <- getTime Monotonic
 
     let lsFiles =
-            [fileDictNoParse, fileDictDuplicates, fileLost, fileCollisions]
+            [ fileDictNoParse
+            , fileDictDuplicates
+            , fileLost
+            , fileCollisions
+            , fileOutputTxt
+            ]
     removeFiles lsFiles
 
     -- initial state with existing steno in output file
     mapStenoWord <-
         if bAppend
             then do
-                nLO <- wcl fileOutput
+                nLO <- wcl fileOutputJson
                 putStr $
                     "Reading data from output file: "
-                        <> fileOutput
+                        <> fileOutputJson
                         <> " ("
                         <> show nLO
                         <> " lines) ..."
                 hFlush stdout
-                mMap <- Aeson.decodeFileStrict' fileOutput
+                mMap <- Aeson.decodeFileStrict' fileOutputJson
                 putStrLn $ mMap `seq` " done."
                 pure $ fromMaybe (error "Could not decode file.") mMap
             else pure Map.empty
@@ -160,7 +161,7 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
 
     putStrLn "Number of lines in"
 
-    for_ (fileInput : fileOutput : lsFiles) $ \file -> do
+    for_ (fileInput : fileOutputJson : lsFiles) $ \file -> do
         exists <- doesFileExist file
         when exists $ do
             nl <- wcl file
@@ -191,8 +192,7 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
         hFlush stdout
         ls <- Text.lines <$> Text.readFile fileInput
         let
-            vecWord = Vector.fromList ls
-            l = Vector.length vecWord
+            l = length ls
         putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -209,9 +209,7 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
         lock <- Lock.new
         mvarLs <- newMVar ls
 
-        let d = ceiling $ (fromIntegral l :: Double) / fromIntegral nj
-            jobs = Vector.chunksOf d vecWord
-
+        let
             parseWord hyph = do
                 let word = Text.replace "|" "" hyph
                     eRaws = Vector.fromList <$!> parseSeries' hyph
@@ -221,7 +219,7 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
                     (_, Just stenos) -> pure (hyph :!: stenos)
                     (Right stenos, _) -> pure (hyph :!: stenos)
                     (Left (PEExceptionTable orig), _) ->
-                        print ("Error in exception table for: " <> orig)
+                        Text.putStrLn ("Error in exception table for: " <> orig)
                             $> (hyph :!: Vector.empty)
                     (Left (PEParsec raw _), _) -> do
                         Lock.with lock $
@@ -238,10 +236,10 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
                         loop $ p : rs
                     Nothing -> pure rs
 
-        vecStenos <- Vector.fromList . mconcat <$> replicateConcurrently nj (loop [])
+        lsStenos <- mconcat <$> replicateConcurrently nj (loop [])
 
         -- vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
-        putStrLn $ vecStenos `seq` " done."
+        putStrLn $ lsStenos `seq` " done."
 
         let --      collision resolution stays sequential
             accDict :: DictState -> Pair Text (Vector RawSteno) -> IO DictState
@@ -253,42 +251,54 @@ buildDict (OStDFile fileInput fileOutput bAppend lang) = do
                     Just _ -> appendLine fileDictDuplicates word $> dst
                     Nothing -> do
                         let (dst', isLost) =
-                                Collision.resolve word (Vector.toList raws) dst
+                                Collision.resolve word (toList raws) dst
                         when isLost $
                             appendLine fileCollisions $
                                 word
                                     <> " "
                                     <> Text.intercalate
                                         " "
-                                        (Vector.toList $ showt <$> raws)
+                                        (toList $ showt <$> raws)
                         pure dst'
 
         putStr "Resolving collisions ..."
         hFlush stdout
         DictState{..} <-
-            Vector.foldM'
+            foldM
                 accDict
                 (DictState Map.empty Map.empty)
-                vecStenos
+                lsStenos
         putStrLn $ dstMapWordStenos `seq` " done."
 
         -- checking for lost words
         putStr $ "Writing lost words to " <> fileLost <> " ..."
-        u <- for_ vecWord $ \w ->
+        hFlush stdout
+        u <- for_ ls $ \w ->
             case Map.lookup (Text.replace "|" "" w) dstMapWordStenos of
                 Just _ -> pure ()
                 Nothing -> appendLine fileLost w
         putStrLn $ u `seq` " done."
 
-        removeFiles [fileOutput]
+        removeFiles
+            [ fileOutputJson
+            , fileOutputTxt
+            ]
 
-        -- TODO: write to output file, use exception handling for ctrl + c
-        writeJSONFile fileOutput $ (Text.encodeUtf8 . showt *** Text.encodeUtf8) <$> Map.toList dstMapStenoWord
+        mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
 
-        nLO <- wcl fileOutput
+        let
+            crit = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies) <<< snd
+            sorted = sortOn crit
+                  $  (Text.encodeUtf8 . showt *** Text.encodeUtf8)
+                 <$> Map.toList dstMapStenoWord
+
+        writeFile fileOutputTxt $ foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sorted
+        writeJSONFile fileOutputJson sorted
+
+        nLO <- wcl fileOutputJson
         Text.putStrLn $
             "Written "
-                <> Text.pack fileOutput
+                <> Text.pack fileOutputJson
                 <> " ( "
                 <> showt nLO
                 <> " lines)"

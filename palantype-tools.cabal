@@ -103,9 +103,7 @@ executable palantype-ops
       , text-show
       , time
       , unordered-containers
-      , vector
-      , vector-algorithms
-      , vector-split
+      , vector  
     default-extensions:
         FlexibleContexts
         LambdaCase

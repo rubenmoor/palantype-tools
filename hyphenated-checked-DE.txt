@@ -11417,177 +11417,221 @@ Pro|ta|go|nis|ten
 N|vi|di|a
 be|la|rus|si|sche
 a|si|a|ti|schen
-Abiturienten A|bi|tu|ri|en|ten
-Abiturprüfungen A|bi|tur|prü|fun|gen
-Abiturprüfung A|bi|tur|prü|fung
-Abiturientinnen A|bi|tu|ri|en|tin|nen
-Abiturs A|bi|turs
-Abiturjahrgang A|bi|tur|jahr|gang
-Abiturnote A|bi|tur|no|te
-Abiturzeugnisse A|bi|tur|zeug|nis|se
-Abiturfeier A|bi|tur|fei|er
-Abiturklausuren A|bi|tur|klau|su|ren
-Abiturnoten A|bi|tur|no|ten
-Abiturjahrgangs A|bi|tur|jahr|gangs
-Abiturjahrgänge A|bi|tur|jahr|gän|ge
-Abituraufgaben A|bi|tur|auf|ga|ben
-Abiturvorbereitung A|bi|tur|vor|be|rei|tung
-Abiturklassen A|bi|tur|klas|sen
-Abiturfeiern A|bi|tur|fei|ern
-Abiturklausur A|bi|tur|klau|sur
-Abiturvorbereitungen A|bi|tur|vor|be|rei|tun|gen
-Abiturfächer A|bi|tur|fä|cher
-Abiturfächern A|bi|tur|fä|chern
-Abiturklasse A|bi|tur|klas|se
-Abiturschnitt A|bi|tur|schnitt
-Abiturbälle A|bi|tur|bäl|le
-Abiturzeugnissen A|bi|tur|zeug|nis|sen
-Abiturdurchschnitt A|bi|tur|durch|schnitt
-Abiturfach A|bi|tur|fach
-Abiturstufe A|bi|tur|stu|fe
-Abiturjahrgängen A|bi|tur|jahr|gän|gen
-Abiturquote A|bi|tur|quo|te
-Abiturrede A|bi|tur|re|de
-Abiturarbeiten A|bi|tur|ar|bei|ten
-Abiturball A|bi|tur|ball
-Abiturientenquote A|bi|tu|ri|en|ten|quo|te
-Abiturleistungen A|bi|tur|leis|tun|gen
-Abiturphase A|bi|tur|pha|se
-Abiturprüfungsfach A|bi|tur|prü|fungs|fach
-Abiturzeugnisses A|bi|tur|zeug|nis|ses
-Abiturientengruppen A|bi|tu|ri|en|ten|grup|pen
-Abiturniveau A|bi|tur|ni|veau
-Abiturabschluss A|bi|tur|ab|schluss
-Abiturballs A|bi|tur|balls
-Abiturjahrganges A|bi|tur|jahr|gan|ges
-Abiturkurse A|bi|tur|kur|se
-Abiturzeitung A|bi|tur|zei|tung
-Abituraufsatzes A|bi|tur|auf|sat|zes
-Abiturbällen A|bi|tur|bäl|len
-Abiturentlassung A|bi|tur|ent|las|sung
-Abiturfeierlichkeiten A|bi|tur|fei|er|lich|kei|ten
-Abiturkursen A|bi|tur|kur|sen
-Abiturreden A|bi|tur|re|den
-Abiturabschlusses A|bi|tur|ab|schlus|ses
-Abituraufsatz A|bi|tur|auf|satz
-Abiturausbildung A|bi|tur|aus|bil|dung
-Abiturbereich A|bi|tur|be|reich
-Abiturentlassungsfeier A|bi|tur|ent|las|sungs|fei|er
-Abiturfaches A|bi|tur|fa|ches
-Abiturientenjahrgang A|bi|tu|ri|en|ten|jahr|gang
-Abiturientenjahrgangs A|bi|tu|ri|en|ten|jahr|gangs
-Abiturientenlehrgangs A|bi|tu|ri|en|ten|lehr|gangs
-Abituriententag A|bi|tu|ri|en|ten|tag
-Abiturkurs A|bi|tur|kurs
-Abiturleistung A|bi|tur|leis|tung
-Abiturreise A|bi|tur|rei|se
-Abiturschnitte A|bi|tur|schnit|te
-Abiturschnitts A|bi|tur|schnitts
-Abiturarbeit A|bi|tur|ar|beit
-Abituraufenthalt A|bi|tur|auf|ent|halt
-Abituraufenthalte A|bi|tur|auf|ent|hal|te
-Abituraufenthalten A|bi|tur|auf|ent|hal|ten
-Abituraufenthalts A|bi|tur|auf|ent|halts
-Abituraufgabe A|bi|tur|auf|ga|be
-Abituraufgabensammlung A|bi|tur|auf|ga|ben|samm|lung
-Abituraufgabensammlungen A|bi|tur|auf|ga|ben|samm|lun|gen
-Abituraufsätze A|bi|tur|auf|sät|ze
-Abituraufsätzen A|bi|tur|auf|sät|zen
-Abiturausbildungen A|bi|tur|aus|bil|dun|gen
-Abiturballes A|bi|tur|bal|les
-Abiturbereiche A|bi|tur|be|rei|che
-Abiturbereichen A|bi|tur|be|rei|chen
-Abiturbereiches A|bi|tur|be|rei|ches
-Abiturbereichs A|bi|tur|be|reichs
-Abiturbezug A|bi|tur|be|zug
-Abiturbezugs A|bi|tur|be|zugs
-Abiturblock A|bi|tur|block
-Abiturblöcke A|bi|tur|blö|cke
-Abiturblöcken A|bi|tur|blö|cken
-Abiturblockes A|bi|tur|blo|ckes
-Abiturblocks A|bi|tur|blocks
-Abiturdurchschnitte A|bi|tur|durch|schnit|te
-Abiturdurchschnitten A|bi|tur|durch|schnit|ten
-Abiturdurchschnitts A|bi|tur|durch|schnitts
-Abiturentlassungen A|bi|tur|ent|las|sun|gen
-Abiturentlassungsfeiern A|bi|tur|ent|las|sungs|fei|ern
-Abiturexamen A|bi|tur|ex|amen
-Abiturexamens A|bi|tur|ex|amens
-Abiturfachs A|bi|tur|fachs
-Abiturfeierlichkeit A|bi|tur|fei|er|lich|keit
-Abiturfoto A|bi|tur|fo|to
-Abiturfotos A|bi|tur|fo|tos
-Abiturientenexamen A|bi|tu|ri|en|ten|ex|amen
-Abiturientenexamens A|bi|tu|ri|en|ten|ex|amens
-Abiturientengruppe A|bi|tu|ri|en|ten|grup|pe
-Abiturientenjahrgänge A|bi|tu|ri|en|ten|jahr|gän|ge
-Abiturientenjahrgängen A|bi|tu|ri|en|ten|jahr|gän|gen
-Abiturientenjahrganges A|bi|tu|ri|en|ten|jahr|gan|ges
-Abiturientenkurs A|bi|tu|ri|en|ten|kurs
-Abiturientenkurse A|bi|tu|ri|en|ten|kur|se
-Abiturientenkursen A|bi|tu|ri|en|ten|kur|sen
-Abiturientenkurses A|bi|tu|ri|en|ten|kur|ses
-Abiturientenkursus A|bi|tu|ri|en|ten|kur|sus
-Abiturientenlehrgang A|bi|tu|ri|en|ten|lehr|gang
-Abiturientenlehrgänge A|bi|tu|ri|en|ten|lehr|gän|ge
-Abiturientenlehrgängen A|bi|tu|ri|en|ten|lehr|gän|gen
-Abiturientenlehrganges A|bi|tu|ri|en|ten|lehr|gan|ges
-Abiturientenmangel A|bi|tu|ri|en|ten|man|gel
-Abiturientenmangels A|bi|tu|ri|en|ten|man|gels
-Abiturientenprüfung A|bi|tu|ri|en|ten|prü|fung
-Abiturientenprüfungen A|bi|tu|ri|en|ten|prü|fun|gen
-Abituriententage A|bi|tu|ri|en|ten|ta|ge
-Abituriententagen A|bi|tu|ri|en|ten|ta|gen
-Abituriententages A|bi|tu|ri|en|ten|ta|ges
-Abituriententags A|bi|tu|ri|en|ten|tags
-Abiturientenzahl A|bi|tu|ri|en|ten|zahl
-Abiturientenzahlen A|bi|tu|ri|en|ten|zah|len
-Abiturkurses A|bi|tur|kur|ses
-Abiturlehrgang A|bi|tur|lehr|gang
-Abiturlehrgänge A|bi|tur|lehr|gän|ge
-Abiturlehrgängen A|bi|tur|lehr|gän|gen
-Abiturlehrgangs A|bi|tur|lehr|gangs
-Abiturmann A|bi|tur|mann
-Abiturmathematik A|bi|tur|ma|the|ma|tik
-Abiturniveaus A|bi|tur|ni|veaus
-Abiturnotendurchschnitt A|bi|tur|no|ten|durch|schnitt
-Abiturnotendurchschnitts A|bi|tur|no|ten|durch|schnitts
-Abiturnotenschnitt A|bi|tur|no|ten|schnitt
-Abiturnotenschnitts A|bi|tur|no|ten|schnitts
-Abiturparty A|bi|tur|par|ty
-Abiturpartys A|bi|tur|par|tys
-Abiturphasen A|bi|tur|pha|sen
-Abiturprüfungsfächer A|bi|tur|prü|fungs|fä|cher
-Abiturprüfungsfächern A|bi|tur|prü|fungs|fä|chern
-Abiturprüfungsfaches A|bi|tur|prü|fungs|fa|ches
-Abiturprüfungsfachs A|bi|tur|prü|fungs|fachs
-Abiturrecht A|bi|tur|recht
-Abiturrechts A|bi|tur|rechts
-Abiturreglement A|bi|tur|re|gle|ment
-Abiturreglements A|bi|tur|re|gle|ments
-Abiturreisen A|bi|tur|rei|sen
-Abitursammlung A|bi|tur|samm|lung
-Abitursammlungen A|bi|tur|samm|lun|gen
-Abiturschnitten A|bi|tur|schnit|ten
-Abiturstil A|bi|tur|stil
-Abiturstile A|bi|tur|sti|le
-Abiturstilen A|bi|tur|sti|len
-Abiturstiles A|bi|tur|sti|les
-Abiturstils A|bi|tur|stils
-Abiturstufen A|bi|tur|stu|fen
-Abiturtreffen A|bi|tur|tref|fen
-Abiturtreffens A|bi|tur|tref|fens
-Abiturunterricht A|bi|tur|un|ter|richt
-Abiturunterrichts A|bi|tur|un|ter|richts
-Abiturverordnung A|bi|tur|ver|ord|nung
-Abiturverordnungen A|bi|tur|ver|ord|nun|gen
-Abiturvorschlag A|bi|tur|vor|schlag
-Abiturvorschläge A|bi|tur|vor|schlä|ge
-Abiturvorschlägen A|bi|tur|vor|schlä|gen
-Abiturvorschlages A|bi|tur|vor|schla|ges
-Abiturvorschlags A|bi|tur|vor|schlags
-Abiturwertung A|bi|tur|wer|tung
-Abiturwertungen A|bi|tur|wer|tun|gen
-Abiturwissen A|bi|tur|wis|sen
-Abiturwissens A|bi|tur|wis|sens
-Abiturzeitungen A|bi|tur|zei|tun|gen
+A|bi|tu|ri|en|ten
+A|bi|tur|prü|fun|gen
+A|bi|tur|prü|fung
+A|bi|tu|ri|en|tin|nen
+A|bi|turs
+A|bi|tur|jahr|gang
+A|bi|tur|no|te
+A|bi|tur|zeug|nis|se
+A|bi|tur|fei|er
+A|bi|tur|klau|su|ren
+A|bi|tur|no|ten
+A|bi|tur|jahr|gangs
+A|bi|tur|jahr|gän|ge
+A|bi|tur|auf|ga|ben
+A|bi|tur|vor|be|rei|tung
+A|bi|tur|klas|sen
+A|bi|tur|fei|ern
+A|bi|tur|klau|sur
+A|bi|tur|vor|be|rei|tun|gen
+A|bi|tur|fä|cher
+A|bi|tur|fä|chern
+A|bi|tur|klas|se
+A|bi|tur|schnitt
+A|bi|tur|bäl|le
+A|bi|tur|zeug|nis|sen
+A|bi|tur|durch|schnitt
+A|bi|tur|fach
+A|bi|tur|stu|fe
+A|bi|tur|jahr|gän|gen
+A|bi|tur|quo|te
+A|bi|tur|re|de
+A|bi|tur|ar|bei|ten
+A|bi|tur|ball
+A|bi|tu|ri|en|ten|quo|te
+A|bi|tur|leis|tun|gen
+A|bi|tur|pha|se
+A|bi|tur|prü|fungs|fach
+A|bi|tur|zeug|nis|ses
+A|bi|tu|ri|en|ten|grup|pen
+A|bi|tur|ni|veau
+A|bi|tur|ab|schluss
+A|bi|tur|balls
+A|bi|tur|jahr|gan|ges
+A|bi|tur|kur|se
+A|bi|tur|zei|tung
+A|bi|tur|auf|sat|zes
+A|bi|tur|bäl|len
+A|bi|tur|ent|las|sung
+A|bi|tur|fei|er|lich|kei|ten
+A|bi|tur|kur|sen
+A|bi|tur|re|den
+A|bi|tur|ab|schlus|ses
+A|bi|tur|auf|satz
+A|bi|tur|aus|bil|dung
+A|bi|tur|be|reich
+A|bi|tur|ent|las|sungs|fei|er
+A|bi|tur|fa|ches
+A|bi|tu|ri|en|ten|jahr|gang
+A|bi|tu|ri|en|ten|jahr|gangs
+A|bi|tu|ri|en|ten|lehr|gangs
+A|bi|tu|ri|en|ten|tag
+A|bi|tur|kurs
+A|bi|tur|leis|tung
+A|bi|tur|rei|se
+A|bi|tur|schnit|te
+A|bi|tur|schnitts
+A|bi|tur|ar|beit
+A|bi|tur|auf|ent|halt
+A|bi|tur|auf|ent|hal|te
+A|bi|tur|auf|ent|hal|ten
+A|bi|tur|auf|ent|halts
+A|bi|tur|auf|ga|be
+A|bi|tur|auf|ga|ben|samm|lung
+A|bi|tur|auf|ga|ben|samm|lun|gen
+A|bi|tur|auf|sät|ze
+A|bi|tur|auf|sät|zen
+A|bi|tur|aus|bil|dun|gen
+A|bi|tur|bal|les
+A|bi|tur|be|rei|che
+A|bi|tur|be|rei|chen
+A|bi|tur|be|rei|ches
+A|bi|tur|be|reichs
+A|bi|tur|be|zug
+A|bi|tur|be|zugs
+A|bi|tur|block
+A|bi|tur|blö|cke
+A|bi|tur|blö|cken
+A|bi|tur|blo|ckes
+A|bi|tur|blocks
+A|bi|tur|durch|schnit|te
+A|bi|tur|durch|schnit|ten
+A|bi|tur|durch|schnitts
+A|bi|tur|ent|las|sun|gen
+A|bi|tur|ent|las|sungs|fei|ern
+A|bi|tur|ex|amen
+A|bi|tur|ex|amens
+A|bi|tur|fachs
+A|bi|tur|fei|er|lich|keit
+A|bi|tur|fo|to
+A|bi|tur|fo|tos
+A|bi|tu|ri|en|ten|ex|amen
+A|bi|tu|ri|en|ten|ex|amens
+A|bi|tu|ri|en|ten|grup|pe
+A|bi|tu|ri|en|ten|jahr|gän|ge
+A|bi|tu|ri|en|ten|jahr|gän|gen
+A|bi|tu|ri|en|ten|jahr|gan|ges
+A|bi|tu|ri|en|ten|kurs
+A|bi|tu|ri|en|ten|kur|se
+A|bi|tu|ri|en|ten|kur|sen
+A|bi|tu|ri|en|ten|kur|ses
+A|bi|tu|ri|en|ten|kur|sus
+A|bi|tu|ri|en|ten|lehr|gang
+A|bi|tu|ri|en|ten|lehr|gän|ge
+A|bi|tu|ri|en|ten|lehr|gän|gen
+A|bi|tu|ri|en|ten|lehr|gan|ges
+A|bi|tu|ri|en|ten|man|gel
+A|bi|tu|ri|en|ten|man|gels
+A|bi|tu|ri|en|ten|prü|fung
+A|bi|tu|ri|en|ten|prü|fun|gen
+A|bi|tu|ri|en|ten|ta|ge
+A|bi|tu|ri|en|ten|ta|gen
+A|bi|tu|ri|en|ten|ta|ges
+A|bi|tu|ri|en|ten|tags
+A|bi|tu|ri|en|ten|zahl
+A|bi|tu|ri|en|ten|zah|len
+A|bi|tur|kur|ses
+A|bi|tur|lehr|gang
+A|bi|tur|lehr|gän|ge
+A|bi|tur|lehr|gän|gen
+A|bi|tur|lehr|gangs
+A|bi|tur|mann
+A|bi|tur|ma|the|ma|tik
+A|bi|tur|ni|veaus
+A|bi|tur|no|ten|durch|schnitt
+A|bi|tur|no|ten|durch|schnitts
+A|bi|tur|no|ten|schnitt
+A|bi|tur|no|ten|schnitts
+A|bi|tur|par|ty
+A|bi|tur|par|tys
+A|bi|tur|pha|sen
+A|bi|tur|prü|fungs|fä|cher
+A|bi|tur|prü|fungs|fä|chern
+A|bi|tur|prü|fungs|fa|ches
+A|bi|tur|prü|fungs|fachs
+A|bi|tur|recht
+A|bi|tur|rechts
+A|bi|tur|re|gle|ment
+A|bi|tur|re|gle|ments
+A|bi|tur|rei|sen
+A|bi|tur|samm|lung
+A|bi|tur|samm|lun|gen
+A|bi|tur|schnit|ten
+A|bi|tur|stil
+A|bi|tur|sti|le
+A|bi|tur|sti|len
+A|bi|tur|sti|les
+A|bi|tur|stils
+A|bi|tur|stu|fen
+A|bi|tur|tref|fen
+A|bi|tur|tref|fens
+A|bi|tur|un|ter|richt
+A|bi|tur|un|ter|richts
+A|bi|tur|ver|ord|nung
+A|bi|tur|ver|ord|nun|gen
+A|bi|tur|vor|schlag
+A|bi|tur|vor|schlä|ge
+A|bi|tur|vor|schlä|gen
+A|bi|tur|vor|schla|ges
+A|bi|tur|vor|schlags
+A|bi|tur|wer|tung
+A|bi|tur|wer|tun|gen
+A|bi|tur|wis|sen
+A|bi|tur|wis|sens
+A|bi|tur|zei|tun|gen
+# 2021-12-27 manual edit
+re|a|gie|ren
+Ko|o|pe|ra|ti|on
+Ko|o|pe|ra|ti|o|nen
+Sow|jet|u|ni|on
+Nord|a|me|ri|ka
+Bun|des|e|be|ne
+be|la|rus|si|schen
+Süd|a|me|ri|ka
+süd|a|me|ri|ka|ni|schen
+Af|ro|a|me|ri|ka|ner
+Af|ro|a|me|ri|ka|ners
+La|tein|a|me|ri|ka
+Doug|las
+Sing|les
+re|li|gi|ö|sen
+re|li|gi|ö|se
+er|o|bert
+er|o|bern
+I|ni|ti|a|to|ren
+Sa|tel|li|ten
+fa|mi|li|ä|ren
+fa|mi|li|ä|re
+Pä|da|go|gen
+be|ste|hend
+i|ni|ti|iert
+A|bi|tu|ri|en|ten
+ko|o|pe|rie|ren
+Staats|o|ber|haupt
+Nord|i|ta|li|en
+Ya|ma|ha
+Staats|o|per
+sow|je|ti|schen
+Mat|ches
+So|fort|hil|fen
+a|no|ny|men
+a|no|ny|me
+ko|o|pe|riert
+Aus|ü|bung
+Koh|len|di|o|xid
+Selbst|i|so|la|ti|on
+Lan|des|e|be|ne
+ro|ya|len
+mys|te|ri|ö|sen

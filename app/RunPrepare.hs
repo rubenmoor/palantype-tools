@@ -74,6 +74,7 @@ prepare (OPrepFile fileInput fileOutput) = do
             [ fileOutput
             , fileNoParse
             , fileAbbreviations
+            , fileHyphen
             , fileMultiple
             , fileSpecialChar
             , fileSingleLetter

@@ -23,7 +23,7 @@ import System.IO (
     hFlush,
     putStr,
     putStrLn,
-    stdout, Handle, IOMode
+    stdout
  )
 import Text.Show (Show (show))
 import Data.Tuple (snd)
@@ -37,13 +37,21 @@ import Data.Word (Word8)
 import Data.Monoid (Monoid(mconcat))
 import Data.Map.Strict (Map)
 import qualified Data.Text.Encoding as Text
-import Data.Bifunctor (Bifunctor(second), first)
 import Control.Arrow ((***))
+import Control.Applicative (Applicative(pure))
+
+getMapFrequencies :: FilePath -> IO (Map ByteString Int)
+getMapFrequencies file = do
+    putStr $ "Reading frequency information from " <> file <> " ..."
+    hFlush stdout
+    m <- Map.fromList . parseFrequencies <$> BS.readFile file
+    putStrLn $ m `seq` " done."
+    pure m
 
 sortByFrequency :: OptionsSort -> IO ()
 sortByFrequency (OptionsSort fileFrequencies files) = do
 
-    mapFrequencies <- Map.fromList . parseFrequencies <$> BS.readFile fileFrequencies
+    mapFrequencies <- getMapFrequencies fileFrequencies
     traverse_ (sortFile mapFrequencies) files
   where
     sortFile :: Map ByteString Int -> FilePath -> IO ()
@@ -60,11 +68,9 @@ sortByFrequency (OptionsSort fileFrequencies files) = do
                         fromMaybe (error "Could not decode json file")
                     <$> Aeson.decodeFileStrict' file
                 let ls = (Text.encodeUtf8 *** Text.encodeUtf8) <$> HashMap.toList map
-                putStrLn " done."
+                putStrLn $ ls `seq` " done."
                 putStrLn $ show (HashMap.size map) <> " entries read."
 
-                putStr "Sorting ..."
-                hFlush stdout
                 let
                     crit = Down <<< (\x -> Map.findWithDefault 0 x m) <<< snd
                     sorted = sortOn crit ls
@@ -72,8 +78,8 @@ sortByFrequency (OptionsSort fileFrequencies files) = do
                 writeJSONFile file sorted
             else do
                 ls <- Char8.lines <$> BS.readFile file
+                putStrLn $ ls `seq` " done."
 
-                putStr "Sorting ..."
                 let
                     crit = Down <<< (\x -> Map.findWithDefault 0 x m) <<< mconcat <<< BS.split pipe <<< head <<< BS.split space
                     sorted = sortOn crit ls

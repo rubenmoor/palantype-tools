@@ -1,29 +1,34 @@
 { "aber"        : ["A/BEÜ", "A/BR", "BR"]
 , "Ahne"        : ["A/NE"]
+, "Ahnen"       : ["A/NEN", "A/Nn"]
 , "alle"        : ["AL/LE", "LL"]
 , "Aorta"       : ["A/~O/DJA"]
 , "Amman"       : ["AM/MAÜN"]      // < Ammann
 , "Aortenklappe": ["A/~O/DJEN/GDLAP/BDE"]
-, "AvD"         : ["A/F/D"]
-, "BR"          : ["B/R"]
+, "Aortenklappen": ["A/~O/DJEN/GDLAP/BDEN", "A/~O/DJn/GDLAP/BDn"]
 , "bah"         : ["BAÜ+"]         // < bar
 , "Beautyfarm"  : ["BJU/DJI/FAÜM"] // more efficient, but wrong BO
 , "Beautycase"  : ["BJU/DJI/GDAS"] // more efficient, but wrong BO
 , "Bismark"     : ["BIS/MAÜ+K"]    // < Bismarck
 , "Borschtsch"  : ["B~OʃD"]
 , "Bouquet"     : ["BU/GDE"]
+, "Bouquets"    : ["BU/GDES"]
 , "Crêpe"       : ["GDREP"]
+, "Crêpes"      : ["GDREPS"]
 // , "CO2"      : ["GDMO+S"]
 , "dabei"       : ["DA/BEI", "DA/BI", "DAP"]
 , "dass"        : ["DAs"]          // < das
 , "Dike"        : ["D~I/GDE"]      // < Dicke
-, "Dr"          : ["DR"]
+, "Diken"       : ["D~I/GDEN", "D~I/GDn"] // < Dicke
 , "dm"          : ["D/M"]          // < dem
+, "dpa"         : ["NÜM/D/BDA"]
 , "Düne"        : ["DÜ/NE"]        // < Dünne
+, "Dünen"       : ["DÜ/NEN", "DÜ/Nn"] // < Dünne
 , "Dr"          : ["D/R"]          // < der 
 , "Egge"        : ["EK/G"]         // < Ecke
-, "eh"          : ["EÜ+"]          // < er
 , "Edinburgh"   : ["E/DIN/B~UK"]
+, "eh"          : ["EÜ+"]          // < er
+, "ehrst"       : ["EÜ+SD"]        // < erst
 , "eine"        : ["EIn", "EI/NE"]
 , "einer"       : ["EI/NEÜ", "EINs"]
 , "Flor"        : ["FL~O+"]        // < floh, Floh
@@ -31,6 +36,10 @@
 , "fror"        : ["FR~O+"]        // < froh
 , "Görz"        : ["G~O+S"]        // < Götz
 , "glamourös"   : ["GLA/MU/RÄOS"]
+, "glamouröse"  : ["GLA/MU/RÄO/SE"]
+, "glamourösen" : ["GLA/MU/RÄO/SEN", "GLA/MU/RÄO/Sn"]
+, "glamouröser" : ["GLA/MU/RÄO/SEÜ"]
+, "glamouröses" : ["GLA/MU/RÄO/SES"]
 , "gram"        : ["GRAÜM"]        // < Gramm
 , "haben"       : ["HA/BEN", "HA/BN", "HAPn"]
 , "Ham"         : ["HÄM"]
@@ -53,6 +62,7 @@
 , "Knigge"      : ["GDNIK/G"]      // < knicke
 , "Kommiss"     : ["GDOM/MISs"]    // < Kommis
 , "können"      : ["GDÄON/NEN", "GDÄONn"]
+, "körnte"      : ["GDÄO+N/DJE"]   // < könnte
 , "Krake"       : ["GDRAÜ/GDE"]    // < Kracke
 , "Krauss"      : ["GDRAUSs"]      // < kraus
 , "Lake"        : ["LAÜ/GDE"]
@@ -70,6 +80,7 @@
 , "Logfile"     : ["LOK/FAIL"]
 , "Madame"      : ["MA/DAM"]
 , "Maia"        : ["MAI/A"]
+, "Mall"        : ["BDJNK/M~OL"]
 , "muh"         : ["M~U+"]         // < Mur
 , "Mus"         : ["M~US"]         // < muss
 //, "Nietnagel"   : ["N~I+D/NA/GEL"] // < Niednagel
@@ -89,8 +100,11 @@
 , "schwank"     : ["SWAN/GD"]      // < schwang
 , "Schweiß"     : ["SWEIS"]        // < Schweiz
 , "seine"       : ["SEI/NE", "SEIs"]
+, "sol"         : ["S~OL"]         // < soll
 , "sfr"         : ["SW/FR"]        // Abkz. Schweizer Franken
 , "sin"         : ["S~IN"]         // < Sinn, Abk. sinus
+, "sinnt"       : ["SI+ND"]        // < sind
+, "Sir"         : ["SI+"]          // < Sie
 , "Span"        : ["BDJNK/BFAÜN"]
 , "spuken"      : ["BF~U/Kn"]      // < spucken
 , "spundig"    : ["BFU+N/DIK"]    // < pfundig
@@ -98,23 +112,25 @@
 , "stad"        : ["SDAÜD"]        // austria "still"
 , "stob"        : ["SD~OP"]        // < stopp, stop
 , "Suisse"      : ["SWIS"]
-, "Sie"         : ["S~I"]          // > Sir
 , "tan"         : ["DJAÜN"]        // < Tann
 , "Tête-à-Tête" : ["BDJNK/DJED/HINF/A/HINF/DJED", "BDJNK/DJED"]
 , "tja"         : ["DJA"]   
 , "Top"         : ["BDJNK/DJOP"]
 , "Truck"       : ["DJRAK"]
+, "Trucks"      : ["DJRAKS"]
 , "Trum"        : ["DJR~UM"]       // < Trumm
 , "tschau"      : ["SJAU+"]        // < ciao
 , "Tyr"         : ["DJ~Ü+"]        // < Tür
 , "unter"       : ["UN/DJEÜ", "UN/DJR", "U+ND"]
 , "Xiomara"     : ["GDJI/O/MA/RA"]
+, "Xiomaras"    : ["GDJI/O/MA/RAS"]
 , "war"         : ["WA"]           // < wahr
 , "weg"         : ["WEK"]
 , "wen"         : ["WN", "W-N", "WEÜN"]
 , "wer"         : ["WE"]
 , "werden"      : ["WR/DN", "WEÜ/DEN", "WEÜND"]
 , "Werk"        : ["WEÜ+K"]        // < Weg
+, "Werks"       : ["WEÜ+KS"]        // < Weg
 , "Weh"         : ["WE+"]          // < Wehr
 , "wurde"       : ["W~U/DE", "W~U/D", "W~Us"]
 , "zu"          : ["SHMU", "SU"]

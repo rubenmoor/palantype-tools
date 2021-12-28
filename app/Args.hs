@@ -77,7 +77,7 @@ data OptionsStenoDict
   -- | input file: hyphenated words
   --   output file: if the output file exists,
   --   its entries are taken into account
-  = OStDFile FilePath FilePath Bool Lang
+  = OStDFile FilePath FilePath FilePath Bool Lang
   | OStDArg Lang Text
 
 -- | input file: list of words
@@ -216,7 +216,7 @@ hyphenateInfo =
 
 optsStenoDict :: Parser OptionsStenoDict
 optsStenoDict =
-    (OStDFile <$> fileInput <*> fileOutput <*> switchAppend <*> lang)
+    (OStDFile <$> fileInput <*> fileOutputJson <*> fileOutputTxt <*> switchAppend <*> lang)
         <|> (OStDArg <$> lang <*> arg argHlp)
   where
     argHlp
@@ -233,11 +233,21 @@ optsStenoDict =
         <> showDefault
         )
 
-    fileOutput = strOption
-        (  long "file-output"
+    fileOutputJson = strOption
+        (  long "file-output-json"
         <> short 'o'
-        <> value "palantype.json"
+        <> value "palantype-DE.json"
         <> help "The dictionary file for use with plover."
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+    fileOutputTxt = strOption
+        (  long "file-output-txt"
+        <> short 't'
+        <> value "palantype-DE.txt"
+        <> help "A simple text file, containing all dictionary entries, one in \
+                \each line. The steno code, then a space, then the original word."
         <> metavar "FILE"
         <> showDefault
         )
