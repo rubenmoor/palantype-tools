@@ -39,7 +39,6 @@ library
       , Chart-gtk3
       , containers
       , data-default
-      , file-embed
       , hashable
       , lens
       , lens-aeson

@@ -252,8 +252,8 @@ parseEntry txt = parseEntry' <$> parseOptionalChars txt
 vowels :: String
 vowels = "AEIOUÄÖÜÁÀÂÅÉÈÊÍÓÔÚaeiouäöüáàâåéèêëíóôøû"
 
--- vowelsWY :: String
--- vowelsWY = 'y' : 'Y' : vowels
+vowelsWY :: String
+vowelsWY = 'y' : 'Y' : vowels
 
 parseOptionalChars :: Text -> [Text]
 parseOptionalChars str = case runParser optionalChars () "" str of
@@ -291,7 +291,7 @@ pseudoSyllable = do
     (v1 :) <$> (try bmio <|> pseudoSyllable')
   where
     pseudoSyllable' = do
-        c1  <- Text.pack <$> many1 lcConsonantWY
+        c1  <- Text.pack <$> (pure <$> next 'y' <|> many1 lcConsonantWOY)
         v2  <- vowel
         guard (isLower v2)
         rem <- many nextChar
@@ -321,15 +321,21 @@ next c = getState >>= \case
 
 vowel :: Parsec Text String Char
 vowel = getState >>= \case
-    (x : xs) | x `elem` ('y' : 'Y' : vowels) -> do
+    (x : xs) | x `elem` vowelsWY -> do
         setState xs
         char x
     _ -> mzero
 
-
-lcConsonantWY :: Parsec Text String Char
-lcConsonantWY = getState >>= \case
+lcConsonantWithY :: Parsec Text String Char
+lcConsonantWithY = getState >>= \case
     (x : xs) | isLower x && x `notElem` vowels -> do
+        setState xs
+        char x
+    _ -> mzero
+
+lcConsonantWOY :: Parsec Text String Char
+lcConsonantWOY = getState >>= \case
+    (x : xs) | isLower x && x `notElem` vowelsWY -> do
         setState xs
         char x
     _ -> mzero

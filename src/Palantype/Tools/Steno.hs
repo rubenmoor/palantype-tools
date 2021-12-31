@@ -1,9 +1,7 @@
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -23,39 +21,24 @@ import           Control.Category               ( (<<<)
                                                 )
 import           Control.Lens                   ( view )
 import           Control.Lens.Tuple             ( _2 )
-import           Control.Monad                  ( MonadPlus(mzero)
-                                                , foldM
-                                                , when
-                                                )
-import           Control.Monad.Fail             ( MonadFail(fail) )
-import           Data.Aeson                     ( FromJSON(parseJSON)
-                                                , Value(Array)
-                                                )
-import qualified Data.Aeson                    as Aeson
-import           Data.Aeson.Types               ( Parser )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
-import           Data.Bool                      ( (&&)
-                                                , Bool(False, True)
+import           Data.Bool                      ( Bool(False, True)
                                                 , not, otherwise
                                                 )
 import           Data.ByteString                ( ByteString
                                                 , isInfixOf
                                                 )
 import qualified Data.ByteString               as BS
-import           Data.Char                      ( digitToInt
-                                                , isDigit
-                                                , isUpper, isLower
+import           Data.Char                      ( isUpper, isLower
                                                 )
 import           Data.Either                    ( Either(Left, Right)
-                                                , isLeft
+
                                                 )
 import           Data.Eq                        ( Eq((/=), (==)) )
-import           Data.FileEmbed                 ( embedFile )
 import           Data.Foldable                  ( Foldable
-                                                    ( foldl'
-                                                    , length
+                                                    ( length
                                                     , sum
-                                                    , toList
+
                                                     )
                                                 , any
                                                 , maximumBy
@@ -63,28 +46,23 @@ import           Data.Foldable                  ( Foldable
 import           Data.Function                  ( ($)
                                                 , const
                                                 )
-import           Data.Functor                   ( ($>)
-                                                , (<$>)
+import           Data.Functor                   ( (<$>)
                                                 , (<&>)
                                                 , Functor(fmap)
                                                 )
-import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
-import           Data.Hashable                  ( Hashable(hashWithSalt) )
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
                                                 , filter
-                                                , head
+
                                                 , intersperse
                                                 , sortOn
                                                 )
-import           Data.Map                       ( Map )
-import qualified Data.Map                      as Map
 import           Data.Maybe                     ( Maybe(Just, Nothing)
                                                 , catMaybes
                                                 )
 import           Data.Monoid                    ( (<>)
-                                                , Monoid(mempty)
+
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
@@ -99,13 +77,10 @@ import           Data.Text                      ( Text
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import           Data.Traversable               ( Traversable(sequence) )
-import           Data.Trie                      ( Trie )
-import qualified Data.Trie                     as Trie
 import           Data.Tuple                     ( uncurry )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
-import           GHC.Generics                   ( Generic )
 import           GHC.Num                        ( (+)
                                                 , Num(negate)
                                                 )
@@ -120,54 +95,25 @@ import qualified Palantype.Common.Indices      as KI
 import           Palantype.Common.RawSteno      ( RawSteno(RawSteno, unRawSteno)
                                                 )
 import qualified Palantype.Common.RawSteno     as Raw
-import qualified Palantype.DE.Keys             as DE
 import qualified Text.Parsec                    as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
                                                 , evalParser
                                                 , sepBy1
-                                                , setState, many1, many, try, runParser, getInput
+                                                , setState, many1, many, runParser, getInput
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
                                                as Parsec
-import           Text.ParserCombinators.ReadP   ( (+++)
-                                                , option
-                                                , satisfy
-                                                , string
-                                                )
 import           Text.Printf                    ( printf )
-import           Text.Read                      ( Read(readListPrec, readPrec)
-                                                , readListPrecDefault
-                                                , readP_to_Prec
-                                                )
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import Data.String (String)
-
-type Greediness = Int
-
-data SeriesData = SeriesData
-    { sdHyphenated :: Text
-    , sdRawSteno   :: RawSteno
-    , sdScore      :: Score
-    , sdPath       :: Path
-    }
-
-instance TextShow SeriesData where
-    showb SeriesData {..} =
-        fromText
-            $  sdHyphenated
-            <> " "
-            <> showt sdScore
-            <> " "
-            <> showt sdPath
-            <> " "
-            <> showt sdRawSteno
+import Palantype.DE (Greediness, mapExceptions, triePrimitives, lsPatterns)
+import qualified Data.Trie as Trie
 
 data Score = Score
     { scorePrimary   :: Rational
@@ -185,31 +131,6 @@ instance TextShow Score where
 instance Show Score where
     show = Text.unpack . showt
 
-data Path
-  -- | Optimized by algo, given greediness, and True
-  --   in case of a capitalized word w/o added capitalization chord
-  = PathOptimize Greediness Bool
-  | PathException
-  deriving stock (Eq, Ord, Generic)
-
-instance Hashable Path where
-    hashWithSalt s = hashWithSalt s . showt
-
-instance TextShow Path where
-    showb PathException = fromText "Exception"
-    showb (PathOptimize g oC) =
-        fromText "Opt" <> showb g <> if oC then fromText "C" else mempty
-
-instance Read Path where
-    readPrec = readP_to_Prec $ \_ -> exception +++ optimize
-      where
-        exception = string "Exception" $> PathException
-        optimize =
-            string "Opt" *> (PathOptimize <$> digitGreediness <*> isOptCap)
-        digitGreediness = digitToInt <$> satisfy isDigit
-        isOptCap        = option False $ satisfy (== 'C') $> True
-    readListPrec = readListPrecDefault
-
 data ParseError
   = PEParsec RawSteno Parsec.ParseError
   | PEExceptionTable Text
@@ -217,21 +138,6 @@ data ParseError
 
 instance TextShow ParseError where
     showb = fromString . show
-
--- data PartsData key = PartsData
---     { pdOrig  :: Text
---     , pdSteno :: Chord key
---     , pdPath  :: Path
---     }
---     deriving stock (Eq, Ord)
-
--- instance Palantype key => Hashable (PartsData key) where
---     hashWithSalt s PartsData {..} =
---         hashWithSalt s (pdOrig, showt pdSteno, showt pdPath)
---
--- instance Palantype key => TextShow (PartsData key) where
---     showb PartsData {..} =
---         fromText pdOrig <> " " <> showb pdSteno <> " " <> showb pdPath
 
 isCapitalized :: Text -> Bool
 isCapitalized "" = error "isCapitalized: empty string"
@@ -266,8 +172,6 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
   where
     makeSteno =
         let
-            (trie, patternsG) = primitives
-
             -- calculate result for lower case word
 
             eAcronym = runParser ((,) <$> acronym <*> getInput) () "" hyphenated
@@ -286,14 +190,14 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
 
             levels =
                 catMaybes
-                    $   patternsG
+                    $   lsPatterns
                     <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
                             then Just g
                             else Nothing
 
             lsResultLc =
                 levels <&> \maxG ->
-                    ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
+                    ((maxG, False), ) $ optimizeStenoSeries maxG st str
 
             lsResult
               | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
@@ -457,13 +361,12 @@ score' State {..} =
 optimizeStenoSeries
     :: forall key
      . Palantype key
-    => Trie [(Greediness, RawSteno)]
-    -> Greediness
+    => Greediness
     -> State key
     -> ByteString
     -> Result (State key)
-optimizeStenoSeries _ _ st "" = Success st
-optimizeStenoSeries trie g st str | BS.head str == bsPipe =
+optimizeStenoSeries _ st "" = Success st
+optimizeStenoSeries g st str | BS.head str == bsPipe =
     let newState = State { stStrRawSteno = stStrRawSteno st <> "/"
                          , stNLetters    = stNLetters st
                          , stNChords     = stNChords st + 1
@@ -471,11 +374,11 @@ optimizeStenoSeries trie g st str | BS.head str == bsPipe =
                          , stMLastKey    = Nothing
                          }
         str' = BS.tail str
-        r1   = optimizeStenoSeries trie g newState str'
-        r2   = optimizeStenoSeries trie g st str'
+        r1   = optimizeStenoSeries g newState str'
+        r2   = optimizeStenoSeries g st str'
     in  maximumBy (comparing score) [r1, r2]
-optimizeStenoSeries trie g st str =
-    let matches = filterGreediness $ flatten $ Trie.matches trie str
+optimizeStenoSeries g st str =
+    let matches = filterGreediness $ flatten $ Trie.matches triePrimitives str
 
         matchToResult (consumed, result, rem) =
             case parseKey result (stMFinger st) (stMLastKey st) of
@@ -488,7 +391,7 @@ optimizeStenoSeries trie g st str =
                             , stMFinger     = mFinger
                             , stMLastKey    = mLK
                             }
-                    in  optimizeStenoSeries trie g newState rem
+                    in  optimizeStenoSeries g newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -526,80 +429,6 @@ optimizeStenoSeries trie g st str =
     keysWithSlash :: Parsec Text (Maybe Finger, Maybe key) [[key]]
     keysWithSlash =
         sepBy1 Raw.keys (char '/' *> setState (Nothing, Nothing)) <* eof
-
-stripComments :: ByteString -> ByteString
-stripComments content =
-    let txt = Text.decodeUtf8 content
-    in  Text.encodeUtf8 $ Text.unlines $ stripComment <$> Text.lines txt
-  where
-    stripComment :: Text -> Text
-    stripComment str = head $ Text.splitOn "//" str
-
--- | full word exceptions
--- exceptions that span several chords go here
-mapExceptions :: HashMap Text [RawSteno]
-mapExceptions =
-    let str = stripComments $(embedFile "exceptions.json5")
-    in  case Aeson.eitherDecodeStrict str of
-            Right ls  -> ls
-            Left  err -> error $ "Could not decode exceptions.json5: " <> err
-
-newtype PrimMap key = PrimMap { unPrimMap :: Map ByteString [(Greediness, RawSteno)] }
-
-instance Palantype key => FromJSON (PrimMap key) where
-
-    parseJSON (Array vs) = PrimMap <$> foldM acc Map.empty vs
-
-      where
-
-        acc
-            :: Map ByteString [(Greediness, RawSteno)]
-            -> Value
-            -> Parser (Map ByteString [(Greediness, RawSteno)])
-
-        acc m jv@(Array vec) = do
-            (k, v) <- case toList vec of
-                [k, Array v] -> pure (k, v)
-                _            -> fail $ "malformed entry: " <> show jv
-
-            key    <- parseJSON k
-            (g, r) <- case toList v of
-                [vG, vRaw] -> do
-                    g   <- parseJSON vG
-                    raw <- parseJSON vRaw
-                    pure (g, raw)
-                _ ->
-                    fail
-                        $  "malformed entry: "
-                        <> Text.unpack key
-                        <> ": "
-                        <> show v
-            when (isLeft $ Raw.parseSteno @key r)
-                $  fail
-                $  "malformed raw steno: "
-                <> Text.unpack key
-                <> ": "
-                <> show r
-            let keyBs = Text.encodeUtf8 key
-
-            pure $ Map.insertWith (++) keyBs [(g, r)] m
-
-        acc _ other = fail $ "malformed: " <> show other
-
-    parseJSON _ = mzero
-
--- | the primitives as defined in "primitives.json" parsed to a TRIE
-primitives :: (Trie [(Greediness, RawSteno)], [(Greediness, [ByteString])])
-primitives =
-    let str = stripComments $(embedFile "primitives.json5")
-        ls  = Map.toList $ unPrimMap $ case Aeson.eitherDecodeStrict str of
-            Right m   -> m :: PrimMap DE.Key
-            Left  err -> error $ "Could not decode primitives.json5: " <> err
-
-        accPatternsG m (bstr, entries) =
-            foldl' (\m' (g, _) -> Map.insertWith (++) g [bstr] m') m entries
-        mapPatternsG = foldl' accPatternsG Map.empty ls
-    in  (Trie.fromList ls, Map.toList mapPatternsG)
 
 acronym :: Parsec Text () [Text]
 acronym = do

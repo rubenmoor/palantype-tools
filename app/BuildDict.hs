@@ -28,7 +28,7 @@ import Data.Either (Either (..))
 import Data.Foldable (
     Foldable (foldl', length, toList, foldMap),
     for_,
-    traverse_,
+    traverse_, minimumBy
  )
 import Data.Function (($))
 import Data.Functor (
@@ -93,10 +93,11 @@ import WCL (wcl)
 import qualified Data.Vector as Vector
 import Data.Vector ((++), Vector)
 import Sort (getMapFrequencies)
-import Data.List (sortOn)
-import Data.Ord (Down(Down))
+import Data.List (sortOn, head)
+import Data.Ord (Down(Down), comparing)
 import Data.Tuple (snd)
 import qualified Data.ByteString.Builder as BSB
+import Data.Tuple (fst)
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -270,6 +271,15 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
                 lsStenos
         putStrLn $ dstMapWordStenos `seq` " done."
 
+        let lsStenoWordMin =
+              Map.foldrWithKey (\w stenos ->
+                                  ((Text.encodeUtf8
+                                      $ showt
+                                      $ snd
+                                      $ minimumBy (comparing fst) stenos
+                                   , Text.encodeUtf8 w) :))
+                               [] dstMapWordStenos
+
         -- checking for lost words
         putStr $ "Writing lost words to " <> fileLost <> " ..."
         hFlush stdout
@@ -291,8 +301,9 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
             sorted = sortOn crit
                   $  (Text.encodeUtf8 . showt *** Text.encodeUtf8)
                  <$> Map.toList dstMapStenoWord
+            sortedMin = sortOn crit lsStenoWordMin
 
-        writeFile fileOutputTxt $ foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sorted
+        writeFile fileOutputTxt $ foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
         writeJSONFile fileOutputJson sorted
 
         nLO <- wcl fileOutputJson

@@ -15,18 +15,13 @@ hyphenate each word and write the output to "hyphenated.txt":
 
     $ palantype-ops hyphenate -h hyphenated-prepared.txt -h hyphenated-checked-DE.txt
 
-Join the files with hyphenated words in one:
-
-    $ cp hyphenated-prepared.txt hyphenated-all.txt
-    $ cat hyphenated.txt >> hyphenated-all.txt
-
 Sort the file by word frequency:
 
-    $ palantype-ops sort -i hyphenated-all.txt
+    $ palantype-ops sort -i hyphenated.txt
 
 Build the steno dict, takes about 50 minutes:
 
-    $ palantype-ops stenoDict -i hyphenated-all.txt +RTS -N -A64M
+    $ palantype-ops stenoDict +RTS -N -A64M
 
 Sorting relevant files based on word frequency information:
 

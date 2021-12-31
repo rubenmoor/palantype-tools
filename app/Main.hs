@@ -136,7 +136,10 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
                     let
                         klhyph = KL.hyphenate (KL.languageHyphenator lang')
                             $ Text.unpack str
-                        hyph = hyphPseudoSyllable klhyph
+                        -- TODO move to steno optimize failure
+                        -- TODO remove pseudosyllable from preprare
+                        -- hyph = hyphPseudoSyllable klhyph
+                        hyph = fmap (Text.replace "eie" "ei|e" <<< Text.pack) klhyph
                     in
                         Text.intercalate "|" hyph
 
