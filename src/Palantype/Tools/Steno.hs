@@ -19,8 +19,6 @@ import           Control.Applicative            ( Applicative
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
-import           Control.Lens                   ( view )
-import           Control.Lens.Tuple             ( _2 )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
 import           Data.Bool                      ( Bool(False, True)
                                                 , not, otherwise
@@ -50,7 +48,6 @@ import           Data.Functor                   ( (<$>)
                                                 , (<&>)
                                                 , Functor(fmap)
                                                 )
-import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int )
 import           Data.List                      ( (++)
                                                 , filter
@@ -66,7 +63,7 @@ import           Data.Monoid                    ( (<>)
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
-                                                , Ord((<=))
+                                                , Ord((<=), max)
                                                 , comparing
                                                 )
 import           Data.Ratio                     ( Rational )
@@ -77,7 +74,7 @@ import           Data.Text                      ( Text
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import           Data.Traversable               ( Traversable(sequence) )
-import           Data.Tuple                     ( uncurry )
+import           Data.Tuple                     ( uncurry, fst )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -88,7 +85,7 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 , fromIntegral
                                                 )
 import           Palantype.Common               ( Finger
-                                                , Palantype
+                                                , Palantype, PatternGroup, Greediness
                                                 )
 import           Palantype.Common.Dictionary    ( kiCapNext, kiAcronym )
 import qualified Palantype.Common.Indices      as KI
@@ -112,8 +109,9 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import Palantype.DE (Greediness, mapExceptions, triePrimitives, lsPatterns)
+import Palantype.Common.Primitives (mapExceptions, triePrimitives, lsPatterns)
 import qualified Data.Trie as Trie
+import qualified Data.Map.Strict as Map
 
 data Score = Score
     { scorePrimary   :: Rational
@@ -146,13 +144,13 @@ isCapitalized str = isUpper $ Text.head str
 {-|
 Add the "capitalize next word" chord in front
 -}
-addCapChord :: forall key . Palantype key => State key -> State key
+addCapChord :: forall key p . Palantype key => State key p -> State key p
 addCapChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiCapNext) <> "/" <> stStrRawSteno
     , stNChords     = stNChords + 1
     }
 
-addAcronymChord :: forall key. Palantype key => State key -> State key
+addAcronymChord :: forall key p. Palantype key => State key p -> State key p
 addAcronymChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiAcronym) <> "/" <> stStrRawSteno
     , stNChords = stNChords + 1
@@ -165,9 +163,13 @@ addAcronymChord st@State {..} = st
 --   or steno that uses the same number of chords or letters, but requires
 --   higher greediness
 parseSeries
-    :: forall key . Palantype key => Text -> Either ParseError [RawSteno]
-parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
-    Just raws -> sequence $ checkException <$> raws
+    :: forall key pg .
+    ( Palantype key
+    , PatternGroup pg
+    )
+    => Text -> Either ParseError [RawSteno]
+parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key @pg) of
+    Just raws -> sequence $ checkException . fst <$> raws
     Nothing   -> makeSteno
   where
     makeSteno =
@@ -181,16 +183,18 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
 
             str = Text.encodeUtf8 $ toLower hyphenated'
 
-            st                = State { stStrRawSteno = ""
-                                      , stNLetters    = 0
-                                      , stNChords     = 1
-                                      , stMFinger     = Nothing
-                                      , stMLastKey    = Nothing
-                                      }
+            st = State
+              { stStrRawSteno = ""
+              , stNLetters    = 0
+              , stNChords     = 1
+              , stMFinger     = Nothing
+              , stMLastKey    = Nothing
+              , stMPatternGroup = Nothing
+              }
 
             levels =
                 catMaybes
-                    $   lsPatterns
+                    $   lsPatterns @key @pg
                     <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
                             then Just g
                             else Nothing
@@ -227,9 +231,9 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
                 <> "; "
                 <> Text.pack (show err)
 
-
     unhyphenated = replace "|" "" hyphenated
 
+    filterAlts :: [(a, Result (State key pg))] -> [RawSteno]
     filterAlts []                      = []
     filterAlts ((_, Failure _ _) : as) = filterAlts as
     filterAlts ((_, Success state) : as) =
@@ -242,9 +246,9 @@ parseSeries hyphenated = case HashMap.lookup unhyphenated mapExceptions of
 --   This scoring serves to sort the result, no result is discarded
 --   Given the efficiency of a steno code, lower greediness is preferred
 scoreWithG
-    :: forall k
+    :: forall k p
      . (Greediness, Bool)
-    -> Result (State k)
+    -> Result (State k p)
     -> (Rational, Greediness, Bool, Int)
 scoreWithG (g, cOpt) result =
     let Score {..} = score result
@@ -305,7 +309,7 @@ mapSuccess :: (a -> a) -> Result a -> Result a
 mapSuccess _ r@(Failure _ _) = r
 mapSuccess f (  Success x  ) = Success $ f x
 
-data State key = State
+data State key p = State
     -- { stPartsSteno :: [KeysOrSlash key]
     { stStrRawSteno :: Text
     , stNLetters    :: CountLetters
@@ -314,11 +318,11 @@ data State key = State
     -- | for compatibility with original palantype that relies on key order
     --   rather than on finger, because several keys per finger are allowed
     , stMLastKey    :: Maybe key
+    , stMPatternGroup :: Maybe (p, Greediness)
     }
 
-instance Palantype key => TextShow (State key) where
+instance (Palantype key, PatternGroup p) => TextShow (State key p) where
     showb State {..} = showb stStrRawSteno
-
 
 bsPipe :: Word8
 bsPipe = 0x7C
@@ -331,11 +335,11 @@ bsPipe = 0x7C
 --   The secondary score is the number of steno keys.
 --   A lower number is preferred.
 --   The secondary score is used, when two series achieve the same primary score.
-score :: forall k . Result (State k) -> Score
+score :: forall k p . Result (State k p) -> Score
 score (Success st ) = score' st
 score (Failure _ _) = Score 0 0
 
-score' :: forall k . State k -> Score
+score' :: forall k p . State k p -> Score
 score' State {..} =
     let scorePrimary = fromIntegral (unCountLetters stNLetters)
             / fromIntegral (unCountChords stNChords)
@@ -359,37 +363,41 @@ score' State {..} =
 --         ... increase letter count by match length
 --       return steno with highest score
 optimizeStenoSeries
-    :: forall key
-     . Palantype key
+    :: forall key p
+     . ( Palantype key
+       , PatternGroup p
+       )
     => Greediness
-    -> State key
+    -> State key p
     -> ByteString
-    -> Result (State key)
+    -> Result (State key p)
 optimizeStenoSeries _ st "" = Success st
 optimizeStenoSeries g st str | BS.head str == bsPipe =
-    let newState = State { stStrRawSteno = stStrRawSteno st <> "/"
-                         , stNLetters    = stNLetters st
-                         , stNChords     = stNChords st + 1
-                         , stMFinger     = Nothing
-                         , stMLastKey    = Nothing
-                         }
+    let newState =
+          st { stStrRawSteno = stStrRawSteno st <> "/"
+             , stNChords     = stNChords st + 1
+             , stMFinger     = Nothing
+             , stMLastKey    = Nothing
+             }
         str' = BS.tail str
         r1   = optimizeStenoSeries g newState str'
         r2   = optimizeStenoSeries g st str'
     in  maximumBy (comparing score) [r1, r2]
 optimizeStenoSeries g st str =
-    let matches = filterGreediness $ flatten $ Trie.matches triePrimitives str
+    let matches = filterGreediness $ flatten $ Trie.matches (triePrimitives @key @p) str
 
-        matchToResult (consumed, result, rem) =
-            case parseKey result (stMFinger st) (stMLastKey st) of
-                Left err -> Failure (view _2 result) err
+        matchToResult (consumed, (greediness, raw, pg), rem) =
+            case parseKey (greediness, raw) (stMFinger st) (stMLastKey st) of
+                Left err -> Failure raw err
                 Right ((mFinger, mLK), strRaw) ->
                     let newState = State
                             { stStrRawSteno = stStrRawSteno st <> strRaw
-                            , stNLetters = stNLetters st + countLetters consumed
+                            , stNLetters    = stNLetters st + countLetters consumed
                             , stNChords     = stNChords st + countChords strRaw
                             , stMFinger     = mFinger
                             , stMLastKey    = mLK
+                            , stMPatternGroup =
+                                max (Just (pg, greediness)) (stMPatternGroup st)
                             }
                     in  optimizeStenoSeries g newState rem
 
@@ -399,18 +407,18 @@ optimizeStenoSeries g st str =
     in  maximumBy (comparing score) results
   where
     filterGreediness
-        :: [(ByteString, (Greediness, RawSteno), ByteString)]
-        -> [(ByteString, (Greediness, RawSteno), ByteString)]
-    filterGreediness = filter (\(_, (g', _), _) -> g' <= g)
+        :: [(ByteString, (Greediness, RawSteno, p), ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
+    filterGreediness = filter (\(_, (g', _, _), _) -> g' <= g)
 
     flatten
-        :: [(ByteString, [(Greediness, RawSteno)], ByteString)]
-        -> [(ByteString, (Greediness, RawSteno), ByteString)]
+        :: [(ByteString, [(Greediness, RawSteno, p)], ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
     flatten = mconcat . fmap expand
       where
         expand
-            :: (ByteString, [(Greediness, RawSteno)], ByteString)
-            -> [(ByteString, (Greediness, RawSteno), ByteString)]
+            :: (ByteString, [(Greediness, RawSteno, p)], ByteString)
+            -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
         expand (c, rs, rem) = (c, , rem) <$> rs
 
     parseKey

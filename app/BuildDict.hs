@@ -98,6 +98,7 @@ import Data.Ord (Down(Down), comparing)
 import Data.Tuple (snd)
 import qualified Data.ByteString.Builder as BSB
 import Data.Tuple (fst)
+import qualified Palantype.DE.Pattern as DE
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -116,8 +117,8 @@ average ls =
 buildDict :: OptionsStenoDict -> IO ()
 buildDict (OStDArg lang str) = do
     let parseSeries' = case lang of
-            DE -> parseSeries @DE.Key
-            EN -> parseSeries @EN.Key
+            DE -> parseSeries @DE.Key @DE.Pattern
+            EN -> parseSeries @EN.Key @DE.Pattern -- TODO: EN.Pattern
 
     case parseSeries' str of
         Left err -> Text.putStrLn $ showt err
@@ -199,8 +200,8 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
         let parseSeries' = case lang of
-                DE -> parseSeries @DE.Key
-                EN -> parseSeries @EN.Key
+                DE -> parseSeries @DE.Key @DE.Pattern
+                EN -> parseSeries @EN.Key @DE.Pattern
 
         nj <- getNumCapabilities
         putStr $ "\nRunning " <> show nj <> " jobs.\n\n"
@@ -303,7 +304,8 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
                  <$> Map.toList dstMapStenoWord
             sortedMin = sortOn crit lsStenoWordMin
 
-        writeFile fileOutputTxt $ foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
+        writeFile fileOutputTxt $
+          foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
         writeJSONFile fileOutputJson sorted
 
         nLO <- wcl fileOutputJson
