@@ -80,15 +80,11 @@ import           Common                         ( appendLine
 import           Data.Char                      ( isUpper )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Maybe                     ( Maybe(..)
-
                                                 )
-import           Data.String                    ( String )
-import           Palantype.Tools.Prepare        ( pseudoSyllable )
 import           RunPrepare                     ( prepare )
-import           Text.Parsec                    ( runParser
-                                                )
 import           WCL                            ( wcl )
 import Sort (sortByFrequency)
+import Palantype.Tools.Hyphenate (hyphPseudoSyllable)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -136,12 +132,8 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
                     let
                         klhyph = KL.hyphenate (KL.languageHyphenator lang')
                             $ Text.unpack str
-                        -- TODO move to steno optimize failure
-                        -- TODO remove pseudosyllable from preprare
-                        -- hyph = hyphPseudoSyllable klhyph
-                        hyph = fmap (Text.replace "eie" "ei|e" <<< Text.pack) klhyph
                     in
-                        Text.intercalate "|" hyph
+                        Text.intercalate "|" $ hyphPseudoSyllable klhyph
 
     case mode of
         OHMFile fileInput fileOutput -> do
@@ -169,15 +161,6 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
             when (str `HashMap.member` mapExisting)
                 $ putStrLn "Existing hypenation pattern."
             Text.putStrLn $ hyphenate' str
-
-  where
-    hyphPseudoSyllable :: [String] -> [Text]
-    hyphPseudoSyllable [] = error "hyphPseudoSyllable: impossible"
-    hyphPseudoSyllable (s : rem) =
-        let ss = case runParser pseudoSyllable s "" (Text.pack s) of
-                Left  _     -> [Text.pack s]
-                Right sylls -> sylls
-        in  ss <> (Text.pack <$> rem)
 
 readScores :: FilePath -> IO [Double]
 readScores file = do

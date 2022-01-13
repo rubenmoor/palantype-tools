@@ -74,7 +74,7 @@ import           Data.Text                      ( Text
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import           Data.Traversable               ( Traversable(sequence) )
-import           Data.Tuple                     ( uncurry, fst )
+import           Data.Tuple                     ( uncurry )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -85,7 +85,7 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 , fromIntegral
                                                 )
 import           Palantype.Common               ( Finger
-                                                , Palantype, PatternGroup, Greediness
+                                                , Palantype, PatternGroup (patSimpleMulti), Greediness
                                                 )
 import           Palantype.Common.Dictionary    ( kiCapNext, kiAcronym )
 import qualified Palantype.Common.Indices      as KI
@@ -96,9 +96,9 @@ import qualified Text.Parsec                    as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
-                                                , evalParser
+
                                                 , sepBy1
-                                                , setState, many1, many, runParser, getInput
+                                                , setState, many1, many, runParser, getInput, getState
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
@@ -167,12 +167,10 @@ parseSeries
     ( Palantype key
     , PatternGroup pg
     )
-    => Text -> Either ParseError [RawSteno]
+    => Text -> Either ParseError [(RawSteno, (pg, Greediness))]
 parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key @pg) of
-    Just raws -> sequence $ checkException . fst <$> raws
-    Nothing   -> makeSteno
-  where
-    makeSteno =
+    Just raws -> sequence $ checkException . second (,0) <$> raws
+    Nothing   ->
         let
             -- calculate result for lower case word
 
@@ -220,11 +218,10 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key @pg) o
                 []                       -> error "impossible"
                 ls                       -> Right $ filterAlts ls
 
-    checkException raw = case Raw.parseWord @key raw of
-        Right chords -> Right $ Raw.unparts $ Raw.fromChord <$> chords
-        Left err ->
-            Left
-                $  PEExceptionTable
+  where
+    checkException (raw, patG) = case Raw.parseWord @key raw of
+        Right chords -> Right (Raw.unparts $ Raw.fromChord <$> chords, patG)
+        Left err -> Left $ PEExceptionTable
                 $  unhyphenated
                 <> ": "
                 <> unRawSteno raw
@@ -233,14 +230,17 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key @pg) o
 
     unhyphenated = replace "|" "" hyphenated
 
-    filterAlts :: [(a, Result (State key pg))] -> [RawSteno]
+    filterAlts :: [(a, Result (State key pg))] -> [(RawSteno, (pg, Greediness))]
     filterAlts []                      = []
     filterAlts ((_, Failure _ _) : as) = filterAlts as
     filterAlts ((_, Success state) : as) =
         let rawSteno = stStrRawSteno state
+            pg = case stMPatternGroup state of
+              Just patG -> patG
+              Nothing -> error "impossible: pattern group Nothing"
             distinct (_, Failure _ _) = False
             distinct (_, Success st2) = rawSteno /= stStrRawSteno st2
-        in  RawSteno rawSteno : filterAlts (filter distinct as)
+        in  (RawSteno rawSteno, pg) : filterAlts (filter distinct as)
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
@@ -378,6 +378,8 @@ optimizeStenoSeries g st str | BS.head str == bsPipe =
              , stNChords     = stNChords st + 1
              , stMFinger     = Nothing
              , stMLastKey    = Nothing
+             , stMPatternGroup =
+                 max (Just (patSimpleMulti, 0)) $ stMPatternGroup st
              }
         str' = BS.tail str
         r1   = optimizeStenoSeries g newState str'
@@ -389,7 +391,7 @@ optimizeStenoSeries g st str =
         matchToResult (consumed, (greediness, raw, pg), rem) =
             case parseKey (greediness, raw) (stMFinger st) (stMLastKey st) of
                 Left err -> Failure raw err
-                Right ((mFinger, mLK), strRaw) ->
+                Right (strRaw, (mFinger, mLK)) ->
                     let newState = State
                             { stStrRawSteno = stStrRawSteno st <> strRaw
                             , stNLetters    = stNLetters st + countLetters consumed
@@ -425,14 +427,14 @@ optimizeStenoSeries g st str =
         :: (Greediness, RawSteno)
         -> Maybe Finger
         -> Maybe key
-        -> Either Parsec.ParseError ((Maybe Finger, Maybe key), Text)
+        -> Either Parsec.ParseError (Text, (Maybe Finger, Maybe key))
     parseKey (_, RawSteno s) mFinger mLastKey =
         let
-            ePair = evalParser keysWithSlash (mFinger, mLastKey) "" s
+            ePair = runParser ((,) <$> keysWithSlash <*> getState) (mFinger, mLastKey) "" s
             makeRawStr =
                 mconcat <<< intersperse "/" <<< fmap (mconcat <<< fmap showt)
         in
-            second makeRawStr <$> ePair
+            first makeRawStr <$> ePair
 
     keysWithSlash :: Parsec Text (Maybe Finger, Maybe key) [[key]]
     keysWithSlash =

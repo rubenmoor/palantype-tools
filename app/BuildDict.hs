@@ -9,7 +9,7 @@ import Args (OptionsStenoDict (..))
 import Common (
     appendLine,
     removeFiles,
-    writeJSONFile, writeFile
+    writeJSONFile,
  )
 import Control.Applicative (Applicative (pure))
 import Control.Arrow ((***))
@@ -17,25 +17,30 @@ import Control.Category (
     Category ((.)),
     (<<<),
  )
-import Control.Concurrent (getNumCapabilities, newMVar, modifyMVar)
+import Control.Concurrent (getNumCapabilities, modifyMVar, newMVar)
 import Control.Concurrent.Async (replicateConcurrently)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
-    when, foldM, (<$!>)
+    foldM,
+    when,
+    (<$!>),
  )
 import qualified Data.Aeson as Aeson
 import Data.Either (Either (..))
 import Data.Foldable (
-    Foldable (foldl', length, toList, foldMap),
+    Foldable (foldl', length, toList),
     for_,
-    traverse_, minimumBy
+    minimumBy,
+    traverse_,
  )
 import Data.Function (($))
 import Data.Functor (
     ($>),
-    (<$>),
+    (<$>), Functor (fmap)
  )
 import Data.Int (Int)
+import Data.List (sortOn, (++), take)
+import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (
     Maybe (..),
@@ -45,11 +50,15 @@ import Data.Monoid (
     mconcat,
     (<>),
  )
+import Data.Ord (Down (Down), comparing)
 import Data.Strict.Tuple (Pair ((:!:)))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
+import Data.Tuple (fst, snd)
+import Data.Vector (Vector)
+import qualified Data.Vector as Vector
 import Formatting (
     fprint,
     (%),
@@ -64,9 +73,10 @@ import GHC.Real (
     Real,
     realToFrac,
  )
-import Palantype.Common (Lang (DE, EN))
+import Palantype.Common (Greediness, Lang (DE, EN), PatternGroup)
 import Palantype.Common.RawSteno (RawSteno)
 import qualified Palantype.DE.Keys as DE
+import qualified Palantype.DE.Pattern as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Collision (DictState (..))
 import qualified Palantype.Tools.Collision as Collision
@@ -74,6 +84,7 @@ import Palantype.Tools.Steno (
     ParseError (..),
     parseSeries,
  )
+import Sort (getMapFrequencies)
 import System.Clock (
     Clock (Monotonic),
     getTime,
@@ -90,15 +101,6 @@ import System.IO (
 import Text.Show (Show (show))
 import TextShow (TextShow (showt))
 import WCL (wcl)
-import qualified Data.Vector as Vector
-import Data.Vector ((++), Vector)
-import Sort (getMapFrequencies)
-import Data.List (sortOn, head)
-import Data.Ord (Down(Down), comparing)
-import Data.Tuple (snd)
-import qualified Data.ByteString.Builder as BSB
-import Data.Tuple (fst)
-import qualified Palantype.DE.Pattern as DE
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -119,11 +121,10 @@ buildDict (OStDArg lang str) = do
     let parseSeries' = case lang of
             DE -> parseSeries @DE.Key @DE.Pattern
             EN -> parseSeries @EN.Key @DE.Pattern -- TODO: EN.Pattern
-
     case parseSeries' str of
         Left err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
-buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
+buildDict (OStDFile fileInput fileOutputJson fileOutputDoc bAppend lang) = do
     start <- getTime Monotonic
 
     let lsFiles =
@@ -131,7 +132,7 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
             , fileDictDuplicates
             , fileLost
             , fileCollisions
-            , fileOutputTxt
+            , fileOutputDoc
             ]
     removeFiles lsFiles
 
@@ -152,7 +153,7 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
                 pure $ fromMaybe (error "Could not decode file.") mMap
             else pure Map.empty
     let accFlip m (steno, word) =
-            Map.insertWith (++) word (Vector.singleton steno) m
+            Map.insertWith (Vector.++) word (Vector.singleton steno) m
         mapWordStenos =
             foldl' accFlip Map.empty $ Map.toList mapStenoWord
 
@@ -193,8 +194,7 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
         putStr $ "Reading input file " <> fileInput <> " ..."
         hFlush stdout
         ls <- Text.lines <$> Text.readFile fileInput
-        let
-            l = length ls
+        let l = length ls
         putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -211,8 +211,7 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
         lock <- Lock.new
         mvarLs <- newMVar ls
 
-        let
-            parseWord hyph = do
+        let parseWord hyph = do
                 let word = Text.replace "|" "" hyph
                     eRaws = Vector.fromList <$!> parseSeries' hyph
                     mExisting = Map.lookup word mapWordStenosExisting
@@ -229,9 +228,11 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
                                 $> (hyph :!: Vector.empty)
 
             loop rs = do
-                mJob <- modifyMVar mvarLs $ pure . \case
-                    [] -> ([], Nothing)
-                    (j:js) -> (js, Just j)
+                mJob <-
+                    modifyMVar mvarLs $
+                        pure . \case
+                            [] -> ([], Nothing)
+                            (j : js) -> (js, Just j)
                 case mJob of
                     Just hyph -> do
                         p <- parseWord hyph
@@ -244,22 +245,22 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
         putStrLn $ lsStenos `seq` " done."
 
         let --      collision resolution stays sequential
-            accDict :: DictState -> Pair Text (Vector RawSteno) -> IO DictState
-            accDict dst@DictState{..} (hyph :!: raws) = do
+            accDict ::
+                forall pg.
+                PatternGroup pg =>
+                DictState pg ->
+                Pair Text (Vector (RawSteno, (pg, Greediness))) ->
+                IO (DictState pg)
+            accDict dst@DictState{..} (hyph :!: raws) =
                 let word = Text.replace "|" "" hyph
-                    mDuplicate = Map.lookup word dstMapWordStenos
-
-                case mDuplicate of
-                    Just _ -> appendLine fileDictDuplicates word $> dst
-                    Nothing -> do
+                in  if word `Map.member`dstMapWordStenos
+                    then appendLine fileDictDuplicates word $> dst
+                    else do
                         let (dst', isLost) =
-                                Collision.resolve word (toList raws) dst
+                              Collision.resolve word (toList raws) dst
                         when isLost $
                             appendLine fileCollisions $
-                                word
-                                    <> " "
-                                    <> Text.intercalate
-                                        " "
+                                word <> " " <> Text.intercalate " "
                                         (toList $ showt <$> raws)
                         pure dst'
 
@@ -272,14 +273,33 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
                 lsStenos
         putStrLn $ dstMapWordStenos `seq` " done."
 
-        let lsStenoWordMin =
-              Map.foldrWithKey (\w stenos ->
-                                  ((Text.encodeUtf8
-                                      $ showt
-                                      $ snd
-                                      $ minimumBy (comparing fst) stenos
-                                   , Text.encodeUtf8 w) :))
-                               [] dstMapWordStenos
+        mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
+
+        let
+            criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
+            sorted =
+                sortOn  (criterion <<< snd)
+                  $   (Text.encodeUtf8 . showt *** Text.encodeUtf8)
+                  <$> Map.toList dstMapStenoWord
+
+        let -- mapStenoWordMin :: forall pg. PatternGroup pg => Map pg (Map Greediness [(Text, RawSteno)])
+            mapStenoWordMin :: Map DE.Pattern (Map Greediness [(Text, RawSteno)])
+            mapStenoWordMin = Map.foldrWithKey
+                ( \w stenos m ->
+                    let (_, (raw, (pat, g))) = minimumBy (comparing fst) stenos
+                     in Map.insertWith (Map.unionWith (++)) pat (Map.singleton g [(w, raw)]) m
+                )
+                Map.empty
+                dstMapWordStenos
+
+            mapStenoWordTake100
+              :: Map DE.Pattern (Map Greediness (Int, [(Text, RawSteno)]))
+            mapStenoWordTake100 =
+              fmap (fmap (\xs ->
+                  ( length xs
+                  , take 100 $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) xs
+                  )))
+                  mapStenoWordMin
 
         -- checking for lost words
         putStr $ "Writing lost words to " <> fileLost <> " ..."
@@ -292,20 +312,11 @@ buildDict (OStDFile fileInput fileOutputJson fileOutputTxt bAppend lang) = do
 
         removeFiles
             [ fileOutputJson
-            , fileOutputTxt
+            , fileOutputDoc
             ]
 
-        mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
-
-        let
-            crit = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies) <<< snd
-            sorted = sortOn crit
-                  $  (Text.encodeUtf8 . showt *** Text.encodeUtf8)
-                 <$> Map.toList dstMapStenoWord
-            sortedMin = sortOn crit lsStenoWordMin
-
-        writeFile fileOutputTxt $
-          foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
+        Aeson.encodeFile fileOutputDoc mapStenoWordTake100
+            -- foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
         writeJSONFile fileOutputJson sorted
 
         nLO <- wcl fileOutputJson

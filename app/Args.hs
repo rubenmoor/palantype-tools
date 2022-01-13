@@ -216,7 +216,7 @@ hyphenateInfo =
 
 optsStenoDict :: Parser OptionsStenoDict
 optsStenoDict =
-    (OStDFile <$> fileInput <*> fileOutputJson <*> fileOutputTxt <*> switchAppend <*> lang)
+    (OStDFile <$> fileInput <*> fileOutputJson <*> fileOutputDoc <*> switchAppend <*> lang)
         <|> (OStDArg <$> lang <*> arg argHlp)
   where
     argHlp
@@ -242,12 +242,16 @@ optsStenoDict =
         <> showDefault
         )
 
-    fileOutputTxt = strOption
-        (  long "file-output-txt"
-        <> short 't'
-        <> value "palantype-DE.txt"
-        <> help "A simple text file, containing all dictionary entries, one in \
-                \each line. The steno code, then a space, then the original word."
+    fileOutputDoc = strOption
+        (  long "file-output-doc"
+        <> short 'd'
+        <> value "palantype-DE-doc.json"
+        <> help "A map of pattern groups pointing to maps of greediness pointing \
+                \to a pair of the number of unique dictionary entries, given \
+                \the combination of pattern group and greediness, and the \
+                \entries themselves, reduced to a maximum of 100. \
+                \\"Unique\" means that every word is only represented by one \
+                \steno code."
         <> metavar "FILE"
         <> showDefault
         )

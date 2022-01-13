@@ -22,7 +22,6 @@ let
           "${compiler}" = pkgs.haskell.packages."${compiler}".override {
             overrides = self: super: {
               my-palantype = self.callCabal2nix "my-palantype" ../my-palantype { };
-              parsec = self.callCabal2nix "parsec" ../parsec { };
               streamly = self.callCabal2nix "streamly" streamly080 { };
             };
           };
