@@ -77,7 +77,7 @@ data OptionsStenoDict
   -- | input file: hyphenated words
   --   output file: if the output file exists,
   --   its entries are taken into account
-  = OStDFile FilePath FilePath FilePath Bool Lang
+  = OStDFile FilePath FilePath FilePath FilePath FilePath Bool Lang
   | OStDArg Lang Text
 
 -- | input file: list of words
@@ -216,7 +216,14 @@ hyphenateInfo =
 
 optsStenoDict :: Parser OptionsStenoDict
 optsStenoDict =
-    (OStDFile <$> fileInput <*> fileOutputJson <*> fileOutputDoc <*> switchAppend <*> lang)
+    (OStDFile <$> fileInput
+              <*> fileOutputPlover
+              <*> fileOutputPloverMin
+              <*> fileOutputJson
+              <*> fileOutputDoc
+              <*> switchAppend
+              <*> lang
+    )
         <|> (OStDArg <$> lang <*> arg argHlp)
   where
     argHlp
@@ -233,11 +240,29 @@ optsStenoDict =
         <> showDefault
         )
 
-    fileOutputJson = strOption
-        (  long "file-output-json"
+    fileOutputPlover = strOption
+        (  long "file-output-plover"
         <> short 'o'
         <> value "palantype-DE.json"
         <> help "The dictionary file for use with plover."
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+    fileOutputPloverMin = strOption
+        (  long "file-output-plover-minimal"
+        <> short 'm'
+        <> value "palantype-DE-min.json"
+        <> help "A minimal version of the dictionary file for use with plover."
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+    fileOutputJson = strOption
+        (  long "file-output-json"
+        <> short 'j'
+        <> value "palantype-DE-complete.json"
+        <> help "The dictionary file with complete information."
         <> metavar "FILE"
         <> showDefault
         )

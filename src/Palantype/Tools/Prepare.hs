@@ -10,7 +10,7 @@ module Palantype.Tools.Prepare
 import           Control.Applicative            ( Alternative((<|>)), Applicative ((<*>))
                                                 )
 import           Control.Category               ( Category((.))
-                                                , id
+
                                                 )
 import           Control.Monad                  ( Monad((>>=))
                                                 , MonadPlus(mzero)
@@ -33,12 +33,11 @@ import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , void
                                                 )
-import           Data.List                      ( (++) )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
                                                 , isJust
                                                 , isNothing
-                                                , maybe
+
                                                 )
 import           Data.Semigroup                 ( Semigroup((<>)) )
 import           Data.Set                       ( Set )
@@ -76,7 +75,7 @@ import           Text.Parsec                    ( ParseError
                                                 , setState
                                                 , space
                                                 , string
-                                                , try, (<?>), sepBy
+                                                , try, sepBy
                                                 )
 import           Text.Parsec.Error              ( Message(Message) )
 import           Text.ParserCombinators.Parsec.Error

@@ -2,6 +2,8 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module BuildDict where
 
@@ -17,18 +19,17 @@ import Control.Category (
     Category ((.)),
     (<<<),
  )
-import Control.Concurrent (getNumCapabilities, modifyMVar, newMVar)
+import Control.Concurrent (getNumCapabilities, modifyMVar, newMVar, threadDelay, forkIO, readMVar, modifyMVar_)
 import Control.Concurrent.Async (replicateConcurrently)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
     foldM,
-    when,
-    (<$!>),
+    when, unless
  )
 import qualified Data.Aeson as Aeson
 import Data.Either (Either (..))
 import Data.Foldable (
-    Foldable (foldl', length, toList),
+    Foldable (foldl', length, toList, null),
     for_,
     minimumBy,
     traverse_,
@@ -36,7 +37,7 @@ import Data.Foldable (
 import Data.Function (($))
 import Data.Functor (
     ($>),
-    (<$>), Functor (fmap)
+    (<$>), Functor (fmap, (<$))
  )
 import Data.Int (Int)
 import Data.List (sortOn, (++), take)
@@ -67,16 +68,15 @@ import Formatting.Clock (timeSpecs)
 import GHC.Err (error)
 import GHC.Exts (seq)
 import GHC.Float (Double)
-import GHC.Num ((+))
+import GHC.Num ((+), Num ((*), (-)))
 import GHC.Real (
     Fractional ((/)),
     Real,
     realToFrac,
  )
-import Palantype.Common (Greediness, Lang (DE, EN), PatternGroup)
-import Palantype.Common.RawSteno (RawSteno)
+
+import Palantype.Common (Greediness, Lang (DE, EN), Palantype (PatternGroup), RawSteno)
 import qualified Palantype.DE.Keys as DE
-import qualified Palantype.DE.Pattern as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Collision (DictState (..))
 import qualified Palantype.Tools.Collision as Collision
@@ -96,11 +96,20 @@ import System.IO (
     hFlush,
     putStr,
     putStrLn,
-    stdout,
+    stdout
  )
 import Text.Show (Show (show))
 import TextShow (TextShow (showt))
 import WCL (wcl)
+import System.Console.ANSI (setCursorColumn)
+import qualified Data.Text.IO as StrictIO
+import Data.Bifunctor (Bifunctor(second))
+import Data.Strict (Strict(toLazy, toStrict))
+import Control.DeepSeq (deepseq)
+import System.Signal (installHandler, sigINT)
+import Control.Exception (throw, AsyncException (UserInterrupt))
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.ByteString.Lazy as LBS
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -117,215 +126,262 @@ average ls =
      in realToFrac t / realToFrac n
 
 buildDict :: OptionsStenoDict -> IO ()
-buildDict (OStDArg lang str) = do
-    let parseSeries' = case lang of
-            DE -> parseSeries @DE.Key @DE.Pattern
-            EN -> parseSeries @EN.Key @DE.Pattern -- TODO: EN.Pattern
-    case parseSeries' str of
-        Left err -> Text.putStrLn $ showt err
-        Right sds -> traverse_ (Text.putStrLn <<< showt) sds
-buildDict (OStDFile fileInput fileOutputJson fileOutputDoc bAppend lang) = do
-    start <- getTime Monotonic
-
-    let lsFiles =
-            [ fileDictNoParse
-            , fileDictDuplicates
-            , fileLost
-            , fileCollisions
-            , fileOutputDoc
-            ]
-    removeFiles lsFiles
-
-    -- initial state with existing steno in output file
-    mapStenoWord <-
-        if bAppend
-            then do
-                nLO <- wcl fileOutputJson
-                putStr $
-                    "Reading data from output file: "
-                        <> fileOutputJson
-                        <> " ("
-                        <> show nLO
-                        <> " lines) ..."
-                hFlush stdout
-                mMap <- Aeson.decodeFileStrict' fileOutputJson
-                putStrLn $ mMap `seq` " done."
-                pure $ fromMaybe (error "Could not decode file.") mMap
-            else pure Map.empty
-    let accFlip m (steno, word) =
-            Map.insertWith (Vector.++) word (Vector.singleton steno) m
-        mapWordStenos =
-            foldl' accFlip Map.empty $ Map.toList mapStenoWord
-
-    runBuildDict mapWordStenos
-
-    putStrLn ""
-    -- putStrLn $ "Number of words with steno code: " <> show (length newScores)
-
-    putStrLn "Number of lines in"
-
-    for_ (fileInput : fileOutputJson : lsFiles) $ \file -> do
-        exists <- doesFileExist file
-        when exists $ do
-            nl <- wcl file
-            putStrLn $ show nl <> "\t" <> file
-
-    -- TODO: scoring: move elsewhere
-    -- nNoParse <- wcl fileDictNoParse
-    -- let newZeroScores = replicate nNoParse (0 :: Double)
-
-    --     scores        = newZeroScores <> (fromRational <$> newScores)
-    --     meanScore     = average scores
-    -- writeFile (fileScores now)
-    --     $ Lazy.unlines (Lazy.fromStrict . showt <$> scores)
-
-    -- putStrLn ""
-    -- StrictIO.putStrLn $ "Average score: " <> showt meanScore
-
-    putStrLn ""
-
-    stop <- getTime Monotonic
-    putStr "StenoWords runtime: "
-    fprint (timeSpecs % "\n") start stop
+buildDict (OStDArg lang str) =
+  case lang of
+    DE -> parseSeries' @DE.Key
+    EN -> parseSeries' @EN.Key
   where
-    fileDictNoParse = "buildDict-noparse.txt"
+    parseSeries' :: forall key. Palantype key => IO ()
+    parseSeries' =
+      case parseSeries @key str of
+          Left err -> Text.putStrLn $ showt err
+          Right sds -> traverse_ (Text.putStrLn <<< showt <<< second toLazy <<< toLazy) sds
+buildDict
+  ( OStDFile fileInput
+             fileOutputPlover
+             fileOutputPloverMin
+             fileOutputJson
+             fileOutputDoc
+             bAppend
+             lang
+  ) =
+  case lang of
+    DE -> buildDict' @DE.Key
+    EN -> buildDict' @EN.Key
+  where
+    buildDict' :: forall key. Palantype key => IO ()
+    buildDict' = do
+        start <- getTime Monotonic
 
-    runBuildDict mapWordStenosExisting = do
-        putStr $ "Reading input file " <> fileInput <> " ..."
-        hFlush stdout
-        ls <- Text.lines <$> Text.readFile fileInput
-        let l = length ls
-        putStrLn $ l `seq` " done."
+        let lsFiles =
+                [ fileDictNoParse
+                , fileDictDuplicates
+                , fileLost
+                , fileCollisions
+                , fileOutputDoc
+                , fileOutputPlover
+                , fileOutputPloverMin
+                ]
+        removeFiles lsFiles
 
-        putStrLn $ "Creating steno chords for " <> show l <> " entries."
+        -- initial state with existing steno in output file
+        -- (mapStenoWord :: Map (Pair RawSteno (Pair (PatternGroup key) Greediness)) Text)
+        (mapWordStenos :: Map Text [(Int, (RawSteno, (PatternGroup key, Greediness)))])
+          <-
+            if bAppend
+                then do
+                    nLO <- wcl fileOutputJson
+                    putStr $
+                        "Reading data from output file: "
+                            <> fileOutputJson
+                            <> " ("
+                            <> show nLO
+                            <> " lines) ..."
+                    hFlush stdout
+                    mMap <- Aeson.decodeFileStrict' fileOutputJson
+                    putStrLn $ mMap `seq` " done."
+                    pure $ fromMaybe (error "Could not decode file.") mMap
+                else pure Map.empty
 
-        let parseSeries' = case lang of
-                DE -> parseSeries @DE.Key @DE.Pattern
-                EN -> parseSeries @EN.Key @DE.Pattern
+        removeFiles [fileOutputJson]
 
-        nj <- getNumCapabilities
-        putStr $ "\nRunning " <> show nj <> " jobs.\n\n"
-        putStr "Optimizing steno chords ..."
-        hFlush stdout
+        runBuildDict $ fmap snd . sortOn fst <$> mapWordStenos
 
-        lock <- Lock.new
-        mvarLs <- newMVar ls
+        putStrLn ""
+        putStrLn "Number of lines in"
 
-        let parseWord hyph = do
-                let word = Text.replace "|" "" hyph
-                    eRaws = Vector.fromList <$!> parseSeries' hyph
-                    mExisting = Map.lookup word mapWordStenosExisting
+        for_ (fileInput : fileOutputJson : lsFiles) $ \file -> do
+            exists <- doesFileExist file
+            when exists $ do
+                nl <- wcl file
+                putStrLn $ show nl <> "\t" <> file
 
-                case (eRaws, mExisting) of
-                    (_, Just stenos) -> pure (hyph :!: stenos)
-                    (Right stenos, _) -> pure (hyph :!: stenos)
-                    (Left (PEExceptionTable orig), _) ->
-                        Text.putStrLn ("Error in exception table for: " <> orig)
-                            $> (hyph :!: Vector.empty)
-                    (Left (PEParsec raw _), _) -> do
-                        Lock.with lock $
-                            appendLine fileDictNoParse (Text.unwords [word, hyph, showt raw])
-                                $> (hyph :!: Vector.empty)
+        -- TODO: scoring: move elsewhere
+        -- nNoParse <- wcl fileDictNoParse
+        -- let newZeroScores = replicate nNoParse (0 :: Double)
 
-            loop rs = do
-                mJob <-
-                    modifyMVar mvarLs $
-                        pure . \case
-                            [] -> ([], Nothing)
-                            (j : js) -> (js, Just j)
-                case mJob of
-                    Just hyph -> do
-                        p <- parseWord hyph
-                        loop $ p : rs
-                    Nothing -> pure rs
+        --     scores        = newZeroScores <> (fromRational <$> newScores)
+        --     meanScore     = average scores
+        -- writeFile (fileScores now)
+        --     $ Lazy.unlines (Lazy.fromStrict . showt <$> scores)
 
-        lsStenos <- mconcat <$> replicateConcurrently nj (loop [])
+        -- putStrLn ""
+        -- StrictIO.putStrLn $ "Average score: " <> showt meanScore
 
-        -- vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
-        putStrLn $ lsStenos `seq` " done."
+        putStrLn ""
 
-        let --      collision resolution stays sequential
-            accDict ::
-                forall pg.
-                PatternGroup pg =>
-                DictState pg ->
-                Pair Text (Vector (RawSteno, (pg, Greediness))) ->
-                IO (DictState pg)
-            accDict dst@DictState{..} (hyph :!: raws) =
-                let word = Text.replace "|" "" hyph
-                in  if word `Map.member`dstMapWordStenos
-                    then appendLine fileDictDuplicates word $> dst
-                    else do
-                        let (dst', isLost) =
-                              Collision.resolve word (toList raws) dst
-                        when isLost $
-                            appendLine fileCollisions $
-                                word <> " " <> Text.intercalate " "
-                                        (toList $ showt <$> raws)
-                        pure dst'
+        stop <- getTime Monotonic
+        putStr "StenoWords runtime: "
+        fprint (timeSpecs % "\n") start stop
+      where
 
-        putStr "Resolving collisions ..."
-        hFlush stdout
-        DictState{..} <-
-            foldM
-                accDict
-                (DictState Map.empty Map.empty)
-                lsStenos
-        putStrLn $ dstMapWordStenos `seq` " done."
+        fileDictNoParse = "buildDict-noparse.txt"
 
-        mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
+        runBuildDict
+          -- :: Map Text (Vector (Pair RawSteno (Pair (PatternGroup key) Greediness)))
+          :: Map Text [(RawSteno, (PatternGroup key, Greediness))]
+          -> IO ()
+        runBuildDict mapWordStenosExisting = do
+            putStr $ "Reading input file " <> fileInput <> " ..."
+            hFlush stdout
+            ls <- Text.lines <$> Text.readFile fileInput
+            let l = length ls
+            putStrLn $ l `seq` " done."
 
-        let
-            criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
-            sorted =
-                sortOn  (criterion <<< snd)
-                  $   (Text.encodeUtf8 . showt *** Text.encodeUtf8)
-                  <$> Map.toList dstMapStenoWord
+            putStrLn $ "Creating steno chords for " <> show l <> " entries."
 
-        let -- mapStenoWordMin :: forall pg. PatternGroup pg => Map pg (Map Greediness [(Text, RawSteno)])
-            mapStenoWordMin :: Map DE.Pattern (Map Greediness [(Text, RawSteno)])
-            mapStenoWordMin = Map.foldrWithKey
-                ( \w stenos m ->
-                    let (_, (raw, (pat, g))) = minimumBy (comparing fst) stenos
-                     in Map.insertWith (Map.unionWith (++)) pat (Map.singleton g [(w, raw)]) m
-                )
-                Map.empty
-                dstMapWordStenos
+            nj <- getNumCapabilities
+            putStr $ "\nRunning " <> show nj <> " jobs.\n\n"
+            putStr "Optimizing steno chords ..."
+            hFlush stdout
 
-            mapStenoWordTake100
-              :: Map DE.Pattern (Map Greediness (Int, [(Text, RawSteno)]))
-            mapStenoWordTake100 =
-              fmap (fmap (\xs ->
-                  ( length xs
-                  , take 100 $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) xs
-                  )))
-                  mapStenoWordMin
+            lock <- Lock.new
+            mvarLs <- newMVar (ls, 1 :: Int)
+            mvarLastI <- newMVar (0 :: Int)
 
-        -- checking for lost words
-        putStr $ "Writing lost words to " <> fileLost <> " ..."
-        hFlush stdout
-        u <- for_ ls $ \w ->
-            case Map.lookup (Text.replace "|" "" w) dstMapWordStenos of
-                Just _ -> pure ()
-                Nothing -> appendLine fileLost w
-        putStrLn $ u `seq` " done."
+            let parseWord hyph =
+                  let word = Text.replace "|" "" hyph
+                  in  case Map.lookup word mapWordStenosExisting of
+                        Just lsSteno ->
+                          pure ( hyph
+                             :!: toStrict . second toStrict <$> Vector.fromList lsSteno)
+                        Nothing -> case parseSeries @key hyph of
+                          Right stenos -> stenos `deepseq` pure (hyph :!: stenos)
+                          Left pe      -> (hyph :!: Vector.empty) <$ case pe of
+                            PEExceptionTable orig -> Text.putStrLn $
+                              "Error in exception table for: " <> orig
+                            PEParsec raw _ -> Lock.with lock $
+                              appendLine fileDictNoParse $
+                                Text.unwords [word, hyph, showt raw]
+                            PEImpossible str -> do
+                              Text.putStrLn $ "Seemingly impossible: " <> str
+                              appendLine fileDictNoParse $ Text.unwords [word, hyph]
 
-        removeFiles
-            [ fileOutputJson
-            , fileOutputDoc
-            ]
+                loop rs = do
+                    mJob <-
+                        modifyMVar mvarLs $ \(ls', i) -> do
+                            pure $ case ls' of
+                                [] -> (([], i), Nothing)
+                                (j : js) -> ((js, i + 1), Just j)
+                    case mJob of
+                        Just hyph -> do
+                            !p <- parseWord hyph
+                            loop $ p : rs
+                        Nothing -> pure rs
 
-        Aeson.encodeFile fileOutputDoc mapStenoWordTake100
-            -- foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
-        writeJSONFile fileOutputJson sorted
+            let minuteReport = do
+                  threadDelay (1000 * 1000 * 60)
+                  (ls', newI) <- readMVar mvarLs
+                  unless (null ls') $ do
+                    delta <- modifyMVar mvarLastI $ \i -> do
+                                  setCursorColumn 28
+                                  StrictIO.putStr $ showt newI
+                                  pure (newI, newI - i)
+                    StrictIO.putStr $ ", " <> showt delta <> " w/m   "
+                    hFlush stdout
+                    minuteReport
 
-        nLO <- wcl fileOutputJson
-        Text.putStrLn $
-            "Written "
-                <> Text.pack fileOutputJson
-                <> " ( "
-                <> showt nLO
-                <> " lines)"
+            installHandler sigINT $ \_ -> do
+                putStrLn ""
+                putStrLn "Terminating ..."
+                modifyMVar_ mvarLs $ \_ -> pure ([], 0)
+                installHandler sigINT $ \_ -> throw UserInterrupt
+
+            _ <- forkIO minuteReport
+
+            lsStenos <- mconcat <$> replicateConcurrently nj (loop [])
+
+            -- vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
+            setCursorColumn 28
+            putStrLn $ lsStenos `seq` " done.                 "
+
+            let --      collision resolution stays sequential
+                accDict ::
+                    DictState key ->
+                    Pair Text (Vector (Pair RawSteno (Pair (PatternGroup key) Greediness))) ->
+                    IO (DictState key)
+                accDict dst@DictState{..} (hyph :!: raws) =
+                    let word = Text.replace "|" "" hyph
+                    in  if word `Map.member` dstMapWordStenos
+                        then appendLine fileDictDuplicates word $> dst
+                        else do
+                            let (dst', isLost) =
+                                  Collision.resolve word raws dst
+                            when isLost $
+                                appendLine fileCollisions $
+                                    word <> " " <> Text.intercalate " "
+                                            (toList $ showt . second toLazy . toLazy <$> raws)
+                            pure dst'
+
+            putStr "Resolving collisions ..."
+            hFlush stdout
+            DictState{..} <-
+                foldM
+                    accDict
+                    (DictState Map.empty Map.empty)
+                    lsStenos
+            putStrLn $ dstMapWordStenos `seq` " done."
+
+            mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
+
+            let
+                criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
+                sorted =
+                    sortOn  (criterion <<< snd)
+                      $   (Text.encodeUtf8 . showt *** Text.encodeUtf8)
+                      <$> Map.toList dstMapStenoWord
+
+            let
+                mapStenoWordDoc :: Map (PatternGroup key) (Map Greediness [(Text, RawSteno)])
+                mapStenoWordDoc = Map.foldrWithKey
+                    ( \w stenos m ->
+                        let (_, (raw, (pat, g))) = minimumBy (comparing fst) stenos
+                         in Map.insertWith (Map.unionWith (++)) pat (Map.singleton g [(w, raw)]) m
+                    )
+                    Map.empty
+                    dstMapWordStenos
+
+                mapStenoWordTake100
+                  :: Map (PatternGroup key) (Map Greediness (Int, [(Text, RawSteno)]))
+                mapStenoWordTake100 =
+                  fmap (fmap (\xs ->
+                      ( length xs
+                      , take 100 $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) xs
+                      )))
+                      mapStenoWordDoc
+
+                mapStenoWordMin :: Map Text RawSteno
+                mapStenoWordMin = Map.foldrWithKey
+                  ( \w stenos m ->
+                      let (_, (raw, _)) = minimumBy (comparing fst) stenos
+                      in  Map.insert w raw m
+                  ) Map.empty dstMapWordStenos
+
+            -- checking for lost words
+            putStr $ "Writing lost words to " <> fileLost <> " ..."
+            hFlush stdout
+            u <- for_ ls $ \w ->
+                unless (Text.replace "|" "" w `Map.member` dstMapWordStenos) $
+                    appendLine fileLost w
+            putStrLn $ u `seq` " done."
+
+            putStr $ "Writing file " <> fileOutputDoc <> " ..."
+            hFlush stdout
+            uDoc <- LBS.writeFile fileOutputDoc $ Aeson.encodePretty mapStenoWordTake100
+            putStrLn $ uDoc `seq` " done."
+                -- foldMap (\(s, w) -> BSB.byteString $ s <> " " <> w <> "\n") sortedMin
+            writeJSONFile fileOutputPlover sorted
+            LBS.writeFile fileOutputPloverMin $ Aeson.encodePretty mapStenoWordMin
+
+            LBS.writeFile fileOutputJson $ Aeson.encodePretty dstMapWordStenos
+
+            nLO <- wcl fileOutputJson
+            Text.putStrLn $
+                "Written "
+                    <> Text.pack fileOutputJson
+                    <> " ( "
+                    <> showt nLO
+                    <> " lines)"
 
 -- TODO scoring stats
 -- pure $ Map.toList stMapWordStenos <&> \(_, sds) ->

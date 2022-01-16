@@ -42,9 +42,7 @@ import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser )
-import           Palantype.Common               ( Lang(DE, EN) )
-import           Palantype.Common.RawSteno      ( RawSteno(RawSteno) )
-import qualified Palantype.Common.RawSteno     as RawSteno
+import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..), parseSteno)
 import qualified Palantype.DE.Keys             as DE
 import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           System.Directory               ( listDirectory )
@@ -97,7 +95,7 @@ main = execParser argOpts >>= \case
 
 rawSteno :: Text -> IO ()
 rawSteno str =
-    Text.putStrLn $ showt $ RawSteno.parseSteno @DE.Key (RawSteno str)
+    Text.putStrLn $ showt $ parseSteno @DE.Key (RawSteno str)
 
 hyphenate :: OptionsHyphenate -> IO ()
 hyphenate (OptionsHyphenate filesHyphenated lang mode) = do

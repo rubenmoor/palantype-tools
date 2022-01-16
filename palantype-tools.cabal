@@ -45,9 +45,11 @@ library
       , my-palantype
       , parsec
       , safe
+      , strict
       , text
       , text-show
       , unordered-containers
+      , vector  
       , word8
     hs-source-dirs: src
     default-extensions:
@@ -82,6 +84,8 @@ executable palantype-ops
     build-depends:
         base
       , aeson
+      , aeson-pretty
+      , ansi-terminal
       , async
       , bytestring
       , clock
@@ -96,6 +100,7 @@ executable palantype-ops
       , optparse-applicative
       , palantype-tools
       , parsec
+      , signal
       , streamly
       , strict
       , text
