@@ -6,15 +6,9 @@ let
     rev = "7c123399ef8a67dc0e505d9cf7f2c7f64f1cd847";
     sha256 = "0402ih4jla62l59g80f21fmgklj7rv0hmn82347qzms18lffbjpx";
   };
-  streamly080 = pkgs.fetchFromGitHub {
-    owner = "composewell";
-    repo = "streamly";
-    rev = "4f629b8cb36bd03b480edc08b77c9a0187ce2206";
-    sha256 = "1ag6lqr74c1ml0vmai7a1b28dyf149pv3mhpg06kp27sawl71sy2";
-  };
-  easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.8.4" ]; };
+  easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.10.7" ]; };
 
-  compiler = "ghc884";
+  compiler = "ghc8107";
   config = {
     packageOverrides = pkgs: rec {
       haskell = pkgs.haskell // {
@@ -22,7 +16,7 @@ let
           "${compiler}" = pkgs.haskell.packages."${compiler}".override {
             overrides = self: super: {
               my-palantype = self.callCabal2nix "my-palantype" ../my-palantype { };
-              streamly = self.callCabal2nix "streamly" streamly080 { };
+              bytestring-trie = pkgs.haskell.lib.doJailbreak (super.bytestring-trie);
             };
           };
         };

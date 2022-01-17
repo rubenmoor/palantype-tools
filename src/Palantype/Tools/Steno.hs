@@ -55,7 +55,6 @@ import           Data.List                      ( (++)
                                                 , intersperse
                                                 , sortOn
                                                 )
-import qualified Data.Strict.Maybe              as Strict
 import           Data.Monoid                    ( (<>)
 
                                                 , mconcat
@@ -88,10 +87,9 @@ import Palantype.Common
       RawSteno(RawSteno, unRawSteno),
       Palantype(PatternGroup, patSimpleMulti),
       lsPatterns,
-      triePrimitives,
-      mapExceptions, kiCapNext, kiAcronym )
+      parseWord,
+      mapExceptions, kiCapNext, kiAcronym, fromChord, unparts, keys )
 import qualified Palantype.Common.Indices      as KI
-import qualified Palantype.Common.RawSteno     as Raw
 import qualified Text.Parsec                    as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
@@ -111,12 +109,8 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 )
 import qualified Data.Trie as Trie
 import qualified Data.Map.Strict as Map
-import Data.Vector (Vector)
-import Data.Strict.Tuple (Pair ((:!:)))
-import qualified Data.Vector as Vector
-import Data.Strict (Strict(toStrict), toLazy)
-import GHC.Base (($!))
-import Data.Maybe (Maybe(Just, Nothing), catMaybes)
+import Data.Maybe (Maybe(..), catMaybes)
+import Data.Trie (Trie)
 
 data Score = Score
     { scorePrimary   :: Rational
@@ -171,10 +165,12 @@ addAcronymChord st@State {..} = st
 parseSeries
     :: forall key
     . Palantype key
-    => Text -> Either ParseError (Vector (Pair RawSteno (Pair (PatternGroup key) Greediness)))
-parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
-    Just raws -> Vector.fromList <$> sequence
-                   ( checkException . toStrict . second (:!: 0) <$> raws
+    => Trie [(Greediness, RawSteno, PatternGroup key)]
+    -> Text
+    -> Either ParseError [(RawSteno, (PatternGroup key, Greediness))]
+parseSeries trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
+    Just raws -> sequence
+                   ( checkException . second (, 0) <$> raws
                    )
     Nothing   ->
         let
@@ -191,9 +187,9 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
               { stStrRawSteno = ""
               , stNLetters    = 0
               , stNChords     = 1
-              , stMFinger     = Strict.Nothing
-              , stMLastKey    = Strict.Nothing
-              , stMPatternGroup = Strict.Nothing
+              , stMFinger     = Nothing
+              , stMLastKey    = Nothing
+              , stMPatternGroup = Nothing
               }
 
             levels =
@@ -205,7 +201,7 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
 
             lsResultLc =
                 levels <&> \maxG ->
-                    ((maxG, False), ) $ optimizeStenoSeries maxG st str
+                    ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
 
             lsResult
               | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
@@ -222,11 +218,11 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
             case sortOn (Down . uncurry scoreWithG) lsResult of
                 (_, Failure raw err) : _ -> Left $ PEParsec raw err
                 []                       -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
-                ls                       -> Right $! filterAlts $ snd <$> ls
+                ls                       -> Right $ filterAlts $ snd <$> ls
 
   where
-    checkException (raw :!: patG) = case Raw.parseWord @key raw of
-        Right chords -> Right (Raw.unparts (Raw.fromChord <$> chords) :!: patG)
+    checkException (raw, patG) = case parseWord @key raw of
+        Right chords -> Right (unparts (fromChord <$> chords), patG)
         Left err -> Left $ PEExceptionTable
                 $  unhyphenated
                 <> ": "
@@ -238,18 +234,18 @@ parseSeries hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
 
     filterAlts
       :: [Result (State key)]
-      -> Vector (Pair RawSteno (Pair (PatternGroup key) Greediness))
-    filterAlts []                   = Vector.empty
+      -> [(RawSteno, (PatternGroup key, Greediness))]
+    filterAlts []                   = []
     filterAlts (Failure _ _   : as) = filterAlts as
     filterAlts (Success state : as) =
         let rawSteno = stStrRawSteno state
             pg = case stMPatternGroup state of
-              Strict.Just patG -> patG
-              Strict.Nothing -> error "impossible: pattern group Nothing"
+              Just patG -> patG
+              Nothing -> error "impossible: pattern group Nothing"
             distinct (Failure _ _) = False
             distinct (Success st2) = rawSteno /= stStrRawSteno st2
             as'= filter distinct as
-        in  (RawSteno rawSteno :!: pg) `Vector.cons` filterAlts as'
+        in  (RawSteno rawSteno, pg) : filterAlts as'
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
@@ -320,14 +316,14 @@ mapSuccess f (  Success x  ) = Success $ f x
 
 data State key = State
     -- { stPartsSteno :: [KeysOrSlash key]
-  { stStrRawSteno :: !Text
-  , stNLetters    :: !CountLetters
-  , stNChords     :: !CountChords
-  , stMFinger     :: Strict.Maybe Finger
+  { stStrRawSteno :: Text
+  , stNLetters    :: CountLetters
+  , stNChords     :: CountChords
+  , stMFinger     :: Maybe Finger
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
-  , stMLastKey    :: Strict.Maybe key
-  , stMPatternGroup :: Strict.Maybe (Pair (PatternGroup key) Greediness)
+  , stMLastKey    :: Maybe key
+  , stMPatternGroup :: Maybe (PatternGroup key, Greediness)
   }
 
 instance Palantype key => TextShow (State key) where
@@ -374,43 +370,45 @@ score' State {..} =
 optimizeStenoSeries
     :: forall key
      . Palantype key
-    => Greediness
+    => Trie [(Greediness, RawSteno, PatternGroup key)]
+    -> Greediness
     -> State key
     -> ByteString
     -> Result (State key)
-optimizeStenoSeries _ st "" = Success st
-optimizeStenoSeries g st str | BS.head str == bsPipe =
+optimizeStenoSeries _ _ st "" = Success st
+optimizeStenoSeries trie g st str | BS.head str == bsPipe =
     let newState =
           st { stStrRawSteno = stStrRawSteno st <> "/"
              , stNChords     = stNChords st + 1
-             , stMFinger     = Strict.Nothing
-             , stMLastKey    = Strict.Nothing
+             , stMFinger     = Nothing
+             , stMLastKey    = Nothing
              , stMPatternGroup =
-                 max (Strict.Just $ patSimpleMulti :!: 0) $ stMPatternGroup st
+                 max (Just (patSimpleMulti, 0)) $ stMPatternGroup st
              }
         str' = BS.tail str
-        r1   = optimizeStenoSeries g newState str'
-        r2   = optimizeStenoSeries g st str'
+        r1   = optimizeStenoSeries trie g newState str'
+        r2   = optimizeStenoSeries trie g st str'
     in  maximumBy (comparing score) [r1, r2]
-optimizeStenoSeries g st str =
-    let matches = filterGreediness $ flatten $ Trie.matches (triePrimitives @key) str
+optimizeStenoSeries trie g st str =
+    let
+        matches = filterGreediness $ flatten $ Trie.matches trie str
 
         matchToResult (consumed, (greediness, raw, pg), rem) =
             case parseKey (greediness, raw)
                           (stMFinger st)
                           (stMLastKey st) of
                 Left err -> Failure raw err
-                Right (strRaw :!: (mFinger, mLK)) ->
+                Right (strRaw, (mFinger, mLK)) ->
                     let newState = State
                             { stStrRawSteno = stStrRawSteno st <> strRaw
                             , stNLetters    = stNLetters st + countLetters consumed
                             , stNChords     = stNChords st + countChords strRaw
-                            , stMFinger     = toStrict mFinger
-                            , stMLastKey    = toStrict mLK
+                            , stMFinger     = mFinger
+                            , stMLastKey    = mLK
                             , stMPatternGroup =
-                                max (Strict.Just (pg :!: greediness)) (stMPatternGroup st)
+                                max (Just (pg, greediness)) $ stMPatternGroup st
                             }
-                    in  optimizeStenoSeries g newState rem
+                    in  optimizeStenoSeries trie g newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -418,31 +416,31 @@ optimizeStenoSeries g st str =
     in  maximumBy (comparing score) results
   where
     filterGreediness
-        :: [(ByteString, (Greediness, RawSteno, p), ByteString)]
-        -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
+        :: [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
     filterGreediness = filter (\(_, (g', _, _), _) -> g' <= g)
 
     flatten
-        :: [(ByteString, [(Greediness, RawSteno, p)], ByteString)]
-        -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
+        :: [(ByteString, [(Greediness, RawSteno, PatternGroup key)], ByteString)]
+        -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
     flatten = mconcat . fmap expand
       where
         expand
-            :: (ByteString, [(Greediness, RawSteno, p)], ByteString)
-            -> [(ByteString, (Greediness, RawSteno, p), ByteString)]
+            :: (ByteString, [(Greediness, RawSteno, PatternGroup key)], ByteString)
+            -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
         expand (c, rs, rem) = (c, , rem) <$> rs
 
     parseKey
         :: (Greediness, RawSteno)
-        -> Strict.Maybe Finger
-        -> Strict.Maybe key
+        -> Maybe Finger
+        -> Maybe key
         -> Either Parsec.ParseError
-                  (Pair Text (Maybe Finger, Maybe key))
+                  (Text, (Maybe Finger, Maybe key))
     parseKey (_, RawSteno s) mFinger' mLastKey' =
         let
-            mFinger = toLazy mFinger'
-            mLastKey = toLazy mLastKey'
-            ePair = runParser ((:!:) <$> keysWithSlash <*> getState)
+            mFinger = mFinger'
+            mLastKey = mLastKey'
+            ePair = runParser ((,) <$> keysWithSlash <*> getState)
                               (mFinger, mLastKey) "" s
             makeRawStr =
                 mconcat <<< intersperse "/" <<< fmap (mconcat <<< fmap showt)
@@ -451,7 +449,7 @@ optimizeStenoSeries g st str =
 
     keysWithSlash :: Parsec Text (Maybe Finger, Maybe key) [[key]]
     keysWithSlash =
-        sepBy1 Raw.keys (char '/' *> setState (Nothing, Nothing)) <* eof
+        sepBy1 keys (char '/' *> setState (Nothing, Nothing)) <* eof
 
 acronym :: Parsec Text () [Text]
 acronym = do

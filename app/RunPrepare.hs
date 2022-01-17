@@ -16,8 +16,6 @@ import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$)
                                                 , (<$>)
                                                 )
-import qualified Data.HashMap.Strict           as HashMap
-import           Data.HashMap.Strict            ( HashMap )
 import           Data.List                      ( head )
 import           Data.Maybe                     ( Maybe(Just, Nothing)
                                                 , catMaybes
@@ -52,14 +50,16 @@ import           System.IO                      ( IO
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 
 data StatePrepare = StatePrepare
     { stLastResult :: Result
-    , stMap        :: HashMap Text Hyphenated
+    , stMap        :: Map Text Hyphenated
     }
 
 initialState :: StatePrepare
-initialState = StatePrepare (Success $ Hyphenated []) HashMap.empty
+initialState = StatePrepare (Success $ Hyphenated []) Map.empty
 
 prepare :: OptionsPrepare -> IO ()
 prepare (OPrepArg str) = do
@@ -110,7 +110,7 @@ prepare (OPrepFile fileInput fileOutput) = do
                 last       = stLastResult st
                 m          = stMap st
             m' <- if hyphenated == last
-                then pure HashMap.empty
+                then pure Map.empty
                 else do
                     lsMSyllables <- for lsResult $ \case
                         Failure _ -> do
@@ -136,16 +136,16 @@ prepare (OPrepFile fileInput fileOutput) = do
                             ExceptionExplicit ->
                                 appendLine fileExplicitExceptions entry
                             ExceptionMisspelling -> pure ()
-                    pure $ HashMap.fromList $ catMaybes lsMSyllables
+                    pure $ Map.fromList $ catMaybes lsMSyllables
             pure $ st { stLastResult = hyphenated
-                      , stMap        = HashMap.unionWith preferLessWeird m m'
+                      , stMap        = Map.unionWith preferLessWeird m m'
                       }
 
     StatePrepare { stMap = m } <- foldM accM initialState entries
 
     putStrLn $ "Writing file " <> fileOutput
     Text.writeFile fileOutput
-        $  Text.intercalate "\n" (showt <$> HashMap.elems m)
+        $  Text.intercalate "\n" (showt <$> Map.elems m)
         <> "\n"
 
     putStrLn ""

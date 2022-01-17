@@ -8,7 +8,6 @@ import Data.Eq (Eq ((==), (/=)))
 import Data.Foldable (traverse_, Foldable (foldMap))
 import Data.Function (($))
 import Data.Functor ((<$>))
-import qualified Data.HashMap.Strict as HashMap
 import Data.Int (Int)
 import Data.List (head, sortOn)
 import Data.Maybe (fromMaybe, Maybe (..))
@@ -67,9 +66,9 @@ sortByFrequency (OptionsSort fileFrequencies files) = do
                 map <-
                         fromMaybe (error "Could not decode json file")
                     <$> Aeson.decodeFileStrict' file
-                let ls = (Text.encodeUtf8 *** Text.encodeUtf8) <$> HashMap.toList map
+                let ls = (Text.encodeUtf8 *** Text.encodeUtf8) <$> Map.toList map
                 putStrLn $ ls `seq` " done."
-                putStrLn $ show (HashMap.size map) <> " entries read."
+                putStrLn $ show (Map.size map) <> " entries read."
 
                 let
                     crit = Down <<< (\x -> Map.findWithDefault 0 x m) <<< snd

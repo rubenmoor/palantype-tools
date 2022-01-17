@@ -32,11 +32,6 @@ import Data.Tuple (snd, fst)
 import Data.Map.Strict (Map)
 import Control.Category ((<<<))
 import GHC.Enum (maxBound)
-import Data.Vector (Vector)
-import qualified Data.Vector as Vector
-import Data.Strict.Tuple (Pair ((:!:)))
-import Data.Strict (Strict(toLazy))
-import Data.Bifunctor (Bifunctor(second))
 import Palantype.Common
     ( RawSteno, Palantype(PatternGroup), Greediness )
 
@@ -53,14 +48,14 @@ data DictState key = DictState
 resolve
   :: forall key
   .  Text
-  -> Vector (Pair RawSteno (Pair (PatternGroup key) Greediness))
+  -> [(RawSteno, (PatternGroup key, Greediness))]
   -> DictState key
   -> (DictState key, Bool)
 resolve word raws dst@DictState{..} =
     let
         -- look up collisions ...
-        mNAlts :: Pair RawSteno (Pair (PatternGroup key) Greediness) -> (Int, Maybe Text)
-        mNAlts (raw :!: _) = case Map.lookup raw dstMapStenoWord of
+        mNAlts :: (RawSteno, (PatternGroup key, Greediness)) -> (Int, Maybe Text)
+        mNAlts (raw, _) = case Map.lookup raw dstMapStenoWord of
           Just collision ->
             -- ... and for every collisions the number of alternatives
             -- of the existing word, i.e. the gravity of the collision
@@ -74,10 +69,10 @@ resolve word raws dst@DictState{..} =
         -- sort to make sure that inviable raws get sorted out first
         rawsCollisions =
             sortOn (fst <<< snd)
-          $ zip [0..] (Vector.toList raws) <&> \(i, raw) -> ((i, second toLazy $ toLazy raw), mNAlts raw)
+          $ zip [0..] raws <&> \(i, raw) -> ((i, raw), mNAlts raw)
 
         (_, dst', isLost) =
-            foldl' (accAllocate word) (Vector.length raws, dst, False) rawsCollisions
+            foldl' (accAllocate word) (length raws, dst, False) rawsCollisions
 
     in  (dst', isLost)
 

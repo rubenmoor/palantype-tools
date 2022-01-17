@@ -29,7 +29,7 @@ import Control.Monad (
 import qualified Data.Aeson as Aeson
 import Data.Either (Either (..))
 import Data.Foldable (
-    Foldable (foldl', length, toList, null),
+    Foldable (foldl', length, null),
     for_,
     minimumBy,
     traverse_,
@@ -37,7 +37,7 @@ import Data.Foldable (
 import Data.Function (($))
 import Data.Functor (
     ($>),
-    (<$>), Functor (fmap, (<$))
+    (<$>), Functor (fmap, (<$)), void
  )
 import Data.Int (Int)
 import Data.List (sortOn, (++), take)
@@ -52,14 +52,11 @@ import Data.Monoid (
     (<>),
  )
 import Data.Ord (Down (Down), comparing)
-import Data.Strict.Tuple (Pair ((:!:)))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
 import Data.Tuple (fst, snd)
-import Data.Vector (Vector)
-import qualified Data.Vector as Vector
 import Formatting (
     fprint,
     (%),
@@ -75,7 +72,7 @@ import GHC.Real (
     realToFrac,
  )
 
-import Palantype.Common (Greediness, Lang (DE, EN), Palantype (PatternGroup), RawSteno)
+import Palantype.Common (Greediness, Lang (DE, EN), Palantype (PatternGroup), RawSteno, MapStenoWordTake100, triePrimitives)
 import qualified Palantype.DE.Keys as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Collision (DictState (..))
@@ -103,13 +100,12 @@ import TextShow (TextShow (showt))
 import WCL (wcl)
 import System.Console.ANSI (setCursorColumn)
 import qualified Data.Text.IO as StrictIO
-import Data.Bifunctor (Bifunctor(second))
-import Data.Strict (Strict(toLazy, toStrict))
 import Control.DeepSeq (deepseq)
 import System.Signal (installHandler, sigINT)
 import Control.Exception (throw, AsyncException (UserInterrupt))
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import System.Exit (exitSuccess)
 
 fileDictDuplicates :: FilePath
 fileDictDuplicates = "buildDict-duplicates.txt"
@@ -131,11 +127,14 @@ buildDict (OStDArg lang str) =
     DE -> parseSeries' @DE.Key
     EN -> parseSeries' @EN.Key
   where
-    parseSeries' :: forall key. Palantype key => IO ()
+    parseSeries'
+      :: forall key
+      . Palantype key
+      => IO ()
     parseSeries' =
-      case parseSeries @key str of
-          Left err -> Text.putStrLn $ showt err
-          Right sds -> traverse_ (Text.putStrLn <<< showt <<< second toLazy <<< toLazy) sds
+      case parseSeries @key triePrimitives str of
+            Left err -> Text.putStrLn $ showt err
+            Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 buildDict
   ( OStDFile fileInput
              fileOutputPlover
@@ -239,15 +238,17 @@ buildDict
             mvarLs <- newMVar (ls, 1 :: Int)
             mvarLastI <- newMVar (0 :: Int)
 
-            let parseWord hyph =
+            let
+                -- !trie = triePrimitives
+                parseWord hyph =
                   let word = Text.replace "|" "" hyph
                   in  case Map.lookup word mapWordStenosExisting of
                         Just lsSteno ->
                           pure ( hyph
-                             :!: toStrict . second toStrict <$> Vector.fromList lsSteno)
-                        Nothing -> case parseSeries @key hyph of
-                          Right stenos -> stenos `deepseq` pure (hyph :!: stenos)
-                          Left pe      -> (hyph :!: Vector.empty) <$ case pe of
+                               , lsSteno)
+                        Nothing -> case parseSeries @key triePrimitives hyph of
+                          Right stenos -> pure (hyph, stenos)
+                          Left pe      -> (hyph, []) <$ case pe of
                             PEExceptionTable orig -> Text.putStrLn $
                               "Error in exception table for: " <> orig
                             PEParsec raw _ -> Lock.with lock $
@@ -265,8 +266,8 @@ buildDict
                                 (j : js) -> ((js, i + 1), Just j)
                     case mJob of
                         Just hyph -> do
-                            !p <- parseWord hyph
-                            loop $ p : rs
+                            p <- parseWord hyph
+                            p `deepseq` loop (p : rs)
                         Nothing -> pure rs
 
             let minuteReport = do
@@ -295,12 +296,14 @@ buildDict
             setCursorColumn 28
             putStrLn $ lsStenos `seq` " done.                 "
 
+            void exitSuccess
+
             let --      collision resolution stays sequential
                 accDict ::
                     DictState key ->
-                    Pair Text (Vector (Pair RawSteno (Pair (PatternGroup key) Greediness))) ->
+                    (Text, [(RawSteno, (PatternGroup key, Greediness))]) ->
                     IO (DictState key)
-                accDict dst@DictState{..} (hyph :!: raws) =
+                accDict dst@DictState{..} (hyph, raws) =
                     let word = Text.replace "|" "" hyph
                     in  if word `Map.member` dstMapWordStenos
                         then appendLine fileDictDuplicates word $> dst
@@ -309,8 +312,7 @@ buildDict
                                   Collision.resolve word raws dst
                             when isLost $
                                 appendLine fileCollisions $
-                                    word <> " " <> Text.intercalate " "
-                                            (toList $ showt . second toLazy . toLazy <$> raws)
+                                    word <> " " <> Text.intercalate " " (showt <$> raws)
                             pure dst'
 
             putStr "Resolving collisions ..."
@@ -341,8 +343,7 @@ buildDict
                     Map.empty
                     dstMapWordStenos
 
-                mapStenoWordTake100
-                  :: Map (PatternGroup key) (Map Greediness (Int, [(Text, RawSteno)]))
+                mapStenoWordTake100 :: MapStenoWordTake100 key
                 mapStenoWordTake100 =
                   fmap (fmap (\xs ->
                       ( length xs

@@ -41,10 +41,9 @@ import           Data.Time.Format               ( defaultTimeLocale
 import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
-import           Options.Applicative            ( execParser )
+import           Options.Applicative            ( execParser, Applicative (pure) )
 import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..), parseSteno)
 import qualified Palantype.DE.Keys             as DE
-import           Palantype.Tools.Statistics     ( plotScoresShow )
 import           System.Directory               ( listDirectory )
 import           System.FilePath                ( (</>)
                                                 , FilePath
@@ -76,13 +75,13 @@ import           Common                         ( appendLine
                                                 , removeFiles
                                                 )
 import           Data.Char                      ( isUpper )
-import qualified Data.HashMap.Strict           as HashMap
 import           Data.Maybe                     ( Maybe(..)
                                                 )
 import           RunPrepare                     ( prepare )
-import           WCL                            ( wcl )
 import Sort (sortByFrequency)
 import Palantype.Tools.Hyphenate (hyphPseudoSyllable)
+import qualified Data.Map.Strict as Map
+import WCL (wcl)
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -114,13 +113,13 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
         <$> traverse (fmap Text.lines <<< Text.readFile) filesHyphenated
 
     let mapExisting =
-            HashMap.fromList $ (\w -> (Text.replace "|" "" w, w)) <$> lsExisting
+            Map.fromList $ (\w -> (Text.replace "|" "" w, w)) <$> lsExisting
 
         lang' = case lang of
             DE -> KL.German_1996
             EN -> KL.English_US
 
-        hyphenate' str = case HashMap.lookup str mapExisting of
+        hyphenate' str = case Map.lookup str mapExisting of
             Just h  -> h
             Nothing -> if all isUpper $ Text.unpack str
 
@@ -156,7 +155,7 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
             putStrLn $ fileOutput <> " (" <> show nLO <> " lines) written."
 
         OHMArg str -> do
-            when (str `HashMap.member` mapExisting)
+            when (str `Map.member` mapExisting)
                 $ putStrLn "Existing hypenation pattern."
             Text.putStrLn $ hyphenate' str
 
@@ -176,4 +175,5 @@ showChart OSCHistScores = do
     let latest = maximum files
     putStrLn $ "Reading scores from " <> dir </> latest
     scores <- readScores $ dir </> latest
-    plotScoresShow scores
+    -- plotScoresShow scores
+    pure ()
