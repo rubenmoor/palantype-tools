@@ -217,7 +217,6 @@ buildDict
         fileDictNoParse = "buildDict-noparse.txt"
 
         runBuildDict
-          -- :: Map Text (Vector (Pair RawSteno (Pair (PatternGroup key) Greediness)))
           :: Map Text [(RawSteno, (PatternGroup key, Greediness))]
           -> IO ()
         runBuildDict mapWordStenosExisting = do
@@ -239,13 +238,10 @@ buildDict
             mvarLastI <- newMVar (0 :: Int)
 
             let
-                -- !trie = triePrimitives
                 parseWord hyph =
                   let word = Text.replace "|" "" hyph
                   in  case Map.lookup word mapWordStenosExisting of
-                        Just lsSteno ->
-                          pure ( hyph
-                               , lsSteno)
+                        Just lsSteno -> pure (hyph, lsSteno)
                         Nothing -> case parseSeries @key triePrimitives hyph of
                           Right stenos -> pure (hyph, stenos)
                           Left pe      -> (hyph, []) <$ case pe of
@@ -256,7 +252,8 @@ buildDict
                                 Text.unwords [word, hyph, showt raw]
                             PEImpossible str -> do
                               Text.putStrLn $ "Seemingly impossible: " <> str
-                              appendLine fileDictNoParse $ Text.unwords [word, hyph]
+                              appendLine fileDictNoParse
+                                $ Text.unwords [word, hyph]
 
                 loop rs = do
                     mJob <-
@@ -292,9 +289,8 @@ buildDict
 
             lsStenos <- mconcat <$> replicateConcurrently nj (loop [])
 
-            -- vecStenos <- mconcat <$> forConcurrently jobs (traverse parseWord)
             setCursorColumn 28
-            putStrLn $ lsStenos `seq` " done.                 "
+            putStrLn $ lsStenos `seq` "done.                 "
 
             void exitSuccess
 
