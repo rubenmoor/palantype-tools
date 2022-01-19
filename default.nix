@@ -42,6 +42,7 @@ in
           oldAttrs.nativeBuildInputs ++ [
             easy-hls
             cabal-install
+            threadscope
           ];
       });
     exec = drv;

@@ -9,18 +9,14 @@ import           Data.Word                         (Word8)
 import           GHC.Num                           (Num ((+)))
 
 import           System.IO                         (IO)
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, split)
 import qualified Data.ByteString as BS
 import Data.Functor ((<$>))
+import Data.Foldable (Foldable(length))
+import Control.Category (Category((.)))
 
 wcl :: String -> IO Int
-wcl file = parseLinebreaks 0 <$> BS.readFile file
-
-parseLinebreaks :: Int -> ByteString -> Int
-parseLinebreaks i "" = i
-parseLinebreaks i bs =
-        let (_, bs') = BS.break (== linefeed) bs
-         in parseLinebreaks (i + 1) bs'
+wcl file = length . split linefeed <$> BS.readFile file
 
 linefeed :: Word8
 linefeed = 10 -- '\n'

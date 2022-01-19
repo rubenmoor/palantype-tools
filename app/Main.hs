@@ -53,7 +53,7 @@ import           System.FilePath                ( (</>)
 import           System.IO                      ( IO
 
 
-                                                , putStrLn
+                                                , putStrLn, hFlush, stdout
 
                                                 )
 import qualified Text.Hyphenation              as KL
@@ -100,7 +100,8 @@ hyphenate :: OptionsHyphenate -> IO ()
 hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
     now <- getCurrentTime
 
-    putStrLn "Reading existing hyphenation files: "
+    putStrLn "Reading existing hyphenation files ..."
+    hFlush stdout
     for_ filesHyphenated $ \file -> do
         nLines <- wcl file
         putStrLn $ file <> " (" <> show nLines <> " lines)"

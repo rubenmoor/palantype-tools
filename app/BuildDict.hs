@@ -252,8 +252,9 @@ buildDict
                                 Text.unwords [word, hyph, showt raw]
                             PEImpossible str -> do
                               Text.putStrLn $ "Seemingly impossible: " <> str
-                              appendLine fileDictNoParse
-                                $ Text.unwords [word, hyph]
+                              Lock.with lock $
+                                appendLine fileDictNoParse
+                                  $ Text.unwords [word, hyph]
 
                 loop rs = do
                     mJob <-
