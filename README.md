@@ -34,6 +34,11 @@ By default, write "palantype-DE.json", "palantype-DE-min.json", and "palantype-D
 
     $ palantype-ops buildDict -i palantype-DE-complete.json
 
+In case of OS processes, the result is  in several files:
+
+    $ palantype-ops buildDict $(for f in hyphenated.txt.*.json; do echo -n "-i $f"; done)
+    $ rm hyphentated.txt.*
+
 Sorting relevant files based on word frequency information:
 
     $ palantype-ops sort -i palantype.json -i buildDict-collisions.txt -i buildDict-noparse.txt

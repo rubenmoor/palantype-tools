@@ -83,6 +83,7 @@ executable palantype-ops
       , clock
       , concurrent-extra
       , containers
+      , deepseq
       , directory
       , filepath
       , formatting

@@ -12,7 +12,7 @@ import Common (
     appendLine,
     removeFiles,
  )
-import Control.Applicative (Applicative (pure))
+import Control.Applicative (Applicative (pure, (<*>)))
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Control.Concurrent.Lock as Lock
@@ -26,7 +26,7 @@ import Data.Foldable (
  )
 import Data.Function (($))
 import Data.Functor (
-    (<$>), Functor ((<$))
+    (<$>), Functor ((<$), fmap)
  )
 import Data.Int (Int)
 import Data.List (transpose)
@@ -77,18 +77,14 @@ import WCL (wcl)
 import System.Console.ANSI (setCursorColumn)
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Traversable (Traversable(traverse))
+import Data.Traversable (Traversable(traverse, sequenceA))
 import Data.List.Split (chunksOf)
 import Data.Eq (Eq((==)))
 import Control.Category ((<<<))
+import Control.DeepSeq (deepseq, NFData)
 
 fileNoParse :: FilePath
-fileNoParse = "buildDict-noparse.txt"
-
-average :: forall a t. (Real a, Foldable t) => t a -> Double
-average ls =
-    let (t, n) = foldl' (\(!b, !c) a -> (a + b, (c :: Int) + 1)) (0, 0) ls
-     in realToFrac t / realToFrac n
+fileNoParse = "makeSteno-noparse.txt"
 
 makeSteno :: OptionsMakeSteno -> IO ()
 makeSteno ( OMkStArg lang str ) =
@@ -157,13 +153,20 @@ makeSteno
               where
                 word = Text.replace "|" "" hyph
 
+            traverseDeep :: NFData b => (a -> IO b) -> [a] -> IO [b]
+            traverseDeep _ [] = pure []
+            traverseDeep f (x : xs) = do
+              y <- f x
+              ys <- y `deepseq` traverseDeep f xs
+              pure $ y : ys
+
         lsStenos <- if nj == 1
-          then traverse parseWord ls
-          else mconcat <$> mapConcurrently (traverse parseWord)
+          then traverseDeep parseWord ls
+          else mconcat <$> mapConcurrently (traverseDeep parseWord)
                                            (transpose $ chunksOf (10 * nj) ls)
 
         setCursorColumn 28
-        putStrLn $ lsStenos `seq` "done.                 "
+        putStrLn $ lsStenos `deepseq` "done.                 "
 
         putStr "Saving result ..."
         hFlush stdout
