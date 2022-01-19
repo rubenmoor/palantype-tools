@@ -3,7 +3,8 @@ module Args
     , OptionsPrepare(..)
     , OptionsHyphenate(..)
     , OptionsHyphenateMode(..)
-    , OptionsStenoDict(..)
+    , OptionsMakeSteno (..)
+    , OptionsBuildDict(..)
     , OptionsShowChart(..)
     , OptionsSort(..)
     , argOpts
@@ -30,11 +31,10 @@ import           Options.Applicative            ( InfoMod
                                                 , showDefault
                                                 , strOption
                                                 , subparser
-                                                , value, switch
+                                                , value
                                                 )
 import           Palantype.Common               ( Lang(DE) )
 import           System.IO                      ( FilePath )
-import Data.Bool (Bool)
 
 data Task
 
@@ -47,8 +47,11 @@ data Task
   -- | hyphenate a word list
   | TaskHyphenate OptionsHyphenate
 
-  -- | build the steno dict
-  | TaskStenoDict OptionsStenoDict
+  -- | create a couple of steno codes for every word
+  | TaskMakeSteno OptionsMakeSteno
+
+  -- | build the steno dict from the steno codes
+  | TaskBuildDict OptionsBuildDict
 
   -- | sort a word list by frequency
   | TaskSort OptionsSort
@@ -73,12 +76,15 @@ data OptionsHyphenateMode
 -- TODO
 data OptionsShowChart = OSCHistScores
 
-data OptionsStenoDict
+data OptionsMakeSteno
   -- | input file: hyphenated words
+  = OMkStFile FilePath FilePath Lang
+  | OMkStArg Lang Text
+
+data OptionsBuildDict
+  -- | input file: steno codes
   --   output file: if the output file exists,
-  --   its entries are taken into account
-  = OStDFile FilePath FilePath FilePath FilePath FilePath Bool Lang
-  | OStDArg Lang Text
+  = OBDFile [FilePath] FilePath FilePath FilePath Lang
 
 -- | input file: list of words
 --   frequency data
@@ -92,19 +98,24 @@ task :: Parser Task
 task = subparser
     (  command
           "rawSteno"
-          (info (TaskRawSteno <$> arg rawStenoHelp <* helper) rawStenoInfo)
+          (info (TaskRawSteno  <$> arg rawStenoHelp <* helper) rawStenoInfo)
     <> command "prepare"
-               (info (TaskPrepare <$> optsPrepare <* helper) prepareInfo)
+          (info (TaskPrepare   <$> optsPrepare <* helper) prepareInfo)
     <> command
-           "hyphenate"
-           (info (TaskHyphenate <$> optsHyphenate <* helper) hyphenateInfo)
+          "hyphenate"
+          (info (TaskHyphenate <$> optsHyphenate <* helper) hyphenateInfo)
     <> command
-           "stenoDict"
-           (info (TaskStenoDict <$> optsStenoDict <* helper) stenoDictInfo)
-    <> command "sort" (info (TaskSort <$> optsSort <* helper) sortInfo)
+          "makeSteno"
+          (info (TaskMakeSteno <$> optsMakeSteno <* helper) makeStenoInfo)
     <> command
-           "showChart"
-           (info (TaskShowChart <$> optsShowChart <* helper) showChartInfo)
+          "buildDict"
+          (info (TaskBuildDict <$> optsBuildDict <* helper) buildDictInfo)
+    <> command
+          "sort"
+          (info (TaskSort      <$> optsSort <* helper) sortInfo)
+    <> command
+          "showChart"
+          (info (TaskShowChart <$> optsShowChart <* helper) showChartInfo)
     )
   where
     rawStenoHelp
@@ -214,17 +225,13 @@ hyphenateInfo =
         \before. If not, hyphenate it, given the language. \
         \Write the hyphenated word to the output file."
 
-optsStenoDict :: Parser OptionsStenoDict
-optsStenoDict =
-    (OStDFile <$> fileInput
-              <*> fileOutputPlover
-              <*> fileOutputPloverMin
-              <*> fileOutputJson
-              <*> fileOutputDoc
-              <*> switchAppend
-              <*> lang
+optsMakeSteno :: Parser OptionsMakeSteno
+optsMakeSteno =
+    ( OMkStFile <$> fileInput
+                <*> fileOutputJson
+                <*> lang
     )
-        <|> (OStDArg <$> lang <*> arg argHlp)
+    <|> (OMkStArg <$> lang <*> arg argHlp)
   where
     argHlp
         = "Parse one word into a series of steno chords. The format is: \
@@ -234,10 +241,36 @@ optsStenoDict =
         (  long "file-input"
         <> short 'i'
         <> value "hyphenated.txt"
-        <> help
-               "Input file with lines containing one word each. The words must be hyphenated, e.g. \"Di|rek|ti|ve\"."
+        <> help "Input file with lines containing one word each. \
+                \The words must be hyphenated, e.g. \"Di|rek|ti|ve\"."
         <> metavar "FILE"
         <> showDefault
+        )
+
+    fileOutputJson = strOption
+        (  long "file-output-json"
+        <> short 'j'
+        <> value "palantype-DE-complete.json"
+        <> help "The dictionary file with complete information."
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+optsBuildDict :: Parser OptionsBuildDict
+optsBuildDict =
+    OBDFile <$> some fileInput
+            <*> fileOutputPlover
+            <*> fileOutputPloverMin
+            <*> fileOutputDoc
+            <*> lang
+  where
+    fileInput = strOption
+        (  long "file-input"
+        <> short 'i'
+        -- <> value "palantype-DE-complete.json"
+        <> help "Input file in json format, containing a map word -> \
+                \steno codes."
+        <> metavar "FILE"
         )
 
     fileOutputPlover = strOption
@@ -258,15 +291,6 @@ optsStenoDict =
         <> showDefault
         )
 
-    fileOutputJson = strOption
-        (  long "file-output-json"
-        <> short 'j'
-        <> value "palantype-DE-complete.json"
-        <> help "The dictionary file with complete information."
-        <> metavar "FILE"
-        <> showDefault
-        )
-
     fileOutputDoc = strOption
         (  long "file-output-doc"
         <> short 'd'
@@ -281,17 +305,15 @@ optsStenoDict =
         <> showDefault
         )
 
-    switchAppend = switch
-        (  long "append"
-        <> short 'p'
-        <> help "Use the already existing output file, read the data and build a new \
-                \dictionary incrementally."
-        )
-
-stenoDictInfo :: InfoMod a
-stenoDictInfo =
+makeStenoInfo :: InfoMod a
+makeStenoInfo =
     progDesc "Read the input file and parse every word into a series \
            \of steno chords."
+
+buildDictInfo :: InfoMod a
+buildDictInfo =
+    progDesc "Read the input file, resolve collisions and write the \
+             \dictionary files."
 
 optsSort :: Parser OptionsSort
 optsSort = OptionsSort <$> fileFrequencyData <*> some file

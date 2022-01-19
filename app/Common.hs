@@ -1,7 +1,7 @@
 module Common where
 
 import Control.Monad (when)
-import Data.Foldable (Foldable (toList, foldMap), for_)
+import Data.Foldable (Foldable (toList), for_)
 import Data.Function (($))
 import Data.Semigroup (Semigroup ((<>)))
 import Data.Text (Text)

@@ -2,14 +2,12 @@ module WCL
   ( wcl
   ) where
 
-import           Data.Eq                           (Eq ((==)))
 import           Data.Int                          (Int)
 import           Data.String                       (String)
 import           Data.Word                         (Word8)
-import           GHC.Num                           (Num ((+)))
 
 import           System.IO                         (IO)
-import Data.ByteString (ByteString, split)
+import Data.ByteString (split)
 import qualified Data.ByteString as BS
 import Data.Functor ((<$>))
 import Data.Foldable (Foldable(length))

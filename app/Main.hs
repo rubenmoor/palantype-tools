@@ -82,13 +82,15 @@ import Sort (sortByFrequency)
 import Palantype.Tools.Hyphenate (hyphPseudoSyllable)
 import qualified Data.Map.Strict as Map
 import WCL (wcl)
+import MakeSteno (makeSteno)
 
 main :: IO ()
 main = execParser argOpts >>= \case
     TaskRawSteno  str  -> rawSteno str
     TaskPrepare   opts -> prepare opts
     TaskHyphenate opts -> hyphenate opts
-    TaskStenoDict opts -> buildDict opts
+    TaskMakeSteno opts -> makeSteno opts
+    TaskBuildDict opts -> buildDict opts
     TaskSort      opts -> sortByFrequency opts
     TaskShowChart opts -> showChart opts
 

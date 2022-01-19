@@ -68,9 +68,10 @@ executable palantype-ops
         Args
       , BuildDict
       , Common
-      , WCL
+      , MakeSteno
       , RunPrepare
       , Sort
+      , WCL
 
     build-depends:
         base
@@ -82,7 +83,6 @@ executable palantype-ops
       , clock
       , concurrent-extra
       , containers
-      , deepseq
       , directory
       , filepath
       , formatting
@@ -90,7 +90,7 @@ executable palantype-ops
       , my-palantype
       , optparse-applicative
       , palantype-tools
-      , signal
+      , split
       , text
       , text-show
       , time
@@ -103,8 +103,6 @@ executable palantype-ops
     hs-source-dirs: app
     default-language: Haskell2010
     ghc-options:
-      -threaded
-      -rtsopts
       -- warnings
       -Weverything
 

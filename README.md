@@ -6,7 +6,8 @@ as long as it supports n-key roll-over (cf. https://en.wikipedia.org/wiki/Rollov
 
 ## Workflow summary
 
-Create file "hyphenated-prepared.txt":
+Get inital hyphenation information.
+By default, read "entries.txt" and write "hyphenated-prepared.txt":
 
     $ palantype-ops prepare
 
@@ -15,13 +16,23 @@ hyphenate each word and write the output to "hyphenated.txt":
 
     $ palantype-ops hyphenate -h hyphenated-prepared.txt -h hyphenated-checked-DE.txt
 
-Sort the file by word frequency:
+Make the steno expressions, can be run concurrently. By default, read
+"hyphenated.txt" and write "palantype-DE-complete.json".
 
-    $ palantype-ops sort -i hyphenated.txt
+* GHC threads (currently has issues):
 
-Build the steno dict, takes about 50 minutes:
+    $ palantype-ops makeSteno +RTS -N
+    $ cabal run --ghc-options="-threaded" palantype-ops -- makeSteno +RTS -N
 
-    $ palantype-ops stenoDict +RTS -N -A64M
+* OS processes, for 12 threads e.g.:
+
+    $ ./runinparallel 12 hyphenated.txt
+
+Build the steno dict.
+The list from the last step is sorted and collisions are resolved.
+By default, write "palantype-DE.json", "palantype-DE-min.json", and "palantype-DE-doc.json":
+
+    $ palantype-ops buildDict -i palantype-DE-complete.json
 
 Sorting relevant files based on word frequency information:
 
