@@ -1,7 +1,7 @@
 set -e
 trap "exit" INT
-cabal build
-for nlines in 10000 20000 50000 100000
+cabal build --ghc-options="-rtsopts"
+for nlines in 100000
 do
     echo "#lines: $nlines"
     f=hyphenated-h${nlines}.txt
@@ -11,5 +11,5 @@ do
         /usr/bin/env time -f %e ./runinparallel.sh $nj $f > /dev/null
         rm ${f}.*
     done
-
+    rm $f
 done

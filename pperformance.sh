@@ -1,7 +1,7 @@
 set -e
 trap "exit" INT
 cabal build --ghc-options="-threaded -rtsopts"
-for nlines in 10000 20000 50000 100000
+for nlines in 10000 100000
 do
     echo "#lines: $nlines"
     head -n $nlines < hyphenated.txt > hyphenated-h${nlines}.txt
@@ -10,8 +10,8 @@ do
     do
         /usr/bin/env time -f %e \
             cabal run --ghc-options="-threaded -rtsopts" palantype-ops \
-                -- stenoDict --file-input hyphenated-h${nlines}.txt \
-                   +RTS -N$nj -A64M \
+                -- makeSteno --file-input hyphenated-h${nlines}.txt \
+                   +RTS -N$nj -A2M \
             > /dev/null
     done
 

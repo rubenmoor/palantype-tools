@@ -12,24 +12,23 @@ import Common (
     appendLine,
     removeFiles,
  )
-import Control.Applicative (Applicative (pure, (<*>)))
+import Control.Applicative (Applicative (pure))
 import Control.Concurrent (getNumCapabilities)
 import Control.Concurrent.Async (mapConcurrently)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
-    when
+    when, (<=<)
  )
 import Data.Either (Either (..))
 import Data.Foldable (
-    Foldable (foldl', length),
+    Foldable (length, foldl'),
     for_, traverse_
  )
 import Data.Function (($))
 import Data.Functor (
     (<$>), Functor ((<$), fmap)
  )
-import Data.Int (Int)
-import Data.List (transpose)
+import Data.List (transpose, replicate, last)
 import Data.Monoid (
     mconcat,
     (<>),
@@ -43,15 +42,9 @@ import Formatting (
  )
 import Formatting.Clock (timeSpecs)
 import GHC.Exts (seq)
-import GHC.Float (Double)
-import GHC.Num ((+), Num ((*)))
-import GHC.Real (
-    Fractional ((/)),
-    Real,
-    realToFrac
- )
+import GHC.Num (Num ((*)))
 
-import Palantype.Common (Greediness, Lang (DE, EN), Palantype (PatternGroup), RawSteno, triePrimitives)
+import Palantype.Common (Greediness, Lang (DE, EN), Palantype (PatternGroup, patSimpleMulti), RawSteno (RawSteno), triePrimitives)
 import qualified Palantype.DE.Keys as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Steno (
@@ -77,11 +70,14 @@ import WCL (wcl)
 import System.Console.ANSI (setCursorColumn)
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import Data.Traversable (Traversable(traverse, sequenceA))
 import Data.List.Split (chunksOf)
 import Data.Eq (Eq((==)))
-import Control.Category ((<<<))
-import Control.DeepSeq (deepseq, NFData)
+import Control.Category ((<<<), Category ((.)))
+import Control.DeepSeq (deepseq, NFData, force)
+import Palantype.DE (Pattern(PatSimple))
+import Data.Traversable (Traversable(traverse))
+import Control.Exception (evaluate)
+-- import Control.Scheduler (traverseConcurrently, Comp (ParN, ParOn))
 
 fileNoParse :: FilePath
 fileNoParse = "makeSteno-noparse.txt"
@@ -153,17 +149,31 @@ makeSteno
               where
                 word = Text.replace "|" "" hyph
 
-            traverseDeep :: NFData b => (a -> IO b) -> [a] -> IO [b]
-            traverseDeep _ [] = pure []
-            traverseDeep f (x : xs) = do
-              y <- f x
-              ys <- y `deepseq` traverseDeep f xs
-              pure $ y : ys
+            parseWordDummy :: Text -> IO (Text, [(RawSteno, (PatternGroup key, Greediness))])
+            parseWordDummy hyph = do
+              let lsFoo = replicate 600 hyph
+              pure (Text.takeEnd 100 $ foldl' (\strRes str -> Text.head str `Text.cons` strRes) "" lsFoo, [])
 
+            traverseDeep :: NFData b => (a -> IO b) -> [a] -> IO [b]
+            traverseDeep f = traverse (evaluate . force <=< f)
+
+        beginParallel <- getTime Monotonic
         lsStenos <- if nj == 1
-          then traverseDeep parseWord ls
+          then traverseDeep parseWordDummy ls
           else mconcat <$> mapConcurrently (traverseDeep parseWord)
                                            (transpose $ chunksOf (10 * nj) ls)
+        endParallel <- getTime Monotonic
+        putStr "Parallel runtime: "
+        fprint (timeSpecs % "\n") beginParallel endParallel
+            -- stopLls <- lls `deepseq` getTime Monotonic
+            -- putStr "Runtime till lls: "
+            -- fprint (timeSpecs % "\n") start stopLls
+            -- let lsFlat = mconcat lls
+
+            -- stopLsFlat <- lsFlat `deepseq` getTime Monotonic
+            -- putStr "Runtime till lsFlat: "
+            -- fprint (timeSpecs % "\n") start stopLsFlat
+            -- pure lsFlat
 
         setCursorColumn 28
         putStrLn $ lsStenos `deepseq` "done.                 "

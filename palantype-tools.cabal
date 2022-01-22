@@ -78,7 +78,6 @@ executable palantype-ops
       , aeson
       , aeson-pretty
       , ansi-terminal
-      , async
       , bytestring
       , clock
       , concurrent-extra
@@ -91,6 +90,7 @@ executable palantype-ops
       , my-palantype
       , optparse-applicative
       , palantype-tools
+      , async
       , split
       , text
       , text-show
