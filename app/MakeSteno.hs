@@ -49,7 +49,7 @@ import qualified Palantype.DE.Keys as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Steno (
     ParseError (..),
-    parseSeries,
+    parseSeries, Verbosity (VSilent, VDebug)
  )
 import System.Clock (
     Clock (Monotonic),
@@ -93,7 +93,7 @@ makeSteno ( OMkStArg lang str ) =
       . Palantype key
       => IO ()
     parseSeries' =
-      case parseSeries @key triePrimitives str of
+      case parseSeries @key VDebug triePrimitives str of
             Left err -> Text.putStrLn $ showt err
             Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno
@@ -132,7 +132,7 @@ makeSteno
 
         let
             parseWord :: Text -> IO (Text, [(RawSteno, (PatternGroup key, Greediness))])
-            parseWord hyph = case parseSeries triePrimitives hyph of
+            parseWord hyph = case parseSeries VSilent triePrimitives hyph of
                     Right stenos -> pure (hyph, stenos)
                     Left pe      -> (hyph, []) <$ case pe of
                       PEExceptionTable orig -> Text.putStrLn $
@@ -149,31 +149,17 @@ makeSteno
               where
                 word = Text.replace "|" "" hyph
 
-            parseWordDummy :: Text -> IO (Text, [(RawSteno, (PatternGroup key, Greediness))])
-            parseWordDummy hyph = do
-              let lsFoo = replicate 600 hyph
-              pure (Text.takeEnd 100 $ foldl' (\strRes str -> Text.head str `Text.cons` strRes) "" lsFoo, [])
-
             traverseDeep :: NFData b => (a -> IO b) -> [a] -> IO [b]
             traverseDeep f = traverse (evaluate . force <=< f)
 
         beginParallel <- getTime Monotonic
         lsStenos <- if nj == 1
-          then traverseDeep parseWordDummy ls
+          then traverseDeep parseWord ls
           else mconcat <$> mapConcurrently (traverseDeep parseWord)
                                            (transpose $ chunksOf (10 * nj) ls)
         endParallel <- getTime Monotonic
         putStr "Parallel runtime: "
         fprint (timeSpecs % "\n") beginParallel endParallel
-            -- stopLls <- lls `deepseq` getTime Monotonic
-            -- putStr "Runtime till lls: "
-            -- fprint (timeSpecs % "\n") start stopLls
-            -- let lsFlat = mconcat lls
-
-            -- stopLsFlat <- lsFlat `deepseq` getTime Monotonic
-            -- putStr "Runtime till lsFlat: "
-            -- fprint (timeSpecs % "\n") start stopLsFlat
-            -- pure lsFlat
 
         setCursorColumn 28
         putStrLn $ lsStenos `deepseq` "done.                 "

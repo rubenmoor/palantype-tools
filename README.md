@@ -30,7 +30,9 @@ Make the steno expressions, can be run concurrently. By default, read
 
 Build the steno dict.
 The list from the last step is sorted and collisions are resolved.
-By default, write "palantype-DE.json", "palantype-DE-min.json", and "palantype-DE-doc.json":
+This process currently requires 12 GB of RAM and is poorly optimized in this
+regard. By default, write "palantype-DE.json", "palantype-DE-min.json",
+and "palantype-DE-doc.json":
 
     $ palantype-ops buildDict -i palantype-DE-complete.json
 
@@ -67,7 +69,7 @@ Languages differ in important details.
 The frequency of so called phonems is important.
 Even though Palantype DE is built based on ortography,
 decisions need to be made on how to map all existing letters of some language
-on the 30 (or 32) steno keys.        lsStenos
+on the 30 (or 32) steno keys.
 
 Some choices are obvious and follow the nature of the language,
 e.g. the German "sch" is treated as a single steno key 'ʃ'.
@@ -80,35 +82,45 @@ Otherwise chords get unnecessary difficult.
 
 ### 2. Create a preliminary steno keyboard layout
 
-For German, there are only 12 keys to implement all consonants that appear
-in the onset of a syllable.
-*Any* consonant can appear in the onset of a syllable, thus 12 keys implement 21 consonants,
-not counting special consonants (like the aforementioned sch/ʃ).
+For German, there are only 12 keys available to implement all consonants that
+appear in the onset of a syllable.
+*Any* consonant can appear in the onset of a syllable, thus 12 keys implement
+21 consonants, not counting special consonants (like the aforementioned sch/ʃ).
 The reason is, there are four fingers on the left hand and each finger
 has home, top, and bottom row.
 The two thumbs are used to implement all possible vowel combinations.
 The four fingers of the right hand implement the consonants, again,
 for the coda of the syllable.
 
-Any preliminary layout is encoded in a straightforward way in a file like this:
+The keyboard layout is encoded like this:
 
 https://github.com/rubenmoor/my-palantype/blob/main/src/Palantype/DE/Keys.hs
 
 ### 3. Define primitives
 
-Any letter that possibly exists in some word needs to appear in the `primitives dictionary` at least once.
+Any letter that possibly exists in some word needs to appear in the
+`primitives dictionary` at least once.
 
 Cf. https://github.com/rubenmoor/palantype-tools/blob/main/primitives.json5
 
-Here is specified how, for Palantype DE, "d" is implemented via the steno key "D" and "t" is implemented by
-either the code "+D" or "D".
+Here is specified how, for Palantype DE, "d" is implemented via the steno key
+"D" and "t" is implemented by either the code "+D" or "D".
 
 The greediness number is documented within the file.
 Greediness levels allow to create various steno codes for one and the same word.
 The user only has to memorize one of them for efficient typing.
 By allowing several levels of greediness, the algorithm creates alternatives
 that are sometimes simply convenient and offer more options,
-but they are also essential to collision resolution.
+but they are also essential to resolve collisions.
+
+A collision happens when two different words of natural language result
+in identical steno. Note that two different syllables may result in identical
+steno all the time without problem. Plover will always fit steno chords
+together to reach the longest dictionary entry.
+However, words are required to have a unique representation as steno chords.
+These tools automatically detect and resolve collisions.
+A contested steno code is awarded to the most common word, in general.
+
 
 ### 4. Organize a word list
 
@@ -161,7 +173,8 @@ the more efficient steno it will get in case of a collision.
 
 ### 7. Build the language-specific dictionary
 
-You can take the first 100'000 words from your sorted file and build a dictionary like this:
+You can take the first 100'000 words from your sorted file and build a
+dictionary like this:
 
     $> head -n 1000000 < hyphenated-sorted.txt > hyphenated-top100k.txt
     $> palantype-ops stenoDict -i hyphenated-top100k.txt
@@ -171,14 +184,16 @@ You can take the first 100'000 words from your sorted file and build a dictionar
 >
 >     $> palantype-ops stenoDict -i hyphenated-top100k.txt +RTS -N
 >
-> where the -N option will run a number of processes equal to the number of cores on your system.
-> Explicitly specify the desired number of jobs by putting a number there, e.g. -N4.
+> where the -N option will run a number of processes equal to the number of
+> cores on your system. Explicitly specify the desired number of jobs by
+> putting a number there, e.g. -N4.
 
 Check the output for potential problems.
 
-- `buildDict-noparse.txt` contains words that could not be translated in to steno chords,
-  typically because primitives are missing.
-- `buildDict-collisions.txt` contains words that resulted in steno that is already in use for other words.
+- `buildDict-noparse.txt` contains words that could not be translated in to
+  steno chords, typically because primitives are missing.
+- `buildDict-collisions.txt` contains words that resulted in steno that
+  is already in use for other words.
 
 Keep building small dictionary on a limited set of words and iteratively improve
 

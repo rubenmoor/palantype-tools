@@ -17,7 +17,7 @@ import           Control.Applicative            ( Applicative
                                                     )
                                                 )
 import           Control.Category               ( (<<<)
-                                                , Category((.))
+                                                , Category((.), id)
                                                 )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
 import           Data.Bool                      ( Bool(False, True)
@@ -60,7 +60,7 @@ import           Data.Monoid                    ( (<>)
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
-                                                , Ord((<=), max)
+                                                , Ord((<=), max, (>=))
                                                 , comparing
                                                 )
 import           Data.Ratio                     ( Rational )
@@ -85,7 +85,7 @@ import Palantype.Common
     ( Finger,
       Greediness,
       RawSteno(RawSteno, unRawSteno),
-      Palantype(PatternGroup, patSimpleMulti),
+      Palantype(PatternGroup, patSimpleMulti, patCapitalize),
       lsPatterns,
       parseWord,
       mapExceptions, kiCapNext, kiAcronym, fromChord, unparts, keys )
@@ -111,6 +111,9 @@ import qualified Data.Trie as Trie
 import qualified Data.Map.Strict as Map
 import Data.Maybe (Maybe(..), catMaybes)
 import Data.Trie (Trie)
+import Control.Monad (when)
+import qualified Data.Text.IO as Text
+import TextShow.Debug.Trace (traceTextShow)
 
 data Score = Score
     { scorePrimary   :: Rational
@@ -148,6 +151,7 @@ addCapChord :: forall key . Palantype key => State key -> State key
 addCapChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiCapNext) <> "/" <> stStrRawSteno
     , stNChords     = stNChords + 1
+    , stMPatternGroup = max stMPatternGroup $ Just (patCapitalize, 0)
     }
 
 addAcronymChord :: forall key . Palantype key => State key -> State key
@@ -155,6 +159,11 @@ addAcronymChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiAcronym) <> "/" <> stStrRawSteno
     , stNChords = stNChords + 1
     }
+
+data Verbosity
+  = VSilent
+  | VDebug
+  deriving stock (Eq, Ord)
 
 -- | Find steno chords for a given, hyphenated word, e.g. "Ge|sund|heit"
 --   or return a parser error.
@@ -165,10 +174,11 @@ addAcronymChord st@State {..} = st
 parseSeries
     :: forall key
     . Palantype key
-    => Trie [(Greediness, RawSteno, PatternGroup key)]
+    => Verbosity
+    -> Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
     -> Either ParseError [(RawSteno, (PatternGroup key, Greediness))]
-parseSeries trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
+parseSeries verbosity trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
     Just raws -> sequence
                    ( checkException . second (, 0) <$> raws
                    )
@@ -184,11 +194,11 @@ parseSeries trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) 
             str = Text.encodeUtf8 $ toLower hyphenated'
 
             st = State
-              { stStrRawSteno = ""
-              , stNLetters    = 0
-              , stNChords     = 1
-              , stMFinger     = Nothing
-              , stMLastKey    = Nothing
+              { stStrRawSteno   = ""
+              , stNLetters      = 0
+              , stNChords       = 1
+              , stMFinger       = Nothing
+              , stMLastKey      = Nothing
               , stMPatternGroup = Nothing
               }
 
@@ -214,7 +224,12 @@ parseSeries trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) 
                  in
                      lsNoCOpt ++ lsYesCOpt
               | otherwise = lsResultLc
+
         in
+            (if verbosity >= VDebug
+              then traceTextShow levels
+              else id
+            ) $
             case sortOn (Down . uncurry scoreWithG) lsResult of
                 (_, Failure raw err) : _ -> Left $ PEParsec raw err
                 []                       -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
