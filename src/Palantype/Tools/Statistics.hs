@@ -3,9 +3,6 @@ module Palantype.Tools.Statistics where
 
 import           Control.Applicative            ( (<$>) )
 import           Control.Category               ( Category((.)) )
-import           Control.Lens.Setter            ( (.~)
-                                                , (?~)
-                                                )
 import           Data.Default                   ( Default(def) )
 import           Data.Foldable                  ( Foldable(length) )
 import           Data.Function                  ( ($)

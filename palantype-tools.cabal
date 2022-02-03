@@ -35,7 +35,6 @@ library
       , bytestring-trie
       , containers
       , data-default
-      , lens
       , my-palantype
       , parsec
       , text
@@ -66,7 +65,6 @@ executable palantype-ops
 
     other-modules:
         Args
-      , BuildDict
       , Common
       , MakeSteno
       , RunPrepare
@@ -91,7 +89,6 @@ executable palantype-ops
       , optparse-applicative
       , palantype-tools
       , async
-      , split
       , text
       , text-show
       , time

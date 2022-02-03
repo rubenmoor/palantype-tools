@@ -2,6 +2,7 @@
 .cabal-sandbox
 *.hi
 *.o
+.stack-work/
 cabal.project.local
 cabal.sandbox.config
 ctags

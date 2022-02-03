@@ -16,34 +16,25 @@ hyphenate each word and write the output to "hyphenated.txt":
 
     $ palantype-ops hyphenate -h hyphenated-prepared.txt -h hyphenated-checked-DE.txt
 
-Make the steno expressions, can be run concurrently. By default, read
-"hyphenated.txt" and write "palantype-DE-complete.json".
+Sort the file "hyphenated.txt" by word frequency, such that the most
+frequent word is on top. This is required for the next step.
+In case of conflicts, more frequent words are expected to come first.
 
-* GHC threads (currently has issues):
+    $ palantype-ops sort -i hyphenated.txt
+
+Make the steno expressions, can be run concurrently. By default, read
+"hyphenated.txt" and build the steno dict.
+This process requires about 6 GB of RAM.
+With 6 jobs on an AMD Ryzen 5 3600, 6 cores/12 threads, it takes 18 minutes.
+By default, write "palantype-DE.json", "palantype-DE-min.json",
+and "palantype-DE-doc.json":
 
     $ palantype-ops makeSteno +RTS -N
     $ cabal run --ghc-options="-threaded" palantype-ops -- makeSteno +RTS -N
 
-* OS processes, for 12 threads e.g.:
-
-    $ ./runinparallel 12 hyphenated.txt
-
-Build the steno dict.
-The list from the last step is sorted and collisions are resolved.
-This process currently requires 12 GB of RAM and is poorly optimized in this
-regard. By default, write "palantype-DE.json", "palantype-DE-min.json",
-and "palantype-DE-doc.json":
-
-    $ palantype-ops buildDict -i palantype-DE-complete.json
-
-In case of OS processes, the result is  in several files:
-
-    $ palantype-ops buildDict $(for f in hyphenated.txt.*.json; do echo -n "-i $f"; done)
-    $ rm hyphentated.txt.*
-
 Sorting relevant files based on word frequency information:
 
-    $ palantype-ops sort -i palantype.json -i buildDict-collisions.txt -i buildDict-noparse.txt
+    $ palantype-ops sort -i makeSteno-collisions.txt -i makeSteno-lostwords.txt -i makeSteno-duplicates.txt
 
 ## Full Workflow
 

@@ -38,6 +38,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Text.Encoding as Text
 import Control.Arrow ((***))
 import Control.Applicative (Applicative(pure))
+import Control.Exception (evaluate)
 
 getMapFrequencies :: FilePath -> IO (Map ByteString Int)
 getMapFrequencies file = do
@@ -77,10 +78,15 @@ sortByFrequency (OptionsSort fileFrequencies files) = do
                 writeJSONFile file sorted
             else do
                 ls <- Char8.lines <$> BS.readFile file
-                putStrLn $ ls `seq` " done."
+                _ <- evaluate ls
+                putStrLn " done."
 
                 let
-                    crit = Down <<< (\x -> Map.findWithDefault 0 x m) <<< mconcat <<< BS.split pipe <<< head <<< BS.split space
+                    crit = Down <<< (\x -> Map.findWithDefault 0 x m)
+                                <<< mconcat
+                                <<< BS.split pipe
+                                <<< head
+                                <<< BS.split space
                     sorted = sortOn crit ls
 
                 putStr $ "Writing file " <> file <> " ..."

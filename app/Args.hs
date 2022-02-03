@@ -4,7 +4,6 @@ module Args
     , OptionsHyphenate(..)
     , OptionsHyphenateMode(..)
     , OptionsMakeSteno (..)
-    , OptionsBuildDict(..)
     , OptionsShowChart(..)
     , OptionsSort(..)
     , argOpts
@@ -48,10 +47,8 @@ data Task
   | TaskHyphenate OptionsHyphenate
 
   -- | create a couple of steno codes for every word
+  -- and build the steno dict from the steno codes
   | TaskMakeSteno OptionsMakeSteno
-
-  -- | build the steno dict from the steno codes
-  | TaskBuildDict OptionsBuildDict
 
   -- | sort a word list by frequency
   | TaskSort OptionsSort
@@ -78,13 +75,8 @@ data OptionsShowChart = OSCHistScores
 
 data OptionsMakeSteno
   -- | input file: hyphenated words
-  = OMkStFile FilePath FilePath Lang
+  = OMkStFile FilePath FilePath FilePath FilePath Lang
   | OMkStArg Lang Text
-
-data OptionsBuildDict
-  -- | input file: steno codes
-  --   output file: if the output file exists,
-  = OBDFile [FilePath] FilePath FilePath FilePath Lang
 
 -- | input file: list of words
 --   frequency data
@@ -107,9 +99,6 @@ task = subparser
     <> command
           "makeSteno"
           (info (TaskMakeSteno <$> optsMakeSteno <* helper) makeStenoInfo)
-    <> command
-          "buildDict"
-          (info (TaskBuildDict <$> optsBuildDict <* helper) buildDictInfo)
     <> command
           "sort"
           (info (TaskSort      <$> optsSort <* helper) sortInfo)
@@ -228,7 +217,9 @@ hyphenateInfo =
 optsMakeSteno :: Parser OptionsMakeSteno
 optsMakeSteno =
     ( OMkStFile <$> fileInput
-                <*> fileOutputJson
+                <*> fileOutputPlover
+                <*> fileOutputPloverMin
+                <*> fileOutputDoc
                 <*> lang
     )
     <|> (OMkStArg <$> lang <*> arg argHlp)
@@ -245,32 +236,6 @@ optsMakeSteno =
                 \The words must be hyphenated, e.g. \"Di|rek|ti|ve\"."
         <> metavar "FILE"
         <> showDefault
-        )
-
-    fileOutputJson = strOption
-        (  long "file-output-json"
-        <> short 'j'
-        <> value "palantype-DE-complete.json"
-        <> help "The dictionary file with complete information."
-        <> metavar "FILE"
-        <> showDefault
-        )
-
-optsBuildDict :: Parser OptionsBuildDict
-optsBuildDict =
-    OBDFile <$> some fileInput
-            <*> fileOutputPlover
-            <*> fileOutputPloverMin
-            <*> fileOutputDoc
-            <*> lang
-  where
-    fileInput = strOption
-        (  long "file-input"
-        <> short 'i'
-        -- <> value "palantype-DE-complete.json"
-        <> help "Input file in json format, containing a map word -> \
-                \steno codes."
-        <> metavar "FILE"
         )
 
     fileOutputPlover = strOption
@@ -308,12 +273,8 @@ optsBuildDict =
 makeStenoInfo :: InfoMod a
 makeStenoInfo =
     progDesc "Read the input file and parse every word into a series \
-           \of steno chords."
-
-buildDictInfo :: InfoMod a
-buildDictInfo =
-    progDesc "Read the input file, resolve collisions and write the \
-             \dictionary files."
+           \of steno chords. Resolve the collisions and write the \
+           \dictionary files."
 
 optsSort :: Parser OptionsSort
 optsSort = OptionsSort <$> fileFrequencyData <*> some file

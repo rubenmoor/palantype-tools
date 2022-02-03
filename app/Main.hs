@@ -69,7 +69,6 @@ import           Args                           ( OptionsHyphenate(..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
-import           BuildDict                      ( buildDict )
 import           Common                         ( appendLine
                                                 , fileScores
                                                 , removeFiles
@@ -90,7 +89,6 @@ main = execParser argOpts >>= \case
     TaskPrepare   opts -> prepare opts
     TaskHyphenate opts -> hyphenate opts
     TaskMakeSteno opts -> makeSteno opts
-    TaskBuildDict opts -> buildDict opts
     TaskSort      opts -> sortByFrequency opts
     TaskShowChart opts -> showChart opts
 

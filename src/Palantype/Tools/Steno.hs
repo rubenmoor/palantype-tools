@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Palantype.Tools.Steno where
 
@@ -111,8 +112,6 @@ import qualified Data.Trie as Trie
 import qualified Data.Map.Strict as Map
 import Data.Maybe (Maybe(..), catMaybes)
 import Data.Trie (Trie)
-import Control.Monad (when)
-import qualified Data.Text.IO as Text
 import TextShow.Debug.Trace (traceTextShow)
 
 data Score = Score
