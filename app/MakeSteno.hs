@@ -21,7 +21,7 @@ import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
     when, unless, Monad ((>>))
  )
-import Data.Either (Either (..))
+import Data.Either (Either (..), isRight)
 import Data.Foldable (
     Foldable (length),
     for_, traverse_
@@ -49,7 +49,7 @@ import qualified Palantype.DE.Keys as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Steno (
     ParseError (..),
-    parseSeries, Verbosity (VSilent, VDebug)
+    parseSeries, Verbosity (VSilent, VDebug), acronym, isCapitalized
  )
 import System.Clock (
     Clock (Monotonic),
@@ -74,7 +74,7 @@ import Data.Eq (Eq((==)))
 import Control.Category ((<<<), Category ((.)))
 import Control.Concurrent.MVar (newMVar)
 import qualified Data.Map.Strict as Map
-import Palantype.Tools.Collision (DictState(DictState))
+import Palantype.Tools.Collision (DictState(DictState, dstMapWordStenos))
 import qualified Palantype.Tools.Collision as Collision
 import qualified Data.Text.Encoding as Text
 import Data.Map.Strict (Map)
@@ -85,6 +85,10 @@ import Control.Arrow (Arrow((***)))
 import Data.Maybe (Maybe(Nothing, Just))
 import Control.Exception (evaluate)
 import Control.DeepSeq (force)
+import qualified Data.Set as Set
+import Data.Set ((\\))
+import Data.Bool (Bool(True, False), not, (&&))
+import Text.Parsec (runParser)
 -- import Control.Scheduler (traverseConcurrently, Comp (ParN, ParOn))
 
 fileNoParse :: FilePath
@@ -110,7 +114,7 @@ makeSteno ( OMkStArg lang str ) =
       . Palantype key
       => IO ()
     parseSeries' =
-      case parseSeries @key VDebug triePrimitives str of
+      case parseSeries @key triePrimitives str False of
             Left err -> Text.putStrLn $ showt err
             Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno
@@ -142,7 +146,11 @@ makeSteno
         putStr $ "Reading input file " <> fileInput <> " ..."
         hFlush stdout
         ls <- Text.lines <$> Text.readFile fileInput
-        let l = length ls
+
+        let
+            l = length ls
+            setLs = Set.fromList ls
+
         putStrLn $ l `seq` " done."
 
         putStrLn $ "Creating steno chords for " <> show l <> " entries."
@@ -158,31 +166,37 @@ makeSteno
         mvarLs <- newMVar ls
 
         let
+            isAcronym = isRight <<< runParser acronym () ""
+
             parseWord :: Text -> IO ()
-            parseWord hyph = case parseSeries @key VSilent triePrimitives hyph of
-                Right stenos -> modifyMVar_ dictState \dst@DictState{..} -> do
-                    if word `Map.member` dstMapWordStenos
-                        then appendLine fileDuplicates word $> dst
-                        else do
-                            let (dst', isLost) = Collision.resolve word (force stenos) dst
-                            _ <- evaluate dst'
-                            when isLost $
-                                appendLine fileCollisions $
-                                    word <> " "
-                                         <> Text.intercalate " " (showt <$> stenos)
-                            pure dst'
-                Left pe      -> case pe of
-                  PEExceptionTable orig -> Text.putStrLn $
-                    "Error in exception table for: " <> orig
-                  PEParsec raw _ ->
-                    Lock.with lock $
-                      appendLine fileNoParse $
-                        Text.unwords [word, hyph, showt raw]
-                  PEImpossible str -> do
-                    Text.putStrLn $ "Seemingly impossible: " <> str
-                    Lock.with lock $
-                      appendLine fileNoParse
-                        $ Text.unwords [word, hyph]
+            parseWord hyph = do
+              mapWordStenos <- dstMapWordStenos <$> readMVar dictState
+              let isDupl = word `Map.member` mapWordStenos
+                  isCapl = not (isAcronym hyph) && isCapitalized hyph
+                  isCaplDupl = isCapl && Text.toLower hyph `Set.member` setLs
+              case (isDupl, isCaplDupl) of
+                  (True , _   ) -> appendLine fileDuplicates word
+                  (False, addC) -> case parseSeries @key triePrimitives hyph addC of
+                      Right stenos -> modifyMVar_ dictState \dst -> do
+                         let (dst', isLost) = Collision.resolve word (force stenos) dst
+                         _ <- evaluate dst'
+                         when isLost $
+                             appendLine fileCollisions $
+                                 word <> " "
+                                      <> Text.intercalate " " (showt <$> stenos)
+                         pure dst'
+                      Left pe      -> case pe of
+                        PEExceptionTable orig -> Text.putStrLn $
+                          "Error in exception table for: " <> orig
+                        PEParsec raw _ ->
+                          Lock.with lock $
+                            appendLine fileNoParse $
+                              Text.unwords [word, hyph, showt raw]
+                        PEImpossible str -> do
+                          Text.putStrLn $ "Seemingly impossible: " <> str
+                          Lock.with lock $
+                            appendLine fileNoParse
+                              $ Text.unwords [word, hyph]
               where
                 word = Text.replace "|" "" hyph
 
@@ -240,9 +254,8 @@ makeSteno
         -- checking for lost words
         putStr $ "Writing lost words to " <> fileLost <> " ..."
         hFlush stdout
-        for_ ls $ \w ->
-            unless (Text.replace "|" "" w `Map.member` dstMapWordStenos) $
-                appendLine fileLost w
+        traverse_ (appendLine fileLost) $
+            Set.map (Text.replace "|" "") setLs \\ Map.keysSet dstMapWordStenos
         putStrLn " done."
 
         putStr $ "Writing file " <> fileOutputDoc <> " ..."

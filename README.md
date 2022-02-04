@@ -32,9 +32,16 @@ and "palantype-DE-doc.json":
     $ palantype-ops makeSteno +RTS -N
     $ cabal run --ghc-options="-threaded" palantype-ops -- makeSteno +RTS -N
 
+Copying the result files, e.g.:
+
+    $ cp palantype-DE.json ../plover_palantype_de/plover_palantype_DE/dictionaries/
+    $ cp palantype-DE-doc.json ../learn-palantype/static-files/
+
 Sorting relevant files based on word frequency information:
 
     $ palantype-ops sort -i makeSteno-collisions.txt -i makeSteno-lostwords.txt -i makeSteno-duplicates.txt
+
+Rinse and repeat.
 
 ## Full Workflow
 

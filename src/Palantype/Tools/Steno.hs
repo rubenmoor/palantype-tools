@@ -173,11 +173,12 @@ data Verbosity
 parseSeries
     :: forall key
     . Palantype key
-    => Verbosity
-    -> Trie [(Greediness, RawSteno, PatternGroup key)]
+    => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
+    -> Bool
     -> Either ParseError [(RawSteno, (PatternGroup key, Greediness))]
-parseSeries verbosity trie hyphenated = case Map.lookup unhyphenated (mapExceptions @key) of
+parseSeries trie hyphenated addCapitalization =
+  case Map.lookup unhyphenated (mapExceptions @key) of
     Just raws -> sequence
                    ( checkException . second (, 0) <$> raws
                    )
@@ -213,22 +214,13 @@ parseSeries verbosity trie hyphenated = case Map.lookup unhyphenated (mapExcepti
                     ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
 
             lsResult
-              | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
-              | isCapitalized hyphenated =
-                 let
-                     lsNoCOpt =
-                         second (mapSuccess $ addCapChord @key)
-                             <$> lsResultLc
-                     lsYesCOpt = first (second $ const True) <$> lsResultLc
-                 in
-                     lsNoCOpt ++ lsYesCOpt
+              | isAcronym =
+                  second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+              | addCapitalization =
+                  second (mapSuccess $ addCapChord @key) <$> lsResultLc
               | otherwise = lsResultLc
 
         in
-            (if verbosity >= VDebug
-              then traceTextShow levels
-              else id
-            ) $
             case sortOn (Down . uncurry scoreWithG) lsResult of
                 (_, Failure raw err) : _ -> Left $ PEParsec raw err
                 []                       -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
