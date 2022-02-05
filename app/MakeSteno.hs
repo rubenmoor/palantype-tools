@@ -15,11 +15,12 @@ import Common (
  )
 import Control.Applicative (Applicative (pure))
 import Control.Concurrent (getNumCapabilities)
-import Control.Concurrent.MVar (readMVar, modifyMVar_, modifyMVar)
+import Control.Concurrent.MVar
+    ( readMVar, modifyMVar_, modifyMVar, newMVar )
 import Control.Concurrent.Async (replicateConcurrently_)
 import qualified Control.Concurrent.Lock as Lock
 import Control.Monad (
-    when, unless, Monad ((>>))
+    when, Monad ((>>))
  )
 import Data.Either (Either (..), isRight)
 import Data.Foldable (
@@ -28,7 +29,7 @@ import Data.Foldable (
  )
 import Data.Function (($))
 import Data.Functor (
-    (<$>), Functor (fmap), ($>)
+    (<$>), Functor (fmap)
  )
 import Data.List (sortOn, minimumBy, take)
 import Data.Monoid (
@@ -49,7 +50,7 @@ import qualified Palantype.DE.Keys as DE
 import qualified Palantype.EN.Keys as EN
 import Palantype.Tools.Steno (
     ParseError (..),
-    parseSeries, Verbosity (VSilent, VDebug), acronym, isCapitalized
+    parseSeries, acronym, isCapitalized
  )
 import System.Clock (
     Clock (Monotonic),
@@ -72,7 +73,6 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Eq (Eq((==)))
 import Control.Category ((<<<), Category ((.)))
-import Control.Concurrent.MVar (newMVar)
 import qualified Data.Map.Strict as Map
 import Palantype.Tools.Collision (DictState(DictState, dstMapWordStenos))
 import qualified Palantype.Tools.Collision as Collision
@@ -171,20 +171,23 @@ makeSteno
             parseWord :: Text -> IO ()
             parseWord hyph = do
               mapWordStenos <- dstMapWordStenos <$> readMVar dictState
-              let isDupl = word `Map.member` mapWordStenos
-                  isCapl = not (isAcronym hyph) && isCapitalized hyph
+
+              let
+                  isDupl = word `Map.member` mapWordStenos
+                  isCapl = isCapitalized hyph && not (isAcronym hyph)
                   isCaplDupl = isCapl && Text.toLower hyph `Set.member` setLs
+
               case (isDupl, isCaplDupl) of
                   (True , _   ) -> appendLine fileDuplicates word
                   (False, addC) -> case parseSeries @key triePrimitives hyph addC of
                       Right stenos -> modifyMVar_ dictState \dst -> do
-                         let (dst', isLost) = Collision.resolve word (force stenos) dst
-                         _ <- evaluate dst'
-                         when isLost $
-                             appendLine fileCollisions $
-                                 word <> " "
-                                      <> Text.intercalate " " (showt <$> stenos)
-                         pure dst'
+                          let (dst', isLost) = Collision.resolve word (force stenos) dst
+                          _ <- evaluate dst'
+                          when isLost $
+                              appendLine fileCollisions $
+                                  word <> " "
+                                       <> Text.intercalate " " (showt <$> stenos)
+                          pure dst'
                       Left pe      -> case pe of
                         PEExceptionTable orig -> Text.putStrLn $
                           "Error in exception table for: " <> orig
@@ -265,7 +268,6 @@ makeSteno
 
         writeJSONFile fileOutputPlover sorted
         LBS.writeFile fileOutputPloverMin $ Aeson.encodePretty mapStenoWordMin
-
 
         putStrLn ""
         putStrLn "Number of lines in"
