@@ -18,7 +18,7 @@ import           Control.Applicative            ( Applicative
                                                     ), optional
                                                 )
 import           Control.Category               ( (<<<)
-                                                , Category((.), id)
+                                                , Category((.))
                                                 )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
 import           Data.Bool                      ( Bool(False, True)
@@ -43,15 +43,14 @@ import           Data.Foldable                  ( Foldable
                                                 , maximumBy
                                                 )
 import           Data.Function                  ( ($)
-                                                , const
+
                                                 )
 import           Data.Functor                   ( (<$>)
                                                 , (<&>)
                                                 , Functor(fmap)
                                                 )
 import           Data.Int                       ( Int )
-import           Data.List                      ( (++)
-                                                , filter
+import           Data.List                      ( filter
 
                                                 , intersperse
                                                 , sortOn
@@ -61,7 +60,7 @@ import           Data.Monoid                    ( (<>)
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
-                                                , Ord((<=), max, (>=))
+                                                , Ord((<=), max)
                                                 , comparing
                                                 )
 import           Data.Ratio                     ( Rational )
@@ -112,7 +111,6 @@ import qualified Data.Trie as Trie
 import qualified Data.Map.Strict as Map
 import Data.Maybe (Maybe(..), catMaybes)
 import Data.Trie (Trie)
-import TextShow.Debug.Trace (traceTextShow)
 
 data Score = Score
     { scorePrimary   :: Rational
@@ -268,8 +266,9 @@ scoreWithG (g, cOpt) result =
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
 
-countLetters :: ByteString -> CountLetters
-countLetters str = CountLetters $ sum $ BS.length <$> BS.split bsPipe str
+countLetters :: Text -> CountLetters
+countLetters str =
+    CountLetters $ sum $ Text.length <$> Text.splitOn "|" str
 
 newtype CountChords = CountChords { unCountChords :: Int }
   deriving newtype (Num, TextShow)
@@ -407,7 +406,8 @@ optimizeStenoSeries trie g st str =
                 Right (strRaw, (mFinger, mLK)) ->
                     let newState = State
                             { stStrRawSteno = stStrRawSteno st <> strRaw
-                            , stNLetters    = stNLetters st + countLetters consumed
+                            , stNLetters    =
+                                stNLetters st + countLetters (Text.decodeUtf8 consumed)
                             , stNChords     = stNChords st + countChords strRaw
                             , stMFinger     = mFinger
                             , stMLastKey    = mLK
