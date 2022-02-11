@@ -15,7 +15,7 @@ import           Control.Applicative            ( Applicative
                                                     , (<*)
                                                     , (<*>)
                                                     , pure
-                                                    )
+                                                    ), optional
                                                 )
 import           Control.Category               ( (<<<)
                                                 , Category((.), id)
@@ -457,19 +457,21 @@ optimizeStenoSeries trie g st str =
     keysWithSlash =
         sepBy1 keys (char '/' *> setState (Nothing, Nothing)) <* eof
 
+{-|
+an acronym requires two "acronym syllables" at minimum
+i.e. it must start with an uppercase letter and it must contain
+at least one additional uppercase letter later
+-}
 acronym :: Parsec Text () [Text]
 acronym = do
     s1 <- acronymSyllable
-    -- an acronym requires two "acronym syllables" at minimum
-    -- i.e. it must start with an uppercase letter and it must contain
-    -- at least one additional uppercase letter later
     ss <- many1 acronymSyllable
     pure $ s1 : ss
   where
-
-    -- an "acronym syllable" is an uppercase letter, optionally
-    -- followed by lowercase letters
+    -- | an "acronym syllable" is an uppercase letter, optionally
+    --   followed by lowercase letters
     acronymSyllable = do
       ucl <- Parsec.satisfy isUpper
       lcls <- many $ Parsec.satisfy isLower
+      _ <- optional $ char '|'
       pure $ Text.pack $ ucl : lcls

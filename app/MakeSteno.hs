@@ -176,6 +176,7 @@ makeSteno
                   isDupl = word `Map.member` mapWordStenos
                   isCapl = isCapitalized hyph && not (isAcronym hyph)
                   isCaplDupl = isCapl && Text.toLower hyph `Set.member` setLs
+                  word = Text.replace "|" "" hyph
 
               case (isDupl, isCaplDupl) of
                   (True , _   ) -> appendLine fileDuplicates word
@@ -200,8 +201,6 @@ makeSteno
                           Lock.with lock $
                             appendLine fileNoParse
                               $ Text.unwords [word, hyph]
-              where
-                word = Text.replace "|" "" hyph
 
             loop = do
                 mJob <- modifyMVar mvarLs \ls' ->
