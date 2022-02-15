@@ -29,12 +29,15 @@ import qualified Data.ByteString.Builder.Internal as BSB
 import Control.Category ((<<<))
 import qualified Data.ByteString as BS
 import Data.Functor ((<$>))
+import WCL (wcl)
+import Text.Show (Show(show))
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles files = for_ files $ \file -> do
     exists <- doesFileExist file
     when exists $ do
-        putStrLn $ "Deleting " <> file
+        nLines <- wcl file
+        putStrLn $ "Deleting " <> file <> " (" <> show nLines <> " lines)"
         removeFile file
 
 appendLine :: FilePath -> Text -> IO ()

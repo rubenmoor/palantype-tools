@@ -25,25 +25,15 @@ let
     allowBroken = true;
   };
   drv = pkgs.haskell.packages."${compiler}".callCabal2nix "palantype-tools" ./. { };
+  env =
+    with pkgs.haskellPackages;
+    drv.env.overrideAttrs ( oldAttrs: rec {
+      nativeBuildInputs =
+        oldAttrs.nativeBuildInputs ++ [
+          easy-hls
+          cabal-install
+          threadscope
+        ];
+    });
 in
-  {
-    env =
-      # don't know why, but the haskell-language doesn't seem to
-      # be a build tool, but a native build input
-      #
-      # with pkgs.haskell.lib;
-      # addBuildTools drv (
-      #   with pkgs.haskellPackages;
-      #   [ haskell-language-server ]
-      # );
-      with pkgs.haskellPackages;
-      drv.env.overrideAttrs ( oldAttrs: rec {
-        nativeBuildInputs =
-          oldAttrs.nativeBuildInputs ++ [
-            easy-hls
-            cabal-install
-            threadscope
-          ];
-      });
-    exec = drv;
-  }
+  if pkgs.lib.inNixShell then env else drv
