@@ -6,6 +6,7 @@ module Args
     , OptionsMakeSteno (..)
     , OptionsShowChart(..)
     , OptionsSort(..)
+    , OptionsMakeNumbers (..)
     , argOpts
     ) where
 
@@ -56,6 +57,9 @@ data Task
   -- | show charts
   | TaskShowChart OptionsShowChart
 
+  -- | create a dictionary file for numbers
+  | TaskMakeNumbers OptionsMakeNumbers
+
 data OptionsPrepare
   = OPrepFile FilePath FilePath
   | OPrepArg Text
@@ -83,6 +87,10 @@ data OptionsMakeSteno
 --   output file: sorted list of words
 data OptionsSort = OptionsSort FilePath [FilePath]
 
+data OptionsMakeNumbers =
+  -- | output file
+  OptionsMakeNumbers FilePath Lang
+
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
 
@@ -105,6 +113,9 @@ task = subparser
     <> command
           "showChart"
           (info (TaskShowChart <$> optsShowChart <* helper) showChartInfo)
+    <> command
+          "makeNumbers"
+          (info (TaskMakeNumbers <$> optsMakeNumbers <* helper) makeNumbersInfo)
     )
   where
     rawStenoHelp
@@ -313,3 +324,21 @@ optsShowChart = pure OSCHistScores
 
 showChartInfo :: InfoMod a
 showChartInfo = progDesc "Show a chart with statistics."
+
+optsMakeNumbers :: Parser OptionsMakeNumbers
+optsMakeNumbers = OptionsMakeNumbers <$> file <*> lang
+  where
+    file = strOption
+        (  long "file"
+        <> short 'o'
+        <> help "Output file for the numbers dictionary in json format; for \
+                \use with Plover."
+        <> value "palantype-DE-numbers.json"
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+makeNumbersInfo :: InfoMod a
+makeNumbersInfo =
+    progDesc "Create Palantype-style steno codes for numbers for the given \
+             \language."

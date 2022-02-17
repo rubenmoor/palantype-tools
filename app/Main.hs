@@ -17,15 +17,12 @@ import           Data.Eq                        ( Eq((/=)) )
 import           Data.Foldable                  ( Foldable(maximum)
                                                 , all
                                                 , for_
-
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
 import           Data.List                      ( filter
-
-
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , Monoid(mconcat)
@@ -42,19 +39,17 @@ import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
-import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..), parseSteno)
+import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..)
+                                                , parseSteno
+                                                )
 import qualified Palantype.DE.Keys             as DE
 import           System.Directory               ( listDirectory )
 import           System.FilePath                ( (</>)
                                                 , FilePath
                                                 , takeDirectory
-
                                                 )
 import           System.IO                      ( IO
-
-
-                                                , putStrLn, hFlush, stdout
-
+                                                , putStrLn, hFlush, stdout, putStr
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
@@ -65,7 +60,7 @@ import           Args                           ( OptionsHyphenate(..)
                                                 , OptionsShowChart
                                                     ( OSCHistScores
                                                     )
-
+                                                , OptionsMakeNumbers (..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
@@ -82,15 +77,22 @@ import Palantype.Tools.Hyphenate (hyphPseudoSyllable)
 import qualified Data.Map.Strict as Map
 import WCL (wcl)
 import MakeSteno (makeSteno)
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Palantype.Common.Indices as KI
+import qualified Palantype.EN.Keys as EN
+import Data.Bifunctor (Bifunctor(first))
+import Palantype.Common.Numbers (dictNumbers)
 
 main :: IO ()
 main = execParser argOpts >>= \case
-    TaskRawSteno  str  -> rawSteno str
-    TaskPrepare   opts -> prepare opts
-    TaskHyphenate opts -> hyphenate opts
-    TaskMakeSteno opts -> makeSteno opts
-    TaskSort      opts -> sortByFrequency opts
-    TaskShowChart opts -> showChart opts
+    TaskRawSteno    str  -> rawSteno str
+    TaskPrepare     opts -> prepare opts
+    TaskHyphenate   opts -> hyphenate opts
+    TaskMakeSteno   opts -> makeSteno opts
+    TaskSort        opts -> sortByFrequency opts
+    TaskShowChart   opts -> showChart opts
+    TaskMakeNumbers opts -> makeNumbers opts
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -178,3 +180,14 @@ showChart OSCHistScores = do
     scores <- readScores $ dir </> latest
     -- plotScoresShow scores
     pure ()
+
+makeNumbers :: OptionsMakeNumbers -> IO ()
+makeNumbers (OptionsMakeNumbers fileOutput lang) = do
+    putStr $ "Writing numbers dict to " <> fileOutput <> " ..."
+    hFlush stdout
+    LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of
+        DE -> first (KI.toRaw @DE.Key) <$> dictNumbers
+        EN -> first (KI.toRaw @EN.Key) <$> dictNumbers
+    putStrLn " done."
+    nLines <- wcl fileOutput
+    putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"
