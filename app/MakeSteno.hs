@@ -114,7 +114,7 @@ makeSteno ( OMkStArg lang str ) =
       . Palantype key
       => IO ()
     parseSeries' =
-      case parseSeries @key triePrimitives str False of
+      case parseSeries @key triePrimitives str of
             Left err -> Text.putStrLn $ showt err
             Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno
@@ -179,8 +179,9 @@ makeSteno
                   word = Text.replace "|" "" hyph
 
               case (isDupl, isCaplDupl) of
-                  (True , _   ) -> appendLine fileDuplicates word
-                  (False, addC) -> case parseSeries @key triePrimitives hyph addC of
+                  (True , _    ) -> appendLine fileDuplicates word
+                  (False, True ) -> appendLine fileDuplicates $ word <> " capitalized"
+                  (False, False) -> case parseSeries @key triePrimitives hyph of
                       Right stenos -> modifyMVar_ dictState \dst -> do
                           let (dst', isLost) = Collision.resolve word (force stenos) dst
                           _ <- evaluate dst'

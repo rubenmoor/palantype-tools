@@ -173,9 +173,8 @@ parseSeries
     . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
-    -> Bool
     -> Either ParseError [(RawSteno, (PatternGroup key, Greediness))]
-parseSeries trie hyphenated addCapitalization =
+parseSeries trie hyphenated =
   case Map.lookup unhyphenated (mapExceptions @key) of
     Just raws -> sequence
                    ( checkException . second (, 0) <$> raws
@@ -214,8 +213,6 @@ parseSeries trie hyphenated addCapitalization =
             lsResult
               | isAcronym =
                   second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
-              | addCapitalization =
-                  second (mapSuccess $ addCapChord @key) <$> lsResultLc
               | otherwise = lsResultLc
 
         in

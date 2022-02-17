@@ -41,6 +41,7 @@ import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
 import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..)
                                                 , parseSteno
+                                                , dictNumbers
                                                 )
 import qualified Palantype.DE.Keys             as DE
 import           System.Directory               ( listDirectory )
@@ -82,7 +83,6 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Palantype.Common.Indices as KI
 import qualified Palantype.EN.Keys as EN
 import Data.Bifunctor (Bifunctor(first))
-import Palantype.Common.Numbers (dictNumbers)
 
 main :: IO ()
 main = execParser argOpts >>= \case
