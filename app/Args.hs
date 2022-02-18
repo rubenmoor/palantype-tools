@@ -7,6 +7,7 @@ module Args
     , OptionsShowChart(..)
     , OptionsSort(..)
     , OptionsMakeNumbers (..)
+    , OptionsExtraDict (..)
     , argOpts
     ) where
 
@@ -60,6 +61,10 @@ data Task
   -- | create a dictionary file for numbers
   | TaskMakeNumbers OptionsMakeNumbers
 
+  -- | create a dictionary for fingerspelling, special chars,
+  --   command keys, and plover commands
+  | TaskExtraDict OptionsExtraDict
+
 data OptionsPrepare
   = OPrepFile FilePath FilePath
   | OPrepArg Text
@@ -91,6 +96,10 @@ data OptionsMakeNumbers =
   -- | output file
   OptionsMakeNumbers FilePath Lang
 
+data OptionsExtraDict =
+  -- | output file
+  OptionsExtraDict FilePath Lang
+
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
 
@@ -116,6 +125,9 @@ task = subparser
     <> command
           "makeNumbers"
           (info (TaskMakeNumbers <$> optsMakeNumbers <* helper) makeNumbersInfo)
+    <> command
+          "extraDict"
+          (info (TaskExtraDict <$> optsExtraDict <* helper) extraDictInfo)
     )
   where
     rawStenoHelp
@@ -341,4 +353,23 @@ optsMakeNumbers = OptionsMakeNumbers <$> file <*> lang
 makeNumbersInfo :: InfoMod a
 makeNumbersInfo =
     progDesc "Create Palantype-style steno codes for numbers for the given \
+             \language."
+
+optsExtraDict :: Parser OptionsExtraDict
+optsExtraDict = OptionsExtraDict <$> file <*> lang
+  where
+    file = strOption
+        (  long "file"
+        <> short 'o'
+        <> help "Output file for the dictionary in json format; for \
+                \use with Plover."
+        <> value "palantype-DE-extra.json"
+        <> metavar "FILE"
+        <> showDefault
+        )
+
+extraDictInfo :: InfoMod a
+extraDictInfo =
+    progDesc "Create Palantype-style steno codes for fingerspelling, special \
+             \chars, command keys, and plover commands for the given \
              \language."

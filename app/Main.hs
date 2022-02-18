@@ -41,9 +41,10 @@ import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
 import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..)
                                                 , parseSteno
-                                                , dictNumbers
+                                                , dictNumbers, dictCommands, dictSpecial, dictPlover
                                                 )
 import qualified Palantype.DE.Keys             as DE
+import Palantype.DE.FingerSpelling (dictFingerSpelling)
 import           System.Directory               ( listDirectory )
 import           System.FilePath                ( (</>)
                                                 , FilePath
@@ -62,6 +63,7 @@ import           Args                           ( OptionsHyphenate(..)
                                                     ( OSCHistScores
                                                     )
                                                 , OptionsMakeNumbers (..)
+                                                , OptionsExtraDict (..)
                                                 , Task(..)
                                                 , argOpts
                                                 )
@@ -93,6 +95,7 @@ main = execParser argOpts >>= \case
     TaskSort        opts -> sortByFrequency opts
     TaskShowChart   opts -> showChart opts
     TaskMakeNumbers opts -> makeNumbers opts
+    TaskExtraDict   opts -> extraDict opts
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -188,6 +191,22 @@ makeNumbers (OptionsMakeNumbers fileOutput lang) = do
     LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of
         DE -> first (KI.toRaw @DE.Key) <$> dictNumbers
         EN -> first (KI.toRaw @EN.Key) <$> dictNumbers
+    putStrLn " done."
+    nLines <- wcl fileOutput
+    putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"
+
+extraDict :: OptionsExtraDict -> IO ()
+extraDict (OptionsExtraDict fileOutput lang) = do
+    putStr $ "Writing extra dict for fingerspelling, special keys, command \
+             \keys, and plover commands to " <> fileOutput <> " ..."
+    hFlush stdout
+    let dict =  dictFingerSpelling
+             <> dictCommands
+             <> dictSpecial
+             <> dictPlover
+    LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of
+        DE -> first (KI.toRaw @DE.Key) <$> dict
+        EN -> first (KI.toRaw @EN.Key) <$> dict
     putStrLn " done."
     nLines <- wcl fileOutput
     putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"
