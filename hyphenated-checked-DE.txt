@@ -11591,6 +11591,10 @@ A|bi|tur|wer|tun|gen
 A|bi|tur|wis|sen
 A|bi|tur|wis|sens
 A|bi|tur|zei|tun|gen
+A|bi|tur
+A|bi|tu|ri|ent
+A|bi|tu|ri|en|tin
+A|bi|tur|zeug|nis
 # 2021-12-27 manual edit
 re|a|gie|ren
 Ko|o|pe|ra|ti|on
@@ -11677,3 +11681,4 @@ is|ra|e|li|sches
 Is|ra|e|lis
 Jeff|rey
 Pin|gu|i|ne
+So|len
