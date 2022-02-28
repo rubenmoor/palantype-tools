@@ -85,10 +85,10 @@ import Palantype.Common
     ( Finger,
       Greediness,
       RawSteno(RawSteno, unRawSteno),
-      Palantype(PatternGroup, patSimpleMulti, patCapitalize),
+      Palantype(PatternGroup, patSimpleMulti, patAcronym),
       lsPatterns,
       parseWord,
-      mapExceptions, kiCapNext, kiAcronym, fromChord, unparts, keys )
+      mapExceptions, kiAcronym, fromChord, unparts, keys )
 import qualified Palantype.Common.Indices      as KI
 import qualified Text.Parsec                    as Parsec
 import           Text.Parsec                    ( Parsec
@@ -141,20 +141,11 @@ isCapitalized :: Text -> Bool
 isCapitalized "" = error "isCapitalized: empty string"
 isCapitalized str = isUpper $ Text.head str
 
-{-|
-Add the "capitalize next word" chord in front
--}
-addCapChord :: forall key . Palantype key => State key -> State key
-addCapChord st@State {..} = st
-    { stStrRawSteno = showt (KI.toRaw @key kiCapNext) <> "/" <> stStrRawSteno
-    , stNChords     = stNChords + 1
-    , stMPatternGroup = max stMPatternGroup $ Just (patCapitalize, 0)
-    }
-
 addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
     { stStrRawSteno = showt (KI.toRaw @key kiAcronym) <> "/" <> stStrRawSteno
     , stNChords = stNChords + 1
+    , stMPatternGroup = max stMPatternGroup $ Just (patAcronym, 0)
     }
 
 data Verbosity
