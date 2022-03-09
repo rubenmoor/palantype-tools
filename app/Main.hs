@@ -39,7 +39,7 @@ import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
-import           Palantype.Common               ( Lang(DE, EN) , RawSteno (..)
+import           Palantype.Common               ( Lang(DE, EN)
                                                 , parseSteno
                                                 , dictNumbers, dictCommands, dictSpecial, dictPlover
                                                 )
@@ -85,6 +85,7 @@ import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Palantype.Common.Indices as KI
 import qualified Palantype.EN.Keys as EN
 import Data.Bifunctor (Bifunctor(first))
+import qualified Palantype.Common.RawSteno as Raw
 
 main :: IO ()
 main = execParser argOpts >>= \case
@@ -99,7 +100,7 @@ main = execParser argOpts >>= \case
 
 rawSteno :: Text -> IO ()
 rawSteno str =
-    Text.putStrLn $ showt $ parseSteno @DE.Key (RawSteno str)
+    Text.putStrLn $ showt $ parseSteno @DE.Key $ Raw.fromText str
 
 hyphenate :: OptionsHyphenate -> IO ()
 hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
