@@ -115,9 +115,14 @@ import qualified Palantype.Common.RawSteno as Raw
 import TextShow.Debug.Trace (traceTextShow)
 
 data Score = Score
-    { scoreGreediness :: Int
-    , scorePrimary   :: Rational
-    , scoreSecondary :: Int
+    { -- first criterion: make use of the maximum allowed greediness
+      scoreGreediness :: Int
+
+      -- second criterion: maximize number of real-language letters per chord
+    , scoreEfficiency   :: Rational
+
+      -- third criterion: minimize number of steno letters
+    , scoreBrevity :: Int
     }
     deriving stock (Eq, Ord)
 
@@ -125,9 +130,9 @@ instance TextShow Score where
     showb Score {..} =
         showb scoreGreediness
             <> fromText "-"
-            <> fromString (printf "%.1f" $ fromRational @Double scorePrimary)
+            <> fromString (printf "%.1f" $ fromRational @Double scoreEfficiency)
             <> fromText "("
-            <> showb scoreSecondary
+            <> showb scoreBrevity
             <> fromText ")"
 
 instance Show Score where
@@ -255,7 +260,7 @@ scoreWithG
     -> (Rational, Greediness, Bool, Int)
 scoreWithG (g, cOpt) result =
     let Score {..} = score result
-    in  (scorePrimary, negate g, not cOpt, scoreSecondary)
+    in  (scoreEfficiency, negate g, not cOpt, scoreBrevity)
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
@@ -369,10 +374,11 @@ score (Failure _ _) = Score 0 0 0
 
 score' :: forall k . State k -> Score
 score' State {..} =
-    let scoreGreediness = 0 -- stMaxGreediness
-        scorePrimary = fromIntegral (unCountLetters stNLetters)
+    -- let scoreGreediness = 0
+    let scoreGreediness = stMaxGreediness
+        scoreEfficiency = fromIntegral (unCountLetters stNLetters)
             / fromIntegral (unCountChords stNChords)
-        scoreSecondary = negate $ countKeys stProtoSteno
+        scoreBrevity = negate $ countKeys stProtoSteno
     in  Score { .. }
 
 -- | Try to fit as many letters as possible into a steno
