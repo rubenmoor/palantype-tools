@@ -112,7 +112,6 @@ import Data.Maybe (Maybe(..), catMaybes)
 import Data.Trie (Trie)
 import Palantype.Common.RawSteno.Type (RawSteno(RawSteno))
 import qualified Palantype.Common.RawSteno as Raw
-import TextShow.Debug.Trace (traceTextShow)
 
 data Score = Score
     { -- first criterion: make use of the maximum allowed greediness
@@ -221,7 +220,7 @@ parseSeries trie hyphenated =
             case sortOn (Down . uncurry scoreWithG) lsResult of
                 (_, Failure raw err) : _ -> Left $ PEParsec raw err
                 []                       -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
-                ls                       -> traceTextShow ls $ Right $ filterAlts $ snd <$> ls
+                ls                       -> Right $ filterAlts $ snd <$> ls
 
   where
     checkException (raw, patG) = case parseWord @key raw of

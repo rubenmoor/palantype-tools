@@ -8,6 +8,13 @@ let
   };
   easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.10.7" ]; };
 
+  my-palantype-src = pkgs.fetchFromGitHub {
+    owner = "rubenmoor";
+    repo = "my-palantype";
+    rev = "cf3145f41b3d34739ef98140edefc942e52b6342";
+    sha256 = "1h1hhwgcvcxqwc1by1j7yzz4a8risijqd0m20lczh1f3djxqjdhx";
+  };
+
   compiler = "ghc8107";
   config = {
     packageOverrides = pkgs: rec {
@@ -16,6 +23,7 @@ let
           "${compiler}" = pkgs.haskell.packages."${compiler}".override {
             overrides = self: super: {
               my-palantype = self.callCabal2nix "my-palantype" ../my-palantype { };
+              #my-palantype = self.callCabal2nix "my-palantype" my-palantype-src { };
               bytestring-trie = pkgs.haskell.lib.doJailbreak (super.bytestring-trie);
             };
           };

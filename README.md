@@ -37,11 +37,12 @@ Copying the result files, e.g.:
     $ cp palantype-DE.json ../plover_palantype_de/plover_palantype_DE/dictionaries/
     $ cp palantype-DE-doc.json ../learn-palantype/static-files/
 
-Sorting relevant files based on word frequency information:
-
-    $ palantype-ops sort -i makeSteno-collisions.txt -i makeSteno-lostwords.txt -i makeSteno-duplicates.txt
-
 Rinse and repeat.
+
+### Extra dictionaries
+
+    $ cabal run palantype-ops --extraDict
+    $ cp palantype-DE-extra.json ../plover_palantype_de/pllover_palantype_DE/dictionaries/
 
 ## Full Workflow
 
