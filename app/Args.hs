@@ -8,6 +8,7 @@ module Args
     , OptionsSort(..)
     , OptionsMakeNumbers (..)
     , OptionsExtraDict (..)
+    , OptionsFindDuplicates (..)
     , argOpts
     ) where
 
@@ -65,6 +66,9 @@ data Task
   --   command keys, and plover commands
   | TaskExtraDict OptionsExtraDict
 
+  -- | find duplicate entries across various dictionary files
+  | TaskFindDuplicates OptionsFindDuplicates
+
 data OptionsPrepare
   = OPrepFile FilePath FilePath
   | OPrepArg Text
@@ -100,6 +104,9 @@ data OptionsExtraDict =
   -- | output file
   OptionsExtraDict FilePath Lang
 
+data OptionsFindDuplicates =
+  OptionsFindDuplicates [FilePath]
+
 argOpts :: ParserInfo Task
 argOpts = info (helper <*> task) mempty
 
@@ -128,6 +135,9 @@ task = subparser
     <> command
           "extraDict"
           (info (TaskExtraDict <$> optsExtraDict <* helper) extraDictInfo)
+    <> command
+          "findDuplicates"
+          (info (TaskFindDuplicates <$> optsFindDuplicates <* helper) findDuplicatesInfo)
     )
   where
     rawStenoHelp
@@ -373,3 +383,20 @@ extraDictInfo =
     progDesc "Create Palantype-style steno codes for fingerspelling, special \
              \chars, command keys, and plover commands for the given \
              \language."
+
+optsFindDuplicates :: Parser OptionsFindDuplicates
+optsFindDuplicates = OptionsFindDuplicates <$> some file
+  where
+    file = strOption
+        (  long "file"
+        <> short 'i'
+        <> help "One of several dictionary files"
+        <> metavar "FILE"
+        )
+
+findDuplicatesInfo :: InfoMod a
+findDuplicatesInfo =
+  progDesc "Single dictionary files should be consistent by construction, \
+           \for several seperate files, there is no such guarantee as \
+           \the algorithm isn't generally aware. Consistency can be checked \
+           \here, afterwards."

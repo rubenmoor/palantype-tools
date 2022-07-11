@@ -122,7 +122,21 @@ instance TextShow Exception where
 --   w/o adding too much value
 --   thus they are explicitly excluded
 setExplicitExceptions :: Set Text
-setExplicitExceptions = Set.fromList ["AStA", "IGeL", "kN"]
+setExplicitExceptions = Set.fromList
+  [ "AStA"
+  , "IGeL"
+  , "kN"
+  , "ff"
+  , "mm"
+  , "dm"
+  , "pH"
+  , "kT"
+  , "hm"
+  , "hü"
+  , "nm"
+  , "St"
+  , "hie"
+  ]
 
 -- | turn "zusammenhang[s]los >>> zu|sam|men|hang[s]|los ..." into
 --   [ Success (SyllableData "zusammenhanglos" ["zu", "sam", "men", "hang", "los"])

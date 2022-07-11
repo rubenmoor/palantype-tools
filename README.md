@@ -30,6 +30,9 @@ By default, write "palantype-DE.json", "palantype-DE-min.json",
 and "palantype-DE-doc.json":
 
     $ palantype-ops makeSteno +RTS -N
+
+or
+
     $ cabal run --ghc-options="-threaded" palantype-ops -- makeSteno +RTS -N
 
 Copying the result files, e.g.:
@@ -38,6 +41,20 @@ Copying the result files, e.g.:
     $ cp palantype-DE-doc.json ../learn-palantype/static-files/
 
 Rinse and repeat.
+
+There are less complex dictionaries, generated like this:
+Create numbers dictionary
+
+    $ cabal run palantype-ops -- makeNumbers
+
+Create extra dictionary
+
+    $ cabal run palantype-ops -- extraDict
+
+Check for duplicates across all dictionary files
+
+    $ cabal run palantype-ops -- findDuplicates --file palantype-DE.json --file palantype-DE-extra.json --file palantype-DE-numbers.json
+
 
 ### Extra dictionaries
 

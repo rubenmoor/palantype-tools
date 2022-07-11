@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Main where
 
@@ -8,18 +9,23 @@ import           Control.Category               ( (<<<)
                                                 )
 import           Control.Monad                  ( Monad((>>=))
                                                 , when
+                                                , foldM
                                                 )
 import           Data.Bool                      ( (&&)
                                                 , not
                                                 )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((/=)) )
+import Data.Ord ((<))
 import           Data.Foldable                  ( Foldable(maximum)
                                                 , all
                                                 , for_
+                                                , length
+                                                , null
                                                 )
 import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
+                                                , (<&>)
                                                 , Functor(fmap)
                                                 )
 import           Data.List                      ( filter
@@ -51,7 +57,7 @@ import           System.FilePath                ( (</>)
                                                 , takeDirectory
                                                 )
 import           System.IO                      ( IO
-                                                , putStrLn, hFlush, stdout, putStr
+                                                , putStrLn, hFlush, stdout, putStr, print
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
@@ -64,6 +70,7 @@ import           Args                           ( OptionsHyphenate(..)
                                                     )
                                                 , OptionsMakeNumbers (..)
                                                 , OptionsExtraDict (..)
+                                                , OptionsFindDuplicates (OptionsFindDuplicates)
                                                 , Task(..)
                                                 , argOpts
                                                 )
@@ -73,15 +80,18 @@ import           Common                         ( appendLine
                                                 )
 import           Data.Char                      ( isUpper )
 import           Data.Maybe                     ( Maybe(..)
+                                                , fromJust
                                                 )
 import           RunPrepare                     ( prepare )
 import Sort (sortByFrequency)
 import Palantype.Tools.Hyphenate (hyphPseudoSyllable)
 import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
 import WCL (wcl)
 import MakeSteno (makeSteno)
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Aeson.Encode.Pretty as Aeson
+import qualified Data.Aeson as Aeson
 import qualified Palantype.Common.Indices as KI
 import qualified Palantype.EN.Keys as EN
 import Data.Bifunctor (Bifunctor(first))
@@ -97,6 +107,7 @@ main = execParser argOpts >>= \case
     TaskShowChart   opts -> showChart opts
     TaskMakeNumbers opts -> makeNumbers opts
     TaskExtraDict   opts -> extraDict opts
+    TaskFindDuplicates opts -> findDuplicates opts
 
 rawSteno :: Text -> IO ()
 rawSteno str =
@@ -211,3 +222,23 @@ extraDict (OptionsExtraDict fileOutput lang) = do
     putStrLn " done."
     nLines <- wcl fileOutput
     putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"
+
+
+findDuplicates :: OptionsFindDuplicates -> IO ()
+findDuplicates (OptionsFindDuplicates files) = do
+    when (length files < 2) $ error "At least two files required"
+    (_, dupls) <- foldM acc (Map.empty, []) files
+    if null dupls
+      then putStrLn "No duplicates"
+      else do putStrLn "Duplicates found: "
+              for_ dupls \(k, (v1, v2)) ->
+                Text.putStrLn $ k <> ":\t" <> v1 <> "\t" <> v2
+  where
+    acc :: (Map Text Text, [(Text, (Text, Text))]) -> FilePath -> IO (Map Text Text, [(Text, (Text, Text))])
+    acc (map, dupls) file = do
+      m <- Aeson.decodeFileStrict file >>= \case
+        Nothing -> error $ "Could not decode JSON of " <> file
+        Just m  -> pure m
+      let duplKeys = Map.keys $ map `Map.intersection` m
+          duplLs = duplKeys <&> \k -> (k, (fromJust $ Map.lookup k map, fromJust $ Map.lookup k m))
+      pure (map `Map.union` m, dupls <> duplLs)
