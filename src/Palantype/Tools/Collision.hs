@@ -45,20 +45,20 @@ data DictState key = DictState
     {
       -- | store index with the steno code, to restore original order after
       --   collision resolution
-      dstMapWordStenos :: Map Text [(Int, (RawSteno, (PatternGroup key, Greediness)))]
+      dstMapWordStenos :: Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
     , dstMapStenoWord :: Map RawSteno Text
     }
 
 resolve
   :: forall key
   .  Text
-  -> [(RawSteno, (PatternGroup key, Greediness))]
+  -> [(RawSteno, (Greediness, PatternGroup key))]
   -> DictState key
   -> (DictState key, Bool)
 resolve word raws dst@DictState{..} =
     let
         -- look up collisions ...
-        mNAlts :: (RawSteno, (PatternGroup key, Greediness)) -> (Int, Maybe Text)
+        mNAlts :: (RawSteno, (Greediness, PatternGroup key)) -> (Int, Maybe Text)
         mNAlts (raw, _) = case Map.lookup raw dstMapStenoWord of
           Just collision ->
             -- ... and for every collisions the number of alternatives
@@ -84,7 +84,7 @@ accAllocate
   :: forall key
   . Text
   -> (Int, DictState key, Bool)
-  -> ((Int, (RawSteno, (PatternGroup key, Greediness))), (Int, Maybe Text))
+  -> ((Int, (RawSteno, (Greediness, PatternGroup key))), (Int, Maybe Text))
   -> (Int, DictState key, Bool)
 
 -- no collision

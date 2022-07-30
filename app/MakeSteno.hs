@@ -233,7 +233,7 @@ makeSteno
             mapStenoWordDoc :: Map (PatternGroup key) (Map Greediness [(Text, RawSteno)])
             mapStenoWordDoc = Map.foldrWithKey
                 ( \w stenos m ->
-                    let (_, (raw, (pat, g))) = minimumBy (comparing fst) stenos
+                    let (_, (raw, (g, pat))) = minimumBy (comparing fst) stenos
                      in Map.insertWith (Map.unionWith (<>)) pat (Map.singleton g [(w, raw)]) m
                 )
                 Map.empty

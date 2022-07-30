@@ -154,7 +154,7 @@ addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
     { stProtoSteno = ProtoChord (KI.toKeys kiAcronym) : ProtoSlash : stProtoSteno
     , stNChords = stNChords + 1
-    , stMPatternGroup = max stMPatternGroup $ Just (patAcronym, 0)
+    , stMPatternGroup = max stMPatternGroup $ Just (0, patAcronym)
     }
 
 data Verbosity
@@ -173,11 +173,11 @@ parseSeries
     . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
-    -> Either ParseError [(RawSteno, (PatternGroup key, Greediness))]
+    -> Either ParseError [(RawSteno, (Greediness, PatternGroup key))]
 parseSeries trie hyphenated =
   case Map.lookup unhyphenated (mapExceptions @key) of
     Just raws -> sequence
-                   ( checkException . second (, 0) <$> raws
+                   ( checkException . second (0, ) <$> raws
                    )
     Nothing   ->
         let
@@ -236,7 +236,7 @@ parseSeries trie hyphenated =
 
     filterAlts
       :: [Result (State key)]
-      -> [(RawSteno, (PatternGroup key, Greediness))]
+      -> [(RawSteno, (Greediness, PatternGroup key))]
     filterAlts []                   = []
     filterAlts (Failure _ _   : as) = filterAlts as
     filterAlts (Success state : as) =
@@ -349,7 +349,7 @@ data State key = State
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
   , stMLastKey    :: Maybe key
-  , stMPatternGroup :: Maybe (PatternGroup key, Greediness)
+  , stMPatternGroup :: Maybe (Greediness, PatternGroup key)
   , stMaxGreediness :: Greediness
   }
 
@@ -412,7 +412,7 @@ optimizeStenoSeries trie g st str | BS.head str == bsPipe =
              , stMFinger     = Nothing
              , stMLastKey    = Nothing
              , stMPatternGroup =
-                 max (Just (patSimpleMulti, 0)) $ stMPatternGroup st
+                 max (Just (0, patSimpleMulti)) $ stMPatternGroup st
              }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie g newState str'
@@ -436,7 +436,7 @@ optimizeStenoSeries trie g st str =
                             , stMFinger     = mFinger
                             , stMLastKey    = mLK
                             , stMPatternGroup =
-                                max (Just (pg, greediness)) $ stMPatternGroup st
+                                max (Just (greediness, pg)) $ stMPatternGroup st
                             , stMaxGreediness = max greediness $ stMaxGreediness st
                             }
                     in  optimizeStenoSeries trie g newState rem
