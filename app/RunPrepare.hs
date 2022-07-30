@@ -92,11 +92,11 @@ prepare (OPrepFile fileInput fileOutput) = do
         --   higher-quality entry
         preferLessWeird :: Hyphenated -> Hyphenated -> Hyphenated
 
--- real duplicate
+        -- real duplicate
         preferLessWeird h1 h2 | h1 == h2 = h1
 
--- weird entry
--- more syllables means, better entry
+        -- weird entry
+        -- more syllables means, better entry
         preferLessWeird h1@(Hyphenated ls1) h2@(Hyphenated ls2) =
             if length ls1 > length ls2 then h1 else h2
 
