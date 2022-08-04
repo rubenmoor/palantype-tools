@@ -52,12 +52,12 @@ Jah|re
 sei|en
 Mil|li|on|en
 sei|nen
-ihr|en
+ih|ren
 al|lem
 steht
 sei|nem
 wer|de
-ihr|er
+ih|rer
 könn|te
 kommt
 hat|ten
@@ -12080,3 +12080,11 @@ Null|pho|nems
 Null|pho|ne|me
 Null|plu|ral
 Pflicht|ex|em|plar
+De|troit
+po|in|tiert
+Po|in|te
+An|toine
+guides
+Ra|cing
+Con|trol|ler
+Con|trol|ling
