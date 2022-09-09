@@ -11,7 +11,7 @@ module MakeSteno where
 import Args (OptionsMakeSteno (OMkStFile, OMkStArg))
 import Common (
     appendLine,
-    removeFiles, writeJSONFile
+    removeFiles, writeJSONFile, moveFileDotOld
  )
 import Control.Applicative (Applicative (pure))
 import Control.Concurrent (getNumCapabilities)
@@ -141,7 +141,7 @@ makeSteno
               , fileDuplicates
               , fileLost
               ]
-        removeFiles lsFiles
+        traverse_ moveFileDotOld lsFiles
 
         putStr $ "Reading input file " <> fileInput <> " ..."
         hFlush stdout

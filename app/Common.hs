@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 module Common where
 
 import Control.Monad (when)
@@ -15,7 +16,7 @@ import GHC.Exts (seq)
 import GHC.IO (FilePath)
 import System.Directory (
     doesFileExist,
-    removeFile,
+    removeFile, renameFile
  )
 import System.IO (
     IO,
@@ -39,6 +40,14 @@ removeFiles files = for_ files $ \file -> do
         nLines <- wcl file
         putStrLn $ "Deleting " <> file <> " (" <> show nLines <> " lines)"
         removeFile file
+
+moveFileDotOld :: FilePath -> IO ()
+moveFileDotOld file = do
+    exists <- doesFileExist file
+    when exists do
+        nLines <- wcl file
+        putStrLn $ "Moving " <> file <> " to .old (" <> show nLines <> " lines)"
+        renameFile file $ file <> ".old"
 
 appendLine :: FilePath -> Text -> IO ()
 appendLine file str = Text.appendFile file $ str <> "\n"

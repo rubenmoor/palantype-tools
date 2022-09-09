@@ -15,48 +15,50 @@ import           Control.Applicative            ( Applicative
                                                     , (<*)
                                                     , (<*>)
                                                     , pure
-                                                    ), optional
+                                                    )
+                                                , optional
                                                 )
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
 import           Data.Bifunctor                 ( Bifunctor(first, second) )
 import           Data.Bool                      ( Bool(False, True)
-                                                , not, otherwise
+                                                , not
+                                                , otherwise
                                                 )
 import           Data.ByteString                ( ByteString
                                                 , isInfixOf
                                                 )
 import qualified Data.ByteString               as BS
-import           Data.Char                      ( isUpper, isLower
+import           Data.Char                      ( isLower
+                                                , isUpper
                                                 )
-import           Data.Either                    ( Either(Left, Right)
-
-                                                )
+import           Data.Either                    ( Either(Left, Right) )
 import           Data.Eq                        ( Eq((/=), (==)) )
 import           Data.Foldable                  ( Foldable
-                                                    ( length
-                                                    , sum, foldr, foldl'
-
+                                                    ( foldl'
+                                                    , foldr
+                                                    , length
+                                                    , sum
                                                     )
                                                 , any
                                                 , maximumBy
                                                 )
-import           Data.Function                  ( ($)
-
-                                                )
+import           Data.Function                  ( ($) )
 import           Data.Functor                   ( (<$>)
                                                 , (<&>)
                                                 , Functor(fmap)
                                                 )
 import           Data.Int                       ( Int )
 import           Data.List                      ( filter
-
                                                 , intersperse
                                                 , sortOn
                                                 )
+import qualified Data.Map.Strict               as Map
+import           Data.Maybe                     ( Maybe(..)
+                                                , catMaybes
+                                                )
 import           Data.Monoid                    ( (<>)
-
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
@@ -71,7 +73,11 @@ import           Data.Text                      ( Text
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import           Data.Traversable               ( Traversable(sequence) )
-import           Data.Tuple                     ( uncurry, snd )
+import qualified Data.Trie                     as Trie
+import           Data.Trie                      ( Trie )
+import           Data.Tuple                     ( snd
+                                                , uncurry
+                                                )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -81,21 +87,36 @@ import           GHC.Num                        ( (+)
 import           GHC.Real                       ( Fractional((/), fromRational)
                                                 , fromIntegral
                                                 )
-import Palantype.Common
-    ( Finger,
-      Greediness,
-      Palantype(PatternGroup, patSimpleMulti, patAcronym),
-      lsPatterns,
-      parseWord,
-      mapExceptions, kiAcronym, fromChord, unparts, keys, Chord (Chord) )
+import           Palantype.Common               ( Chord(Chord)
+                                                , Finger
+                                                , Greediness
+                                                , Palantype
+                                                    ( PatternGroup
+                                                    , patAcronym
+                                                    , patSimpleMulti
+                                                    )
+                                                , fromChord
+                                                , keys
+                                                , kiAcronym
+                                                , lsPatterns
+                                                , mapExceptions
+                                                , parseWord
+                                                , unparts
+                                                )
 import qualified Palantype.Common.Indices      as KI
-import qualified Text.Parsec                    as Parsec
+import qualified Palantype.Common.RawSteno     as Raw
+import           Palantype.Common.RawSteno.Type ( RawSteno(RawSteno) )
+import qualified Text.Parsec                   as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
                                                 , eof
-
+                                                , getInput
+                                                , getState
+                                                , many
+                                                , many1
+                                                , runParser
                                                 , sepBy1
-                                                , setState, many1, many, runParser, getInput, getState
+                                                , setState
                                                 )
 import           Text.Parsec.Pos                ( initialPos )
 import qualified Text.ParserCombinators.Parsec.Error
@@ -106,22 +127,16 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import qualified Data.Trie as Trie
-import qualified Data.Map.Strict as Map
-import Data.Maybe (Maybe(..), catMaybes)
-import Data.Trie (Trie)
-import Palantype.Common.RawSteno.Type (RawSteno(RawSteno))
-import qualified Palantype.Common.RawSteno as Raw
 
 data Score = Score
     { -- first criterion: make use of the maximum allowed greediness
       scoreGreediness :: Int
 
       -- second criterion: maximize number of real-language letters per chord
-    , scoreEfficiency   :: Rational
+    , scoreEfficiency :: Rational
 
       -- third criterion: minimize number of steno letters
-    , scoreBrevity :: Int
+    , scoreBrevity    :: Int
     }
     deriving stock (Eq, Ord)
 
@@ -147,13 +162,15 @@ instance TextShow ParseError where
     showb = fromString . show
 
 isCapitalized :: Text -> Bool
-isCapitalized "" = error "isCapitalized: empty string"
+isCapitalized ""  = error "isCapitalized: empty string"
 isCapitalized str = isUpper $ Text.head str
 
 addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
-    { stProtoSteno = ProtoChord (KI.toKeys kiAcronym) : ProtoSlash : stProtoSteno
-    , stNChords = stNChords + 1
+    { stProtoSteno    = ProtoChord (KI.toKeys kiAcronym)
+                        : ProtoSlash
+                        : stProtoSteno
+    , stNChords       = stNChords + 1
     , stMPatternGroup = max stMPatternGroup $ Just (0, patAcronym)
     }
 
@@ -170,84 +187,87 @@ data Verbosity
 --   higher greediness
 parseSeries
     :: forall key
-    . Palantype key
+     . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
     -> Either ParseError [(RawSteno, (Greediness, PatternGroup key))]
 parseSeries trie hyphenated =
-  case Map.lookup unhyphenated (mapExceptions @key) of
-    Just raws -> sequence
-                   ( checkException . second (0, ) <$> raws
-                   )
-    Nothing   ->
-        let
-            -- calculate result for lower case word
+    case Map.lookup unhyphenated (mapExceptions @key) of
+        Just raws -> sequence (checkException . second (0, ) <$> raws)
+        Nothing ->
+            let
+                -- calculate result for lower case word
 
-            eAcronym = runParser ((,) <$> acronym <*> getInput) () "" hyphenated
-            (hyphenated', isAcronym) = case eAcronym of
-                Right (syls, rem) -> (Text.intercalate "|" syls <> rem, True)
-                Left _ -> (hyphenated, False)
+                eAcronym =
+                    runParser ((,) <$> acronym <*> getInput) () "" hyphenated
+                (hyphenated', isAcronym) = case eAcronym of
+                    Right (syls, rem) ->
+                        (Text.intercalate "|" syls <> rem, True)
+                    Left _ -> (hyphenated, False)
 
-            str = Text.encodeUtf8 $ toLower hyphenated'
+                str = Text.encodeUtf8 $ toLower hyphenated'
 
-            st = State
-              { stProtoSteno    = []
-              , stNLetters      = 0
-              , stNChords       = 1
-              , stMFinger       = Nothing
-              , stMLastKey      = Nothing
-              , stMPatternGroup = Nothing
-              , stMaxGreediness = 0
-              }
+                st  = State { stProtoSteno    = []
+                            , stNLetters      = 0
+                            , stNChords       = 1
+                            , stMFinger       = Nothing
+                            , stMLastKey      = Nothing
+                            , stMPatternGroup = Nothing
+                            , stMaxGreediness = 0
+                            }
 
-            levels =
-                catMaybes
-                    $   lsPatterns @key
-                    <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
-                            then Just g
-                            else Nothing
+                levels =
+                    catMaybes
+                        $   lsPatterns @key
+                        <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
+                                then Just g
+                                else Nothing
 
-            lsResultLc =
-                levels <&> \maxG ->
-                    ((maxG, False), ) $ optimizeStenoSeries trie maxG st str
+                lsResultLc =
+                    levels
+                        <&> \maxG -> ((maxG, False), )
+                                $ optimizeStenoSeries trie maxG st str
 
-            lsResult
-              | isAcronym =
-                  second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
-              | otherwise = lsResultLc
-
-        in
-            case sortOn (Down . uncurry scoreWithG) lsResult of
-                (_, Failure raw err) : _ -> Left $ PEParsec raw err
-                []                       -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
-                ls                       -> Right $ filterAlts $ snd <$> ls
+                lsResult
+                    | isAcronym
+                    = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+                    | otherwise
+                    = lsResultLc
+            in
+                case sortOn (Down . uncurry scoreWithG) lsResult of
+                    (_, Failure raw err) : _ -> Left $ PEParsec raw err
+                    [] ->
+                        Left $ PEImpossible $ "Empty list for: " <> hyphenated
+                    ls -> Right $ filterAlts $ snd <$> ls
 
   where
     checkException (raw, patG) = case parseWord @key raw of
         Right chords -> Right (unparts (fromChord <$> chords), patG)
-        Left err -> Left $ PEExceptionTable
-                $  unhyphenated
-                <> ": "
-                <> showt raw
-                <> "; "
+        Left err ->
+            Left
+                $  PEExceptionTable
+                $  unhyphenated <> ": "
+                <> showt raw    <> "; "
                 <> Text.pack (show err)
 
     unhyphenated = replace "|" "" hyphenated
 
     filterAlts
-      :: [Result (State key)]
-      -> [(RawSteno, (Greediness, PatternGroup key))]
-    filterAlts []                   = []
-    filterAlts (Failure _ _   : as) = filterAlts as
+        :: [Result (State key)] -> [(RawSteno, (Greediness, PatternGroup key))]
+    filterAlts []                 = []
+    filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
-        let rawSteno = protoToSteno $ stProtoSteno state
-            pg = case stMPatternGroup state of
-              Just patG -> patG
-              Nothing -> error "impossible: pattern group Nothing"
+        let
+            rawSteno = protoToSteno $ stProtoSteno state
+            pg       = case stMPatternGroup state of
+                Just patG -> patG
+                Nothing   -> error "impossible: pattern group Nothing"
             distinct (Failure _ _) = False
-            distinct (Success st2) = rawSteno /= protoToSteno (stProtoSteno st2)
-            as'= filter distinct as
-        in  (rawSteno, pg) : filterAlts as'
+            distinct (Success st2) =
+                rawSteno /= protoToSteno (stProtoSteno st2)
+            as' = filter distinct as
+        in
+            (rawSteno, pg) : filterAlts as'
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
@@ -265,8 +285,7 @@ newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
 
 countLetters :: Text -> CountLetters
-countLetters str =
-    CountLetters $ sum $ Text.length <$> Text.splitOn "|" str
+countLetters str = CountLetters $ sum $ Text.length <$> Text.splitOn "|" str
 
 newtype CountChords = CountChords { unCountChords :: Int }
   deriving newtype (Num, TextShow)
@@ -274,7 +293,7 @@ newtype CountChords = CountChords { unCountChords :: Int }
 countChords :: [ProtoSteno k] -> CountChords
 countChords = CountChords <<< foldl' (\s p -> s + count p) 0
   where
-    count ProtoSlash = 1
+    count ProtoSlash     = 1
     count (ProtoChord _) = 0
 
 -- -- | Optimize steno series
@@ -288,7 +307,7 @@ countChords = CountChords <<< foldl' (\s p -> s + count p) 0
 countKeys :: [ProtoSteno k] -> Int
 countKeys = foldl' (\s p -> s + count p) 0
   where
-    count ProtoSlash = 0
+    count ProtoSlash      = 0
     count (ProtoChord ks) = length ks
 
 -- {-|
@@ -329,29 +348,27 @@ data ProtoSteno k
     deriving stock Eq
 
 groupProto :: [ProtoSteno k] -> [Chord k]
-groupProto ls =
-    let (cs, rem) = foldr acc ([], []) ls
-    in  Chord rem : cs
+groupProto ls = let (cs, rem) = foldr acc ([], []) ls in Chord rem : cs
   where
     acc :: ProtoSteno k -> ([Chord k], [k]) -> ([Chord k], [k])
-    acc ProtoSlash      (cs, current) = (Chord current : cs, []           )
-    acc (ProtoChord ks) (cs, current) = (cs                , ks <> current)
+    acc ProtoSlash      (cs, current) = (Chord current : cs, [])
+    acc (ProtoChord ks) (cs, current) = (cs, ks <> current)
 
 protoToSteno :: Palantype k => [ProtoSteno k] -> RawSteno
 protoToSteno ls =
     mconcat $ intersperse (Raw.fromText "/") $ Raw.fromChord <$> groupProto ls
 
 data State key = State
-  { stProtoSteno  :: [ProtoSteno key]
-  , stNLetters    :: CountLetters
-  , stNChords     :: CountChords
-  , stMFinger     :: Maybe Finger
+    { stProtoSteno    :: [ProtoSteno key]
+    , stNLetters      :: CountLetters
+    , stNChords       :: CountChords
+    , stMFinger       :: Maybe Finger
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
-  , stMLastKey    :: Maybe key
-  , stMPatternGroup :: Maybe (Greediness, PatternGroup key)
-  , stMaxGreediness :: Greediness
-  }
+    , stMLastKey      :: Maybe key
+    , stMPatternGroup :: Maybe (Greediness, PatternGroup key)
+    , stMaxGreediness :: Greediness
+    }
 
 instance Palantype key => TextShow (State key) where
     showb State {..} = showb $ protoToSteno stProtoSteno
@@ -406,73 +423,98 @@ optimizeStenoSeries
     -> Result (State key)
 optimizeStenoSeries _ _ st "" = Success st
 optimizeStenoSeries trie g st str | BS.head str == bsPipe =
-    let newState =
-          st { stProtoSteno  = stProtoSteno st <> [ProtoSlash]
-             , stNChords     = stNChords st + 1
-             , stMFinger     = Nothing
-             , stMLastKey    = Nothing
-             , stMPatternGroup =
-                 max (Just (0, patSimpleMulti)) $ stMPatternGroup st
-             }
+    let
+        newState = st
+            { stProtoSteno    = stProtoSteno st <> [ProtoSlash]
+            , stNChords       = stNChords st + 1
+            , stMFinger       = Nothing
+            , stMLastKey      = Nothing
+            , stMPatternGroup = max (Just (0, patSimpleMulti))
+                                    $ stMPatternGroup st
+            }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie g newState str'
         r2   = optimizeStenoSeries trie g st str'
-    in  maximumBy (comparing score) [r1, r2]
+    in
+        maximumBy (comparing score) [r1, r2]
 optimizeStenoSeries trie g st str =
     let
         matches = filterGreediness $ flatten $ Trie.matches trie str
 
         matchToResult (consumed, (greediness, raw, pg), rem) =
-            case parseKey (greediness, raw)
-                          (stMFinger st)
-                          (stMLastKey st) of
+            case parseKey (greediness, raw) (stMFinger st) (stMLastKey st) of
                 Left err -> Failure raw err
                 Right (proto, (mFinger, mLK)) ->
-                    let newState = State
-                            { stProtoSteno = stProtoSteno st <> proto
-                            , stNLetters    =
-                                stNLetters st + countLetters (Text.decodeUtf8 consumed)
-                            , stNChords     = stNChords st + countChords proto
-                            , stMFinger     = mFinger
-                            , stMLastKey    = mLK
-                            , stMPatternGroup =
-                                max (Just (greediness, pg)) $ stMPatternGroup st
-                            , stMaxGreediness = max greediness $ stMaxGreediness st
+                    let
+                        newState = State
+                            { stProtoSteno    = stProtoSteno st <> proto
+                            , stNLetters      = stNLetters st
+                                + countLetters (Text.decodeUtf8 consumed)
+                            , stNChords       = stNChords st + countChords proto
+                            , stMFinger       = mFinger
+                            , stMLastKey      = mLK
+                            , stMPatternGroup = max (Just (greediness, pg))
+                                                    $ stMPatternGroup st
+                            , stMaxGreediness = max greediness
+                                                    $ stMaxGreediness st
                             }
                     in  optimizeStenoSeries trie g newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
             ms -> matchToResult <$> ms
-    in  maximumBy (comparing score) results
+    in
+        maximumBy (comparing score) results
   where
     filterGreediness
         :: [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
-        -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
+        -> [ ( ByteString
+             , (Greediness, RawSteno, PatternGroup key)
+             , ByteString
+             )
+           ]
     filterGreediness = filter (\(_, (g', _, _), _) -> g' <= g)
 
     flatten
-        :: [(ByteString, [(Greediness, RawSteno, PatternGroup key)], ByteString)]
-        -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
+        :: [ ( ByteString
+             , [(Greediness, RawSteno, PatternGroup key)]
+             , ByteString
+             )
+           ]
+        -> [ ( ByteString
+             , (Greediness, RawSteno, PatternGroup key)
+             , ByteString
+             )
+           ]
     flatten = mconcat . fmap expand
       where
         expand
-            :: (ByteString, [(Greediness, RawSteno, PatternGroup key)], ByteString)
-            -> [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
+            :: ( ByteString
+               , [(Greediness, RawSteno, PatternGroup key)]
+               , ByteString
+               )
+            -> [ ( ByteString
+                 , (Greediness, RawSteno, PatternGroup key)
+                 , ByteString
+                 )
+               ]
         expand (c, rs, rem) = (c, , rem) <$> rs
 
     parseKey
         :: (Greediness, RawSteno)
         -> Maybe Finger
         -> Maybe key
-        -> Either Parsec.ParseError
-                  ([ProtoSteno key], (Maybe Finger, Maybe key))
+        -> Either
+               Parsec.ParseError
+               ([ProtoSteno key], (Maybe Finger, Maybe key))
     parseKey (_, RawSteno s) mFinger' mLastKey' =
         let
-            mFinger = mFinger'
+            mFinger  = mFinger'
             mLastKey = mLastKey'
-            ePair = runParser ((,) <$> keysWithSlash <*> getState)
-                              (mFinger, mLastKey) "" s
+            ePair    = runParser ((,) <$> keysWithSlash <*> getState)
+                                 (mFinger, mLastKey)
+                                 ""
+                                 s
             -- makeRawStr = mconcat <<< intersperse "/" <<< fmap (mconcat <<< fmap showt)
         in
             first (intersperse ProtoSlash <<< fmap ProtoChord) <$> ePair
@@ -495,7 +537,7 @@ acronym = do
     -- | an "acronym syllable" is an uppercase letter, optionally
     --   followed by lowercase letters
     acronymSyllable = do
-      ucl <- Parsec.satisfy isUpper
-      lcls <- many $ Parsec.satisfy isLower
-      _ <- optional $ char '|'
-      pure $ Text.pack $ ucl : lcls
+        ucl  <- Parsec.satisfy isUpper
+        lcls <- many $ Parsec.satisfy isLower
+        _    <- optional $ char '|'
+        pure $ Text.pack $ ucl : lcls
