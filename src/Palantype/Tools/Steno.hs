@@ -54,7 +54,6 @@ import           Data.List                      ( filter
                                                 , intersperse
                                                 , sortOn
                                                 )
-import qualified Data.Map.Strict               as Map
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes
                                                 )
@@ -67,12 +66,10 @@ import           Data.Ord                       ( Down(Down)
                                                 )
 import           Data.Ratio                     ( Rational )
 import           Data.Text                      ( Text
-                                                , replace
                                                 , toLower
                                                 )
 import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
-import           Data.Traversable               ( Traversable(sequence) )
 import qualified Data.Trie                     as Trie
 import           Data.Trie                      ( Trie )
 import           Data.Tuple                     ( snd
@@ -95,13 +92,13 @@ import           Palantype.Common               ( Chord(Chord)
                                                     , patAcronym
                                                     , patSimpleMulti
                                                     )
-                                                , fromChord
+
                                                 , keys
                                                 , kiAcronym
                                                 , lsPatterns
-                                                , mapExceptions
-                                                , parseWord
-                                                , unparts
+
+
+
                                                 )
 import qualified Palantype.Common.Indices      as KI
 import qualified Palantype.Common.RawSteno     as Raw
@@ -154,7 +151,6 @@ instance Show Score where
 
 data ParseError
   = PEParsec RawSteno Parsec.ParseError
-  | PEExceptionTable Text
   | PEImpossible Text
   deriving stock (Show)
 
@@ -192,66 +188,52 @@ parseSeries
     -> Text
     -> Either ParseError [(RawSteno, (Greediness, PatternGroup key))]
 parseSeries trie hyphenated =
-    case Map.lookup unhyphenated (mapExceptions @key) of
-        Just raws -> sequence (checkException . second (0, ) <$> raws)
-        Nothing ->
-            let
-                -- calculate result for lower case word
+    let
+        -- calculate result for lower case word
 
-                eAcronym =
-                    runParser ((,) <$> acronym <*> getInput) () "" hyphenated
-                (hyphenated', isAcronym) = case eAcronym of
-                    Right (syls, rem) ->
-                        (Text.intercalate "|" syls <> rem, True)
-                    Left _ -> (hyphenated, False)
+        eAcronym =
+            runParser ((,) <$> acronym <*> getInput) () "" hyphenated
+        (hyphenated', isAcronym) = case eAcronym of
+            Right (syls, rem) ->
+                (Text.intercalate "|" syls <> rem, True)
+            Left _ -> (hyphenated, False)
 
-                str = Text.encodeUtf8 $ toLower hyphenated'
+        str = Text.encodeUtf8 $ toLower hyphenated'
 
-                st  = State { stProtoSteno    = []
-                            , stNLetters      = 0
-                            , stNChords       = 1
-                            , stMFinger       = Nothing
-                            , stMLastKey      = Nothing
-                            , stMPatternGroup = Nothing
-                            , stMaxGreediness = 0
-                            }
+        st  = State { stProtoSteno    = []
+                    , stNLetters      = 0
+                    , stNChords       = 1
+                    , stMFinger       = Nothing
+                    , stMLastKey      = Nothing
+                    , stMPatternGroup = Nothing
+                    , stMaxGreediness = 0
+                    }
 
-                levels =
-                    catMaybes
-                        $   lsPatterns @key
-                        <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
-                                then Just g
-                                else Nothing
+        levels =
+            catMaybes
+                $   lsPatterns @key
+                <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
+                        then Just g
+                        else Nothing
 
-                lsResultLc =
-                    levels
-                        <&> \maxG -> ((maxG, False), )
-                                $ optimizeStenoSeries trie maxG st str
+        lsResultLc =
+            levels
+                <&> \maxG -> ((maxG, False), )
+                        $ optimizeStenoSeries trie maxG st str
 
-                lsResult
-                    | isAcronym
-                    = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
-                    | otherwise
-                    = lsResultLc
-            in
-                case sortOn (Down . uncurry scoreWithG) lsResult of
-                    (_, Failure raw err) : _ -> Left $ PEParsec raw err
-                    [] ->
-                        Left $ PEImpossible $ "Empty list for: " <> hyphenated
-                    ls -> Right $ filterAlts $ snd <$> ls
+        lsResult
+            | isAcronym
+            = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+            | otherwise
+            = lsResultLc
+    in
+        case sortOn (Down . uncurry scoreWithG) lsResult of
+            (_, Failure raw err) : _ -> Left $ PEParsec raw err
+            [] ->
+                Left $ PEImpossible $ "Empty list for: " <> hyphenated
+            ls -> Right $ filterAlts $ snd <$> ls
 
   where
-    checkException (raw, patG) = case parseWord @key raw of
-        Right chords -> Right (unparts (fromChord <$> chords), patG)
-        Left err ->
-            Left
-                $  PEExceptionTable
-                $  unhyphenated <> ": "
-                <> showt raw    <> "; "
-                <> Text.pack (show err)
-
-    unhyphenated = replace "|" "" hyphenated
-
     filterAlts
         :: [Result (State key)] -> [(RawSteno, (Greediness, PatternGroup key))]
     filterAlts []                 = []

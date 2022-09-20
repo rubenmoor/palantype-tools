@@ -57,7 +57,7 @@ import           System.FilePath                ( (</>)
                                                 , takeDirectory
                                                 )
 import           System.IO                      ( IO
-                                                , putStrLn, hFlush, stdout, putStr, print
+                                                , putStrLn, hFlush, stdout, putStr
                                                 )
 import qualified Text.Hyphenation              as KL
 import           Text.Show                      ( Show(show) )
