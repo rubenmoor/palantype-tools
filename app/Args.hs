@@ -37,6 +37,7 @@ import           Options.Applicative            ( InfoMod
                                                 )
 import           Palantype.Common               ( Lang(DE) )
 import           System.IO                      ( FilePath )
+import Data.Function (($))
 
 data Task
 
@@ -88,7 +89,7 @@ data OptionsShowChart = OSCHistScores
 
 data OptionsMakeSteno
   -- | input file: hyphenated words
-  = OMkStFile FilePath FilePath FilePath FilePath Lang
+  = OMkStFile FilePath FilePath FilePath FilePath Lang [Text]
   | OMkStArg Lang Text
 
 -- | input file: list of words
@@ -254,6 +255,7 @@ optsMakeSteno =
                 <*> fileOutputPloverMin
                 <*> fileOutputDoc
                 <*> lang
+                <*> traceWords
     )
     <|> (OMkStArg <$> lang <*> arg argHlp)
   where
@@ -301,6 +303,14 @@ optsMakeSteno =
                 \steno code."
         <> metavar "FILE"
         <> showDefault
+        )
+
+    traceWords = some $ strOption
+        (  long "trace-word"
+        <> short 't'
+        <> help "trace one or more words during steno computation to see how \
+                \its steno code or lack thereof comes about."
+        <> metavar "STRING"
         )
 
 makeStenoInfo :: InfoMod a

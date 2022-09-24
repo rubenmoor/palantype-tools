@@ -98,6 +98,7 @@ import           Text.Parsec                    ( runParser )
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
+import GHC.Num (Num(negate))
 
 -- my-palantype
 import           Palantype.Common               ( ExceptionInterpretation(..)
@@ -123,11 +124,12 @@ import           Palantype.Tools.Collision      ( DictState
                                                     )
                                                 )
 import qualified Palantype.Tools.Collision     as Collision
-import           Palantype.Tools.Steno          ( ParseError(..)
+import           Palantype.Tools.StenoOptimizer ( ParseError(..)
                                                 , acronym
                                                 , isCapitalized
                                                 , parseSeries
                                                 )
+import Palantype.Tools.TraceWords (TraceWordsT)
 
 -- exec
 import           Args                           ( OptionsMakeSteno
@@ -140,7 +142,6 @@ import           Common                         ( appendLine
                                                 , writeJSONFile
                                                 )
 import           Sort                           ( getMapFrequencies )
-import GHC.Num (Num(negate))
 
 
 fileNoParse :: FilePath
@@ -164,16 +165,18 @@ makeSteno (OMkStArg lang str) = case lang of
     parseSeries' = case parseSeries @key triePrimitives str of
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
-makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang)
+makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
     = case lang of
         DE -> makeSteno' @DE.Key fileInput
                                  fileOutputPlover
                                  fileOutputPloverMin
                                  fileOutputDoc
+                                 traceWords
         EN -> makeSteno' @EN.Key fileInput
                                  fileOutputPlover
                                  fileOutputPloverMin
                                  fileOutputDoc
+                                 traceWords
 
 makeSteno'
     :: forall key
@@ -182,8 +185,9 @@ makeSteno'
     -> FilePath
     -> FilePath
     -> FilePath
+    -> [Text]
     -> IO ()
-makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
+makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc traceWords = do
     start <- getTime Monotonic
 
     let lsFiles =
@@ -203,7 +207,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
     hFlush stdout
 
     (mapInitWordStenos, mapInitStenoWord, setReplByExc) <-
-        foldM accExceptions (Map.empty, Map.empty, Set.empty)
+        foldM (accExceptions traceWords) (Map.empty, Map.empty, Set.empty)
             $ Map.toList mapExceptions
 
     putStrLn $ mapInitStenoWord `seq` " done."
@@ -238,7 +242,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
     varLs        <- newMVar ls
 
     if nj == 1
-        then traverse_ (parseWordIO lock varDictState setReplByExc setLs) ls
+        then traverse_ (parseWordIO lock varDictState setReplByExc setLs mTraceWord) ls
         else
             let
                 loop = do
@@ -251,6 +255,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
                                         varDictState
                                         setReplByExc
                                         setLs
+                                        mTraceWord
                                         hyph
                                 >> loop
                         Nothing -> pure ()
@@ -336,7 +341,8 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
 accExceptions
     :: forall key
      . Palantype key
-    => ( Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+    => Maybe Text
+    -> ( Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
        , Map RawSteno Text
        , Set Text
        )
@@ -352,8 +358,13 @@ accExceptions
            , Map RawSteno Text
            , Set Text
            )
-accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntry))
+accExceptions mTraceWord (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntry))
     = do
+        whenCIEqTraceWord mTraceWord word $
+              Text.putStrLn $ "traceWord: in exceptions: "
+                           <> word <> ": "
+                           <> showt interp <> ", "
+                           <> showt lsExcEntry
         let accExcEntry
                 :: ( [(RawSteno, (Greediness, PatternGroup key))]
                    , Map RawSteno Text
@@ -383,13 +394,20 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                         pure (ls, mapEEStenoWord)
 
         (lsStenoInfo, m) <- foldM accExcEntry ([], mapExcStenoWord) lsExcEntry
+
+        set' <- case interp of
+            ExcRuleAddition -> pure set
+            -- mark the exceptions of type "substitution" for later
+            ExcSubstitution -> do
+              whenCIEqTraceWord mTraceWord word $
+                  Text.putStrLn $ "traceWord: in exceptions: " <> word
+                               <> " added to substitution set"
+              pure $ Set.insert word set
+
         pure
             ( Map.insert word (zip (negate <$> [1 ..]) lsStenoInfo) mapExcWordStenos
             , m
-            , case interp of
-                ExcRuleAddition -> set
-                -- mark the exceptions of type "substitution" for later
-                ExcSubstitution -> Set.insert word set
+            , set'
             )
 
 -- no exceptions
@@ -404,9 +422,10 @@ parseWordIO
     -> MVar (DictState key)
     -> Set Text
     -> Set Text
+    -> Maybe Text
     -> Text
-    -> IO ()
-parseWordIO lock varDictState setReplByExc setLs hyph = do
+    -> TraceWordsT IO ()
+parseWordIO lock varDictState setReplByExc setLs mTraceWord hyph = do
     mapWordStenos <- dstMapWordStenos <$> readMVar varDictState
 
     let word        = Text.replace "|" "" hyph
@@ -432,30 +451,52 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
                 &&           Text.toLower hyph
                 `Set.member` setLs
 
-    when isDupl $ appendLine fileDuplicates word
-    when isCaplDupl $ appendLine fileDuplicates $ word <> " capitalized"
-    unless (isReplByExc || isDupl || isCaplDupl)
-        $ case parseSeries @key triePrimitives hyph of
-              Right stenos -> modifyMVar_
-                  varDictState
-                  \dst -> do
-                      let (dst', isLost) =
-                              Collision.resolve word (force stenos) dst
-                      _ <- evaluate dst'
-                      when isLost
-                          $  appendLine fileCollisions
-                          $  word
-                          <> " "
-                          <> Text.intercalate " " (showt <$> stenos)
-                      pure dst'
-              Left pe -> case pe of
-                  PEParsec raw _ ->
-                      Lock.with lock $ appendLine fileNoParse $ Text.unwords
-                          [word, hyph, showt raw]
-                  PEImpossible str -> do
-                      Text.putStrLn $ "Seemingly impossible: " <> str
-                      Lock.with lock $ appendLine fileNoParse $ Text.unwords
-                          [word, hyph]
+    when isDupl $ do
+        whenCIEqTraceWord mTraceWord word $
+            Text.putStrLn $ "traceWord: in parseWordIO: " <> word <> ": is duplicate"
+        appendLine fileDuplicates word
+    when isCaplDupl $ do
+        whenCIEqTraceWord mTraceWord word $
+            Text.putStrLn $ "traceWord: in parseWordIO: " <> word <> ": is capitalized duplicate"
+        appendLine fileDuplicates $ word <> " capitalized"
+    unless (isReplByExc || isDupl || isCaplDupl) do
+
+        whenCIEqTraceWord mTraceWord word $
+            Text.putStrLn $ "traceWord: in parseWordIO: " <> word
+                         <> ": computing stenos for " <> hyph
+
+        case parseSeries @key triePrimitives hyph of
+            Right stenos -> modifyMVar_ varDictState \dst -> do
+
+               whenCIEqTraceWord mTraceWord word $
+                   Text.putStrLn $ "traceWord: in parseWordIO: " <> word
+                                <> ": stenos: " <> showt stenos
+
+               let (dst', isLost) =
+                       Collision.resolve word (force stenos) dst
+               _ <- evaluate dst'
+               when isLost do
+
+                   appendLine fileCollisions $
+                       word <> " " <> Text.intercalate " " (showt <$> stenos)
+
+                   whenCIEqTraceWord mTraceWord word $
+                       Text.putStrLn $ "traceWord: in parseWordIO: " <> word
+                                    <> ": lost in collision"
+
+               pure dst'
+            Left pe -> case pe of
+                PEParsec raw _ -> do
+                    whenCIEqTraceWord mTraceWord word $
+                        Text.putStrLn $ "traceWord: in parseWordIO: " <> word
+                                     <> ": failed to parse"
+
+                    Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                        [word, hyph, showt raw]
+                PEImpossible str -> do
+                    Text.putStrLn $ "Seemingly impossible: " <> str
+                    Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                        [word, hyph]
 
 -- cf. https://hackage.haskell.org/package/relude-1.1.0.0/docs/Relude-Functor-Fmap.html
 (<<&>>)

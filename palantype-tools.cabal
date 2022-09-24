@@ -24,7 +24,8 @@ extra-source-files: CHANGELOG.md
 library
     exposed-modules:
         Palantype.Tools.Statistics
-        Palantype.Tools.Steno
+        Palantype.Tools.StenoOptimizer
+        Palantype.Tools.TraceWords
         Palantype.Tools.Prepare
         Palantype.Tools.Collision
         Palantype.Tools.Hyphenate
@@ -35,10 +36,12 @@ library
       , bytestring-trie
       , containers
       , data-default
+      , lifted-base
       , my-palantype
       , parsec
       , text
       , text-show
+      , mtl
     hs-source-dirs: src
     default-extensions:
         LambdaCase
