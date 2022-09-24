@@ -16,7 +16,7 @@ import           Data.Bool                      ( (&&)
                                                 )
 import           Data.Either                    ( Either(..) )
 import           Data.Eq                        ( Eq((/=)) )
-import Data.Ord ((<))
+import           Data.Ord                       ((<))
 import           Data.Foldable                  ( Foldable(maximum)
                                                 , all
                                                 , for_
@@ -38,9 +38,6 @@ import qualified Data.Text                     as Text
 import qualified Data.Text.IO                  as Text
 import           Data.Text.Read                 ( double )
 import           Data.Time.Clock                ( getCurrentTime )
-import           Data.Time.Format               ( defaultTimeLocale
-                                                , formatTime
-                                                )
 import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -115,7 +112,6 @@ rawSteno str =
 
 hyphenate :: OptionsHyphenate -> IO ()
 hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
-    now <- getCurrentTime
 
     putStrLn "Reading existing hyphenation files ..."
     hFlush stdout
@@ -164,9 +160,6 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
             ls <- Text.lines <$> Text.readFile fileInput
 
             putStrLn $ "Writing to " <> fileOutput
-            appendLine fileOutput $ "# " <> Text.pack
-                (formatTime defaultTimeLocale "%y%m%d-%T" now)
-
             for_ ls $ appendLine fileOutput <<< hyphenate'
 
             nLO <- wcl fileOutput
