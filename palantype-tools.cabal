@@ -36,12 +36,11 @@ library
       , bytestring-trie
       , containers
       , data-default
-      , lifted-base
+      , mtl
       , my-palantype
       , parsec
       , text
       , text-show
-      , mtl
     hs-source-dirs: src
     default-extensions:
         LambdaCase
@@ -96,6 +95,7 @@ executable palantype-ops
       , text
       , text-show
       , time
+      , unliftio
     default-extensions:
         FlexibleContexts
         LambdaCase

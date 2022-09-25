@@ -32,6 +32,7 @@ import qualified Data.ByteString as BS
 import Data.Functor ((<$>))
 import WCL (wcl)
 import Text.Show (Show(show))
+import Control.Monad.IO.Class (MonadIO (liftIO))
 
 removeFiles :: [FilePath] -> IO ()
 removeFiles files = for_ files $ \file -> do
@@ -49,8 +50,8 @@ moveFileDotOld file = do
         putStrLn $ "Moving " <> file <> " to .old (" <> show nLines <> " lines)"
         renameFile file $ file <> ".old"
 
-appendLine :: FilePath -> Text -> IO ()
-appendLine file str = Text.appendFile file $ str <> "\n"
+appendLine :: MonadIO m => FilePath -> Text -> m ()
+appendLine file str = liftIO $ Text.appendFile file $ str <> "\n"
 
 fileScores :: UTCTime -> FilePath
 fileScores time =
@@ -58,16 +59,24 @@ fileScores time =
         <> formatTime defaultTimeLocale "%y%m%d-%T" time
         <> ".txt"
 
-writeJSONFile :: forall l. Foldable l => FilePath -> l (ByteString, ByteString) -> IO ()
+writeJSONFile
+  :: forall l m
+  . ( Foldable l
+    , MonadIO m
+    )
+  => FilePath
+  -> l (ByteString, ByteString)
+  -> m ()
 writeJSONFile file ls = do
-    putStr $ "Writing file " <> file <> " ..."
-    hFlush stdout
+    liftIO do
+        putStr $ "Writing file " <> file <> " ..."
+        hFlush stdout
     u <-
-        writeFile file $
+        liftIO $ writeFile file $
             BSB.byteString $ "{\n"
                 <> BS.intercalate ",\n" (formatJSONLine <$> toList ls)
                 <> "\n}\n"
-    putStrLn $ u `seq` " done."
+    liftIO $ putStrLn $ u `seq` " done."
   where
     formatJSONLine :: (ByteString, ByteString) -> ByteString
     formatJSONLine (raw, word) =

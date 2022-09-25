@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 module Sort where
 
 import Args (OptionsSort (..))
@@ -39,13 +40,15 @@ import qualified Data.Text.Encoding as Text
 import Control.Arrow ((***))
 import Control.Applicative (Applicative(pure))
 import Control.Exception (evaluate)
+import Control.Monad.IO.Class (MonadIO(liftIO))
 
-getMapFrequencies :: FilePath -> IO (Map ByteString Int)
+getMapFrequencies :: MonadIO m => FilePath -> m (Map ByteString Int)
 getMapFrequencies file = do
-    putStr $ "Reading frequency information from " <> file <> " ..."
-    hFlush stdout
-    m <- Map.fromList . parseFrequencies <$> BS.readFile file
-    putStrLn $ m `seq` " done."
+    liftIO do
+        putStr $ "Reading frequency information from " <> file <> " ..."
+        hFlush stdout
+    m <- Map.fromList . parseFrequencies <$> liftIO (BS.readFile file)
+    liftIO $ putStrLn $ m `seq` " done."
     pure m
 
 sortByFrequency :: OptionsSort -> IO ()
