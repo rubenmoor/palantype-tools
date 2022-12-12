@@ -433,21 +433,21 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
 
     let word        = Text.replace "|" "" hyph
 
--- exceptions marked as "substitution" replace the regular
--- steno algorithm and are not computed again
+        -- exceptions marked as "substitution" replace the regular
+        -- steno algorithm and are not computed again
         isReplByExc = word `Set.member` setReplByExc
 
--- duplicate? don't compute any word twice!
--- but: words from the exception file marked
---     "rule-addition" do not count as duplicates
+        -- duplicate? don't compute any word twice!
+        -- but: words from the exception file marked
+        --     "rule-addition" do not count as duplicates
         isDupl =
             word
                 `Map.member`    mapWordStenos
                 &&              word
                 `Map.notMember` mapExceptions @key
 
--- a capitalized word that also appears in its lower-case
--- version counts as duplicate
+        -- a capitalized word that also appears in its lower-case
+        -- version counts as duplicate
         isCaplDupl =
             isCapitalized hyph
                 &&           not (isAcronym hyph)
@@ -490,11 +490,11 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
                     traceSample word $ "traceWord: in parseWordIO: " <> word
                                     <> ": failed to parse"
 
-                    Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                    liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
                         [word, hyph, showt raw]
                 PEImpossible str -> do
                     liftIO $ Text.putStrLn $ "Seemingly impossible: " <> str
-                    Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                    liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
                         [word, hyph]
 
 -- cf. https://hackage.haskell.org/package/relude-1.1.0.0/docs/Relude-Functor-Fmap.html

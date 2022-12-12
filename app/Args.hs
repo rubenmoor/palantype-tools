@@ -305,7 +305,7 @@ optsMakeSteno =
         <> showDefault
         )
 
-    traceWords = some $ strOption
+    traceWords = many $ strOption
         (  long "trace-word"
         <> short 't'
         <> help "trace one or more words during steno computation to see how \

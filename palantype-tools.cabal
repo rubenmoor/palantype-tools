@@ -41,6 +41,7 @@ library
       , parsec
       , text
       , text-show
+      , unliftio
     hs-source-dirs: src
     default-extensions:
         LambdaCase
@@ -78,7 +79,6 @@ executable palantype-ops
       , aeson
       , aeson-pretty
       , ansi-terminal
-      , async
       , bytestring
       , clock
       , concurrent-extra
