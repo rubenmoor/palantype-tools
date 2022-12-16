@@ -1,0 +1,9 @@
+resolver:
+  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/4.yaml
+
+packages:
+- .
+
+extra-deps:
+  - ../my-palantype
+    
