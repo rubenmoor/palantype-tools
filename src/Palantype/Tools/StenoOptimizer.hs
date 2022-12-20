@@ -125,6 +125,7 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromText
                                                 )
 import Control.Monad (when)
+import Palantype.Tools.TraceWords (TraceWords, traceSample)
 
 data Score = Score
     { -- first criterion: make use of the maximum allowed greediness
@@ -187,7 +188,7 @@ parseSeries
      . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
-    -> Either ParseError [(RawSteno, (Greediness, PatternGroup key))]
+    -> TraceWords (Either ParseError [(RawSteno, (Greediness, PatternGroup key))])
 parseSeries trie hyphenated =
     let
         -- calculate result for lower case word
@@ -223,16 +224,18 @@ parseSeries trie hyphenated =
                         $ optimizeStenoSeries trie maxG st str
 
         lsResult
-            | isAcronym
-            = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
-            | otherwise
-            = lsResultLc
-    in
-        case sortOn (Down . uncurry scoreWithG) lsResult of
-            (_, Failure raw err) : _ -> Left $ PEParsec raw err
-            [] ->
-                Left $ PEImpossible $ "Empty list for: " <> hyphenated
-            ls -> Right $ filterAlts $ snd <$> ls
+            | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+            | otherwise = lsResultLc
+    in  do
+
+          traceSample (Text.replace "|" "" hyphenated) $
+            "Recognized greediness levels: " <> showt levels
+
+          pure case sortOn (Down . uncurry scoreWithG) lsResult of
+              (_, Failure raw err) : _ -> Left $ PEParsec raw err
+              [] ->
+                  Left $ PEImpossible $ "Empty list for: " <> hyphenated
+              ls -> Right $ filterAlts $ snd <$> ls
 
   where
     filterAlts
@@ -254,15 +257,16 @@ parseSeries trie hyphenated =
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
---   Given the efficiency of a steno code, lower greediness is preferred
+--   Given the efficiency AND brevity of a steno code, lower greediness is
+--   preferred
 scoreWithG
     :: forall k
      . (Greediness, Bool)
     -> Result (State k)
-    -> (Rational, Greediness, Bool, Int)
+    -> (Rational, Int, Greediness, Bool)
 scoreWithG (g, cOpt) result =
     let Score {..} = score result
-    in  (scoreEfficiency, negate g, not cOpt, scoreBrevity)
+    in  (scoreEfficiency, scoreBrevity, negate g, not cOpt)
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)

@@ -27,7 +27,7 @@ import           UnliftIO.MVar        ( modifyMVar
                                                 )
 import           Control.DeepSeq                ( force )
 import           UnliftIO.Exception             ( evaluate )
-import           Control.Monad                  ( Monad((>>))
+import           Control.Monad                  ( Monad((>>), (>>=))
                                                 , foldM
                                                 , unless
                                                 , when
@@ -43,7 +43,7 @@ import           Data.Either                    ( Either(..)
                                                 , isRight
                                                 )
 import           Data.Eq                        ( Eq((==)) )
-import           Data.Foldable                  ( Foldable(length)
+import           Data.Foldable                  ( Foldable(length, foldl)
                                                 , for_
                                                 , traverse_
                                                 )
@@ -118,10 +118,13 @@ import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
 
 -- lib
+-- lib
+-- lib
+-- lib
 import           Palantype.Tools.Collision      ( DictState
                                                     ( DictState
                                                     , dstMapWordStenos
-                                                    )
+                                                    ), CollisionInfo (CollisionInfo)
                                                 )
 import qualified Palantype.Tools.Collision     as Collision
 import           Palantype.Tools.StenoOptimizer ( ParseError(..)
@@ -163,7 +166,7 @@ makeSteno (OMkStArg lang str) = case lang of
     EN -> parseSeries' @EN.Key
   where
     parseSeries' :: forall key . Palantype key => IO ()
-    parseSeries' = case parseSeries @key triePrimitives str of
+    parseSeries' = runTraceWords Set.empty (parseSeries @key triePrimitives str) >>= \case
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
@@ -276,21 +279,23 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
         criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
 
         mapStenoWordDoc
-            :: Map (PatternGroup key) (Map Greediness [(Text, RawSteno)])
-        mapStenoWordDoc = Map.foldrWithKey
-            (\w stenos m ->
-                let (_, (raw, (g, pat))) = minimumBy (comparing fst) stenos
-                in  Map.insertWith (Map.unionWith (<>))
-                                   pat
-                                   (Map.singleton g [(w, raw)])
-                                   m
+          :: Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+          -> Map (PatternGroup key) (Map Greediness [(Text, RawSteno)])
+        mapStenoWordDoc mapWordStenos = Map.foldrWithKey
+            ( \w stenos m -> foldl
+                  ( \m' (_, (raw, (g, pat))) ->
+                        Map.insertWith (Map.unionWith (<>))
+                                       pat
+                                       (Map.singleton g [(w, raw)])
+                                       m'
+                  ) m stenos
             )
             Map.empty
-            dstMapWordStenos
+            mapWordStenos
 
         mapStenoWordTake100
             :: Map (PatternGroup key) (Map Greediness (Int, [(Text, RawSteno)]))
-        mapStenoWordTake100 = mapStenoWordDoc <<&>> \lsWordSteno ->
+        mapStenoWordTake100 = mapStenoWordDoc dstMapWordStenos <<&>> \lsWordSteno ->
             ( length lsWordSteno
             , take 100
                 $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) lsWordSteno
@@ -467,22 +472,28 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
         traceSample word $ "traceWord: in parseWordIO: " <> word
                         <> ": computing stenos for " <> hyph
 
-        case parseSeries @key triePrimitives hyph of
+        parseSeries @key triePrimitives hyph >>= \case
             Right stenos -> modifyMVar_ varDictState \dst -> do
 
                traceSample word $ "traceWord: in parseWordIO: " <> word
                                <> ": stenos: " <> showt stenos
 
-               let (dst', isLost) =
-                       Collision.resolve word (force stenos) dst
+               let (dst', cis) = Collision.resolve word (force stenos) dst
                _ <- evaluate dst'
-               when isLost do
+               for_ cis \(CollisionInfo looser winner raw isLostEntirely) -> do
 
-                   appendLine fileCollisions $
-                       word <> " " <> Text.intercalate " " (showt <$> stenos)
+                   if isLostEntirely
+                     then do
+                       appendLine fileCollisions $
+                         looser <> " " <> Text.intercalate " " (showt <$> stenos)
 
-                   traceSample word $ "traceWord: in parseWordIO: " <> word
-                                   <> ": lost in collision"
+                       traceSample looser $ "traceWord: in parseWordIO: " <> looser
+                                       <> " lost in collision without alternatives to "
+                                       <> winner
+                     else do
+                       traceSample looser $ "traceWord: in parseWordIO: " <> looser
+                                       <> " lost steno code " <> showt raw
+                                       <> " to " <> winner
 
                pure dst'
             Left pe -> case pe of

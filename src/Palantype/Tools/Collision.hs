@@ -3,11 +3,11 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
 
 module Palantype.Tools.Collision where
 
 import           Control.Category               ( (<<<) )
-import           Data.Bool                      ( Bool(..) )
 import           Data.Eq                        ( Eq((==)) )
 import           Data.Foldable                  ( Foldable(foldl') )
 import           Data.Function                  ( ($)
@@ -38,8 +38,20 @@ import           Palantype.Common               ( Greediness
                                                 , Palantype(PatternGroup)
                                                 , RawSteno
                                                 )
+import Data.Bool (Bool (True, False))
 
 default (Int)
+
+data CollisionInfo = CollisionInfo
+    { -- | word that looses a steno chord
+      ciLosingWord     :: Text
+      -- | word that competes for the same steno
+    , ciWinningWord    :: Text
+      -- | steno code that caused the conflict
+    , ciRawSteno       :: RawSteno
+      -- | whether the loosing word is lost entirely for lack of alternatives
+    , ciIsLostEntirely :: Bool
+    }
 
 data DictState key = DictState
     {
@@ -52,10 +64,11 @@ data DictState key = DictState
 
 resolve
     :: forall key
-     . Text
-    -> [(RawSteno, (Greediness, PatternGroup key))]
-    -> DictState key
-    -> (DictState key, Bool)
+     . Text                  -- ^ input word
+    -> [(RawSteno, (Greediness, PatternGroup key))] -- ^ candidates
+    -> DictState key         -- ^ old dict state
+    -> (DictState key, [CollisionInfo])
+
 resolve word raws dst@DictState {..} =
     let
         -- look up collisions ...
@@ -78,71 +91,88 @@ resolve word raws dst@DictState {..} =
             sortOn (fst <<< snd) $ zip [0 ..] raws <&> \(i, raw) ->
                 ((i, raw), mNAlts $ fst raw)
 
-        (_, dst', isLost) = foldl' (accAllocate word)
-                                   (length raws, dst, False)
-                                   rawsCollisions
+        (_, dst', cis) =
+            foldl' (accAllocate word)
+                   (length raws, dst, [])
+                   rawsCollisions
     in
-        (dst', isLost)
+        (dst', cis)
 
 accAllocate
     :: forall key
      . Text
-    -> (Int, DictState key, Bool)
+    -> (Int, DictState key, [CollisionInfo])
     -> ( (Int, (RawSteno, (Greediness, PatternGroup key)))
        , (Int, Maybe Text)
        )
-    -> (Int, DictState key, Bool)
+    -> (Int, DictState key, [CollisionInfo])
 
 -- no collision
-accAllocate word (nAlts, DictState {..}, _) (iRaw, (_, Nothing)) =
+accAllocate word (nAlts, DictState {..}, ci) (iRaw, (_, Nothing)) =
     ( nAlts
     , DictState
         { dstMapWordStenos = Map.insertWith (flip (<>)) word [iRaw] dstMapWordStenos
         , dstMapStenoWord  = Map.insert (fst $ snd iRaw) word dstMapStenoWord
         }
-    , False
+    , ci
     )
 
 
 -- collision
-accAllocate word (nAlts, dst@DictState {..}, _) (iRaw@(_, (raw, _)), (collisionNAlts, Just collisionWord))
+accAllocate word (nAlts, dst@DictState {..}, ci) (iRaw@(_, (raw, _)), (collisionNAlts, Just collisionWord))
     = case (nAlts, collisionNAlts) of
 
-        -- hard squeeze: existing word wins; new word is lost entirely
-        (1, 1) -> (nAlts, dst, True)
+            -- hard squeeze: existing word wins; new word is lost entirely
+            (1, 1) -> ( nAlts
+                      , dst
+                      , CollisionInfo word collisionWord raw True : ci
+                      )
 
-        -- soft squeeze A: new word w/o alternatives; existing word loses one alternative
-        (1, _) ->
-            ( nAlts
-            , DictState
-                { dstMapWordStenos = Map.insertWith (flip (<>)) word [iRaw]
-                    $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
-                , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
-                }
-            , False
-            )
-
-        -- soft squeeze B: existing word w/o alternatives; new word loses one alternative
-        (_, 1)                      -> (nAlts - 1, dst, False)
-
-        -- equal number of alternatives: new word loses
-        _ | nAlts == collisionNAlts -> (nAlts - 1, dst, False)
-
-        -- new word has more alternatives: new word loses
-        _ | nAlts > collisionNAlts  -> (nAlts - 1, dst, False)
-
-        -- new word has less alternatives: new word wins, existing word loses one alternative
-        _ | nAlts < collisionNAlts ->
-            ( nAlts
-            , DictState
-                { dstMapWordStenos =
-                    Map.insertWith (flip (<>)) word [iRaw]
+            -- soft squeeze A: new word w/o alternatives; existing word loses one alternative
+            (1, _) ->
+                ( nAlts
+                , DictState
+                    { dstMapWordStenos = Map.insertWith (flip (<>)) word [iRaw]
                         $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
-                , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
-                }
-            , False
-            )
+                    , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
+                    }
+                , CollisionInfo collisionWord word raw False : ci
+                )
 
-        -- avoid missing patterns warning
-        _ -> error "resolve: impossible"
+            -- soft squeeze B: existing word w/o alternatives; new word loses one alternative
+            (_, 1) ->
+              ( nAlts - 1
+              , dst
+              , CollisionInfo word collisionWord raw False : ci
+              )
+
+            -- equal number of alternatives: new word loses
+            _ | nAlts == collisionNAlts ->
+                ( nAlts - 1
+                , dst
+                , CollisionInfo word collisionWord raw False : ci
+                )
+
+            -- new word has more alternatives: new word loses
+            _ | nAlts > collisionNAlts ->
+                ( nAlts - 1
+                , dst
+                , CollisionInfo word collisionWord raw False : ci
+                )
+
+            -- new word has less alternatives: new word wins, existing word loses one alternative
+            _ | nAlts < collisionNAlts ->
+                ( nAlts
+                , DictState
+                    { dstMapWordStenos =
+                        Map.insertWith (flip (<>)) word [iRaw]
+                            $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
+                    , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
+                    }
+                , CollisionInfo collisionWord word raw False : ci
+                )
+
+            -- avoid missing patterns warning
+            _ -> error "resolve: impossible"
+
     where deleteIRaw = deleteBy ((==) `on` (fst <<< snd)) iRaw
