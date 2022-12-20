@@ -276,31 +276,43 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
     mapFrequencies <- getMapFrequencies "deu_news_2020_freq.txt"
 
     let
-        criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
-
         mapStenoWordDoc
           :: Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
-          -> Map (PatternGroup key) (Map Greediness [(Text, RawSteno)])
-        mapStenoWordDoc mapWordStenos = Map.foldrWithKey
-            ( \w stenos m -> foldl
-                  ( \m' (_, (raw, (g, pat))) ->
-                        Map.insertWith (Map.unionWith (<>))
-                                       pat
-                                       (Map.singleton g [(w, raw)])
-                                       m'
-                  ) m stenos
+          -> TraceWords (Map (PatternGroup key) (Map Greediness [(Text, RawSteno)]))
+        mapStenoWordDoc mapWordStenos = foldrWithKeyM
+            ( \w stenos m -> do
+                let (_, (raw, (g, pat))) = minimumBy (comparing fst) stenos
+                traceSample w $ "minimum by index: selected for doc: "
+                             <> showt raw
+                             <> " g" <> showt g
+                             <> "(" <> showt pat <> ")"
+                pure $ Map.insertWith (Map.unionWith (<>))
+                                      pat
+                                      (Map.singleton g [(w, raw)])
+                                      m
+                -- foldl
+                --   ( \m' (_, (raw, (g, pat))) ->
+                --         Map.insertWith (Map.unionWith (<>))
+                --                        pat
+                --                        (Map.singleton g [(w, raw)])
+                --                        m'
+                --   ) m stenos
             )
             Map.empty
             mapWordStenos
 
-        mapStenoWordTake100
-            :: Map (PatternGroup key) (Map Greediness (Int, [(Text, RawSteno)]))
-        mapStenoWordTake100 = mapStenoWordDoc dstMapWordStenos <<&>> \lsWordSteno ->
-            ( length lsWordSteno
-            , take 100
-                $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) lsWordSteno
-            )
+    let
+        criterion = Down <<< (\w -> Map.findWithDefault 0 w mapFrequencies)
 
+        -- mapStenoWordTake100
+        --     :: Map (PatternGroup key) (Map Greediness (Int, [(Text, RawSteno)]))
+    mapStenoWordTake100 <- mapStenoWordDoc dstMapWordStenos <<<&>>> \lsWordSteno ->
+        ( length lsWordSteno
+        , take 100
+            $ sortOn (criterion <<< Text.encodeUtf8 <<< fst) lsWordSteno
+        )
+
+    let
         mapStenoWordMin :: Map Text RawSteno
         mapStenoWordMin = Map.foldrWithKey
             (\w stenos m ->
@@ -516,3 +528,25 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
     -> (a -> b)
     -> m (n b)
 (<<&>>) = flip (fmap . fmap)
+
+(<<<&>>>)
+    :: forall m n o a b
+     . (Functor m, Functor n, Functor o)
+    => m (n ( o a))
+    -> (a -> b)
+    -> m (n (o b))
+(<<<&>>>) = flip (fmap . fmap . fmap)
+
+
+foldrWithKeyM
+  :: forall m k a b
+  . ( Monad m
+    )
+  => (k -> a -> b -> m b)
+  -> b
+  -> Map k a
+  -> m b
+foldrWithKeyM acc z m = Map.foldrWithKey acc' pure m z
+  where
+    acc' :: k -> a -> (b -> m b) -> b -> m b
+    acc' k v b2mb b = acc k v b >>= b2mb
