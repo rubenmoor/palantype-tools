@@ -92,13 +92,9 @@ import           Palantype.Common               ( Chord(Chord)
                                                     , patAcronym
                                                     , patSimpleMulti
                                                     )
-
                                                 , keys
                                                 , kiAcronym
                                                 , lsPatterns
-
-
-
                                                 )
 import qualified Palantype.Common.Indices      as KI
 import qualified Palantype.Common.RawSteno     as Raw
@@ -169,7 +165,7 @@ addAcronymChord st@State {..} = st
                         : ProtoSlash
                         : stProtoSteno
     , stNChords       = stNChords + 1
-    , stMPatternGroup = max stMPatternGroup $ Just (0, patAcronym)
+    , stMPatternGroup = Just (0, patAcronym)
     }
 
 data Verbosity
@@ -214,14 +210,14 @@ parseSeries trie hyphenated =
         levels =
             catMaybes
                 $   lsPatterns @key
-                <&> \(g, patterns) -> if any (`isInfixOf` str) patterns
-                        then Just g
+                <&> \(gpg, patterns) -> if any (`isInfixOf` str) patterns
+                        then Just gpg
                         else Nothing
 
         lsResultLc =
             levels
-                <&> \maxG -> ((maxG, False), )
-                        $ optimizeStenoSeries trie maxG st str
+                <&> \pgg -> ((pgg, False), )
+                        $ optimizeStenoSeries trie pgg st str
 
         lsResult
             | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
@@ -245,15 +241,15 @@ parseSeries trie hyphenated =
     filterAlts (Success state : as) =
         let
             rawSteno = protoToSteno $ stProtoSteno state
-            pg       = case stMPatternGroup state of
-                Just patG -> patG
+            pgg      = case stMPatternGroup state of
+                Just    p -> p
                 Nothing   -> error "impossible: pattern group Nothing"
             distinct (Failure _ _) = False
             distinct (Success st2) =
                 rawSteno /= protoToSteno (stProtoSteno st2)
             as' = filter distinct as
         in
-            (rawSteno, pg) : filterAlts as'
+            (rawSteno, pgg) : filterAlts as'
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
@@ -261,10 +257,10 @@ parseSeries trie hyphenated =
 --   preferred
 scoreWithG
     :: forall k
-     . (Greediness, Bool)
+     . ((Greediness, PatternGroup k), Bool)
     -> Result (State k)
     -> (Rational, Int, Greediness, Bool)
-scoreWithG (g, cOpt) result =
+scoreWithG ((g, _), cOpt) result =
     let Score {..} = score result
     in  (scoreEfficiency, scoreBrevity, negate g, not cOpt)
 
@@ -404,27 +400,27 @@ optimizeStenoSeries
     :: forall key
      . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
-    -> Greediness
+    -> (Greediness, PatternGroup key)
     -> State key
     -> ByteString
     -> Result (State key)
 optimizeStenoSeries _ _ st "" = Success st
-optimizeStenoSeries trie g st str | BS.head str == bsPipe =
+optimizeStenoSeries trie gpg st str | BS.head str == bsPipe =
     let
         newState = st
             { stProtoSteno    = stProtoSteno st <> [ProtoSlash]
             , stNChords       = stNChords st + 1
             , stMFinger       = Nothing
             , stMLastKey      = Nothing
-            , stMPatternGroup = max (Just (0, patSimpleMulti))
-                                    $ stMPatternGroup st
+            , stMPatternGroup =
+                max (Just (0, patSimpleMulti)) $ stMPatternGroup st
             }
         str' = BS.tail str
-        r1   = optimizeStenoSeries trie g newState str'
-        r2   = optimizeStenoSeries trie g st str'
+        r1   = optimizeStenoSeries trie gpg newState str'
+        r2   = optimizeStenoSeries trie gpg st str'
     in
         maximumBy (comparing score) [r1, r2]
-optimizeStenoSeries trie g st str =
+optimizeStenoSeries trie maxGPg st str =
     let
         matches = filterGreediness $ flatten $ Trie.matches trie str
 
@@ -445,7 +441,7 @@ optimizeStenoSeries trie g st str =
                             , stMaxGreediness = max greediness
                                                     $ stMaxGreediness st
                             }
-                    in  optimizeStenoSeries trie g newState rem
+                    in  optimizeStenoSeries trie maxGPg newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -460,7 +456,7 @@ optimizeStenoSeries trie g st str =
              , ByteString
              )
            ]
-    filterGreediness = filter (\(_, (g', _, _), _) -> g' <= g)
+    filterGreediness = filter (\(_, (g', _, pg'), _) -> (g', pg') <= maxGPg)
 
     flatten
         :: [ ( ByteString
