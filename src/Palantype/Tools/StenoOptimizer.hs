@@ -55,7 +55,7 @@ import           Data.List                      ( filter
                                                 , sortOn
                                                 )
 import           Data.Maybe                     ( Maybe(..)
-                                                , catMaybes
+                                                , catMaybes, maybe
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , mconcat
@@ -73,7 +73,7 @@ import qualified Data.Text.Encoding            as Text
 import qualified Data.Trie                     as Trie
 import           Data.Trie                      ( Trie )
 import           Data.Tuple                     ( snd
-                                                , uncurry
+                                                , uncurry, fst
                                                 )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
@@ -90,7 +90,7 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , Palantype
                                                     ( PatternGroup
                                                     , patAcronym
-                                                    , patSimpleMulti
+                                                    , patSimpleMulti, patZero
                                                     )
                                                 , keys
                                                 , kiAcronym
@@ -165,7 +165,7 @@ addAcronymChord st@State {..} = st
                         : ProtoSlash
                         : stProtoSteno
     , stNChords       = stNChords + 1
-    , stMPatternGroup = Just (0, patAcronym)
+    , stMLevel = Just (0, patAcronym)
     }
 
 data Verbosity
@@ -184,7 +184,7 @@ parseSeries
      . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
-    -> TraceWords (Either ParseError [(RawSteno, (Greediness, PatternGroup key))])
+    -> TraceWords (Either ParseError [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)])
 parseSeries trie hyphenated =
     let
         -- calculate result for lower case word
@@ -198,13 +198,13 @@ parseSeries trie hyphenated =
 
         str = Text.encodeUtf8 $ toLower hyphenated'
 
-        st  = State { stProtoSteno    = []
-                    , stNLetters      = 0
-                    , stNChords       = 1
-                    , stMFinger       = Nothing
-                    , stMLastKey      = Nothing
-                    , stMPatternGroup = Nothing
-                    , stMaxGreediness = 0
+        st  = State { stProtoSteno = []
+                    , stNLetters   = 0
+                    , stNChords    = 1
+                    , stMFinger    = Nothing
+                    , stMLastKey   = Nothing
+                    , stMLevel     = Nothing
+                    , stMaxPattern = patZero
                     }
 
         levels =
@@ -216,8 +216,8 @@ parseSeries trie hyphenated =
 
         lsResultLc =
             levels
-                <&> \pgg -> ((pgg, False), )
-                        $ optimizeStenoSeries trie pgg st str
+                <&> \gpg -> ((gpg, False), )
+                        $ optimizeStenoSeries trie gpg st str
 
         lsResult
             | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
@@ -235,21 +235,22 @@ parseSeries trie hyphenated =
 
   where
     filterAlts
-        :: [Result (State key)] -> [(RawSteno, (Greediness, PatternGroup key))]
+        :: [Result (State key)] -> [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
     filterAlts []                 = []
     filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
         let
             rawSteno = protoToSteno $ stProtoSteno state
-            pgg      = case stMPatternGroup state of
+            pgg      = case stMLevel state of
                 Just    p -> p
                 Nothing   -> error "impossible: pattern group Nothing"
+            maxPg    = stMaxPattern state
             distinct (Failure _ _) = False
             distinct (Success st2) =
                 rawSteno /= protoToSteno (stProtoSteno st2)
             as' = filter distinct as
         in
-            (rawSteno, pgg) : filterAlts as'
+            (rawSteno, pgg, maxPg) : filterAlts as'
 
 -- | Scoring "with greediness"
 --   This scoring serves to sort the result, no result is discarded
@@ -349,8 +350,8 @@ data State key = State
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
     , stMLastKey      :: Maybe key
-    , stMPatternGroup :: Maybe (Greediness, PatternGroup key)
-    , stMaxGreediness :: Greediness
+    , stMLevel        :: Maybe (Greediness, PatternGroup key)
+    , stMaxPattern    :: PatternGroup key
     }
 
 instance Palantype key => TextShow (State key) where
@@ -374,7 +375,7 @@ score (Failure _ _) = Score 0 0 0
 score' :: forall k . State k -> Score
 score' State {..} =
     -- let scoreGreediness = 0
-    let scoreGreediness = stMaxGreediness
+    let scoreGreediness = maybe 0 fst stMLevel
         scoreEfficiency = fromIntegral (unCountLetters stNLetters)
             / fromIntegral (unCountChords stNChords)
         scoreBrevity = negate $ countKeys stProtoSteno
@@ -412,8 +413,8 @@ optimizeStenoSeries trie gpg st str | BS.head str == bsPipe =
             , stNChords       = stNChords st + 1
             , stMFinger       = Nothing
             , stMLastKey      = Nothing
-            , stMPatternGroup =
-                max (Just (0, patSimpleMulti)) $ stMPatternGroup st
+            , stMLevel =
+                max (Just (0, patSimpleMulti)) $ stMLevel st
             }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie gpg newState str'
@@ -430,16 +431,15 @@ optimizeStenoSeries trie maxGPg st str =
                 Right (proto, (mFinger, mLK)) ->
                     let
                         newState = State
-                            { stProtoSteno    = stProtoSteno st <> proto
-                            , stNLetters      = stNLetters st
+                            { stProtoSteno = stProtoSteno st <> proto
+                            , stNLetters   =
+                                  stNLetters st
                                 + countLetters (Text.decodeUtf8 consumed)
-                            , stNChords       = stNChords st + countChords proto
-                            , stMFinger       = mFinger
-                            , stMLastKey      = mLK
-                            , stMPatternGroup = max (Just (greediness, pg))
-                                                    $ stMPatternGroup st
-                            , stMaxGreediness = max greediness
-                                                    $ stMaxGreediness st
+                            , stNChords    = stNChords st + countChords proto
+                            , stMFinger    = mFinger
+                            , stMLastKey   = mLK
+                            , stMLevel     = max (Just (greediness, pg)) $ stMLevel st
+                            , stMaxPattern = max pg $ stMaxPattern st
                             }
                     in  optimizeStenoSeries trie maxGPg newState rem
 

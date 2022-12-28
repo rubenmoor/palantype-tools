@@ -43,7 +43,7 @@ import           Data.Either                    ( Either(..)
                                                 , isRight
                                                 )
 import           Data.Eq                        ( Eq((==)) )
-import           Data.Foldable                  ( Foldable(length, foldl)
+import           Data.Foldable                  ( Foldable(length)
                                                 , for_
                                                 , traverse_
                                                 )
@@ -53,7 +53,6 @@ import           Data.Function                  ( ($)
 import           Data.Functor                   ( (<$>)
                                                 , Functor(fmap)
                                                 )
-import           Data.Int                       ( Int )
 import           Data.List                      ( minimumBy
                                                 , sortOn
                                                 , take
@@ -121,10 +120,38 @@ import qualified Palantype.EN.Keys             as EN
 -- lib
 -- lib
 -- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
+-- lib
 import           Palantype.Tools.Collision      ( DictState
                                                     ( DictState
                                                     , dstMapWordStenos
-                                                    ), CollisionInfo (CollisionInfo)
+                                                    ), CollisionInfo (CollisionInfo), StenoCodeInfo (..), toStenoCodeInfo
                                                 )
 import qualified Palantype.Tools.Collision     as Collision
 import           Palantype.Tools.StenoOptimizer ( ParseError(..)
@@ -277,26 +304,19 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
 
     let
         mapStenoWordDoc
-          :: Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+          :: Map Text [StenoCodeInfo key]
           -> TraceWords (Map (PatternGroup key) (Map Greediness [(Text, RawSteno)]))
         mapStenoWordDoc mapWordStenos = foldrWithKeyM
             ( \w stenos m -> do
-                let (_, (raw, (g, pat))) = minimumBy (comparing fst) stenos
+                let info = minimumBy (comparing sciIndex) stenos
                 traceSample w $ "minimum by index: selected for doc: "
-                             <> showt raw
-                             <> " g" <> showt g
-                             <> "(" <> showt pat <> ")"
+                             <> showt (sciRawSteno info)
+                             <> " g" <> showt (fst $ sciLevel info)
+                             <> "(" <> showt (snd $ sciLevel info) <> ")"
                 pure $ Map.insertWith (Map.unionWith (<>))
-                                      pat
-                                      (Map.singleton g [(w, raw)])
+                                      (sciMaxPatternGroup info)
+                                      (Map.singleton (fst $ sciLevel info) [(w, sciRawSteno info)])
                                       m
-                -- foldl
-                --   ( \m' (_, (raw, (g, pat))) ->
-                --         Map.insertWith (Map.unionWith (<>))
-                --                        pat
-                --                        (Map.singleton g [(w, raw)])
-                --                        m'
-                --   ) m stenos
             )
             Map.empty
             mapWordStenos
@@ -316,8 +336,8 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
         mapStenoWordMin :: Map Text RawSteno
         mapStenoWordMin = Map.foldrWithKey
             (\w stenos m ->
-                let (_, (raw, _)) = minimumBy (comparing fst) stenos
-                in  Map.insert w raw m
+                let info = minimumBy (comparing sciIndex) stenos
+                in  Map.insert w (sciRawSteno info) m
             )
             Map.empty
             dstMapWordStenos
@@ -364,7 +384,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
 accExceptions
     :: forall key
      . Palantype key
-    => ( Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+    => ( Map Text [StenoCodeInfo key]
        , Map RawSteno Text
        , Set Text
        )
@@ -374,9 +394,7 @@ accExceptions
          )
        )
     -> TraceWords
-           ( Map
-                 Text
-                 [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+           ( Map Text [StenoCodeInfo key]
            , Map RawSteno Text
            , Set Text
            )
@@ -388,12 +406,12 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
             <> showt interp <> ", "
             <> showt lsExcEntry
         let accExcEntry
-                :: ( [(RawSteno, (Greediness, PatternGroup key))]
+                :: ( [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
                    , Map RawSteno Text
                    )
                 -> (Greediness, RawSteno, PatternGroup key, Bool)
                 -> IO
-                       ( [(RawSteno, (Greediness, PatternGroup key))]
+                       ( [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
                        , Map RawSteno Text
                        )
             accExcEntry (ls, mapEEStenoWord) (g, raw, pg, _) = do
@@ -402,7 +420,9 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                     Right chords -> do
                         let rawParsed = unparts $ fromChord <$> chords
                         pure
-                            ( (rawParsed, (g, pg)) : ls
+                            -- for the exceptions, the level pattern group and
+                            -- the maximum pattern group are the same
+                            ( (rawParsed, (g, pg), pg) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
@@ -426,7 +446,7 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
               pure $ Set.insert word set
 
         pure
-            ( Map.insert word (zip (negate <$> [1 ..]) lsStenoInfo) mapExcWordStenos
+            ( Map.insert word (toStenoCodeInfo <$> zip (negate <$> [1 ..]) lsStenoInfo) mapExcWordStenos
             , m
             , set'
             )
@@ -490,8 +510,10 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
                traceSample word $ "traceWord: in parseWordIO: " <> word
                                <> ": stenos: " <> showt stenos
 
-               let (dst', cis) = Collision.resolve word (force stenos) dst
-               _ <- evaluate dst'
+               let
+                   stenoInfos = toStenoCodeInfo <$> zip [0..] stenos
+                   (dst', cis) = Collision.resolve word stenoInfos dst
+               _ <- evaluate $ force dst'
                for_ cis \(CollisionInfo looser winner raw isLostEntirely) -> do
 
                    if isLostEntirely
@@ -521,14 +543,6 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
                         [word, hyph]
 
 -- cf. https://hackage.haskell.org/package/relude-1.1.0.0/docs/Relude-Functor-Fmap.html
-(<<&>>)
-    :: forall m n a b
-     . (Functor m, Functor n)
-    => m (n a)
-    -> (a -> b)
-    -> m (n b)
-(<<&>>) = flip (fmap . fmap)
-
 (<<<&>>>)
     :: forall m n o a b
      . (Functor m, Functor n, Functor o)

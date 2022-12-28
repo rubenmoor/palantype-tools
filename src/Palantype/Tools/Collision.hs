@@ -1,9 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Palantype.Tools.Collision where
 
@@ -18,7 +21,6 @@ import           Data.Int                       ( Int )
 import           Data.List                      ( deleteBy
                                                 , length
                                                 , sortOn
-                                                , zip
                                                 )
 import qualified Data.Map.Strict               as Map
 import           Data.Map.Strict                ( Map )
@@ -39,6 +41,8 @@ import           Palantype.Common               ( Greediness
                                                 , RawSteno
                                                 )
 import Data.Bool (Bool (True, False))
+import Control.DeepSeq (NFData)
+import GHC.Generics (Generic)
 
 default (Int)
 
@@ -53,20 +57,45 @@ data CollisionInfo = CollisionInfo
     , ciIsLostEntirely :: Bool
     }
 
+data StenoCodeInfo key = StenoCodeInfo
+    { -- | the index orders the codes by efficiency, 0 being most efficient
+      sciIndex :: Int
+      -- | the raw steno code
+    , sciRawSteno :: RawSteno
+      -- | the level: the highest greediness that was applied to reach this code
+      --   at identical greediness, the levels are differentiated by the pattern
+    , sciLevel :: (Greediness, PatternGroup key)
+      -- | the highest pattern (regardless of greediness) that was applied
+      --   to reach this code. This information needs to be preserved apart,
+      --   to allow for a documentation by pattern first (greediness second)
+    , sciMaxPatternGroup :: PatternGroup key
+    }
+    deriving stock (Generic)
+
+deriving anyclass instance Palantype key => NFData (StenoCodeInfo key)
+
+toStenoCodeInfo
+  :: (Int, (RawSteno, (Greediness, PatternGroup key), PatternGroup key))
+  -> StenoCodeInfo key
+toStenoCodeInfo (i, (raw, (g, pg), maxPg)) = StenoCodeInfo i raw (g, pg) maxPg
+
+
 data DictState key = DictState
     {
       -- | store index with the steno code, to restore original order after
       --   collision resolution
       dstMapWordStenos
-          :: Map Text [(Int, (RawSteno, (Greediness, PatternGroup key)))]
+          :: Map Text [StenoCodeInfo key]
     , dstMapStenoWord :: Map RawSteno Text
     }
+    deriving stock (Generic)
+    deriving anyclass (NFData)
 
 resolve
     :: forall key
-     . Text                  -- ^ input word
-    -> [(RawSteno, (Greediness, PatternGroup key))] -- ^ candidates
-    -> DictState key         -- ^ old dict state
+     . Text                -- ^ input word
+    -> [StenoCodeInfo key] -- ^ candidates
+    -> DictState key       -- ^ old dict state
     -> (DictState key, [CollisionInfo])
 
 resolve word raws dst@DictState {..} =
@@ -87,14 +116,15 @@ resolve word raws dst@DictState {..} =
             Nothing -> (maxBound, Nothing)
 
         -- sort to make sure that inviable raws get sorted out first
-        rawsCollisions =
-            sortOn (fst <<< snd) $ zip [0 ..] raws <&> \(i, raw) ->
-                ((i, raw), mNAlts $ fst raw)
+        rawsCollisions :: [StenoCodeInfo key] -> [(StenoCodeInfo key, (Int, Maybe Text))]
+        rawsCollisions infos =
+            sortOn (fst <<< snd) $ infos <&> \info@StenoCodeInfo{..} ->
+                (info, mNAlts sciRawSteno)
 
         (_, dst', cis) =
             foldl' (accAllocate word)
                    (length raws, dst, [])
-                   rawsCollisions
+                   (rawsCollisions raws)
     in
         (dst', cis)
 
@@ -102,24 +132,24 @@ accAllocate
     :: forall key
      . Text
     -> (Int, DictState key, [CollisionInfo])
-    -> ( (Int, (RawSteno, (Greediness, PatternGroup key)))
+    -> ( StenoCodeInfo key
        , (Int, Maybe Text)
        )
     -> (Int, DictState key, [CollisionInfo])
 
 -- no collision
-accAllocate word (nAlts, DictState {..}, ci) (iRaw, (_, Nothing)) =
+accAllocate word (nAlts, DictState {..}, ci) (info, (_, Nothing)) =
     ( nAlts
     , DictState
-        { dstMapWordStenos = Map.insertWith (flip (<>)) word [iRaw] dstMapWordStenos
-        , dstMapStenoWord  = Map.insert (fst $ snd iRaw) word dstMapStenoWord
+        { dstMapWordStenos = Map.insertWith (flip (<>)) word [info] dstMapWordStenos
+        , dstMapStenoWord  = Map.insert (sciRawSteno info) word dstMapStenoWord
         }
     , ci
     )
 
 
 -- collision
-accAllocate word (nAlts, dst@DictState {..}, ci) (iRaw@(_, (raw, _)), (collisionNAlts, Just collisionWord))
+accAllocate word (nAlts, dst@DictState {..}, ci) (info, (collisionNAlts, Just collisionWord))
     = case (nAlts, collisionNAlts) of
 
             -- hard squeeze: existing word wins; new word is lost entirely
@@ -132,7 +162,7 @@ accAllocate word (nAlts, dst@DictState {..}, ci) (iRaw@(_, (raw, _)), (collision
             (1, _) ->
                 ( nAlts
                 , DictState
-                    { dstMapWordStenos = Map.insertWith (flip (<>)) word [iRaw]
+                    { dstMapWordStenos = Map.insertWith (flip (<>)) word [info]
                         $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
                     , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
                     }
@@ -165,7 +195,7 @@ accAllocate word (nAlts, dst@DictState {..}, ci) (iRaw@(_, (raw, _)), (collision
                 ( nAlts
                 , DictState
                     { dstMapWordStenos =
-                        Map.insertWith (flip (<>)) word [iRaw]
+                        Map.insertWith (flip (<>)) word [info]
                             $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
                     , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
                     }
@@ -175,4 +205,6 @@ accAllocate word (nAlts, dst@DictState {..}, ci) (iRaw@(_, (raw, _)), (collision
             -- avoid missing patterns warning
             _ -> error "resolve: impossible"
 
-    where deleteIRaw = deleteBy ((==) `on` (fst <<< snd)) iRaw
+    where
+      raw = sciRawSteno info
+      deleteIRaw = deleteBy ((==) `on` sciRawSteno) info

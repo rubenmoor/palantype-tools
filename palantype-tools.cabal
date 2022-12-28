@@ -36,6 +36,7 @@ library
       , bytestring-trie
       , containers
       , data-default
+      , deepseq
       , mtl
       , my-palantype
       , parsec
