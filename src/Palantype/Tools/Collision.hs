@@ -43,6 +43,7 @@ import           Palantype.Common               ( Greediness
 import Data.Bool (Bool (True, False))
 import Control.DeepSeq (NFData)
 import GHC.Generics (Generic)
+import TextShow (TextShow (showb))
 
 default (Int)
 
@@ -56,6 +57,8 @@ data CollisionInfo = CollisionInfo
       -- | whether the loosing word is lost entirely for lack of alternatives
     , ciIsLostEntirely :: Bool
     }
+    deriving stock (Generic)
+    deriving anyclass (NFData)
 
 data StenoCodeInfo key = StenoCodeInfo
     { -- | the index orders the codes by efficiency, 0 being most efficient
@@ -74,11 +77,17 @@ data StenoCodeInfo key = StenoCodeInfo
 
 deriving anyclass instance Palantype key => NFData (StenoCodeInfo key)
 
+instance Palantype key => TextShow (StenoCodeInfo key) where
+  showb StenoCodeInfo{..} =
+       showb sciIndex    <> " "
+    <> showb sciRawSteno <> " "
+    <> showb sciLevel    <> " "
+    <> showb sciMaxPatternGroup
+
 toStenoCodeInfo
   :: (Int, (RawSteno, (Greediness, PatternGroup key), PatternGroup key))
   -> StenoCodeInfo key
 toStenoCodeInfo (i, (raw, (g, pg), maxPg)) = StenoCodeInfo i raw (g, pg) maxPg
-
 
 data DictState key = DictState
     {

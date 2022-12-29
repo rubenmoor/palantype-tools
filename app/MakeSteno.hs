@@ -84,7 +84,7 @@ import           GHC.Exts                       ( seq )
 import           System.Clock                   ( Clock(Monotonic)
                                                 , getTime
                                                 )
-import           System.Console.ANSI            ( setCursorColumn )
+import           System.Console.ANSI            ( setCursorColumn, cursorUp )
 import           System.Directory               ( doesFileExist )
 import           System.IO                      ( FilePath
                                                 , IO
@@ -97,7 +97,7 @@ import           Text.Parsec                    ( runParser )
 import           Text.Show                      ( Show(show) )
 import           TextShow                       ( TextShow(showt) )
 import           WCL                            ( wcl )
-import GHC.Num (Num(negate))
+import GHC.Num (Num(negate, (+)))
 
 -- my-palantype
 import           Palantype.Common               ( ExceptionInterpretation(..)
@@ -173,6 +173,8 @@ import           Common                         ( appendLine
                                                 )
 import           Sort                           ( getMapFrequencies )
 import Control.Monad.IO.Class (liftIO)
+import Data.Int (Int)
+import GHC.Real (mod)
 
 
 fileNoParse :: FilePath
@@ -268,22 +270,28 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
 
     liftIO do
         putStr $ "\nRunning " <> show nj <> " jobs.\n\n"
-        putStr "Optimizing steno chords ..."
+        putStrLn "Optimizing steno chords ..."
         hFlush stdout
 
     lock         <- liftIO Lock.new
 
     varDictState <- liftIO $ newMVar $ DictState mapInitWordStenos mapInitStenoWord
-    varLs        <- liftIO $ newMVar ls
+    varLs        <- liftIO $ newMVar (ls, 0 :: Int)
 
     if nj == 1
         then traverse_ (parseWordIO lock varDictState setReplByExc setLs) ls
         else
             let
                 loop = do
-                    mJob <- modifyMVar varLs $ pure . \case
-                        []       -> ([], Nothing)
-                        (j : js) -> (js, Just j)
+                    -- when (i `mod` 1000 == 0) $ liftIO do
+                    mJob <- modifyMVar varLs $ \case
+                        ([], i)       -> pure (([], i), Nothing)
+                        (j : js, i) -> do
+                            when (i `mod` 1000 == 0) $ liftIO do
+                              setCursorColumn 0
+                              Text.putStr $ showt i
+                              hFlush stdout
+                            pure ((js, i + 1), Just j)
                     case mJob of
                         Just hyph ->
                             parseWordIO lock
@@ -295,8 +303,10 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
                         Nothing -> pure ()
             in  replicateConcurrently_ nj loop
 
-    liftIO $ setCursorColumn 28
-    liftIO $ putStrLn "done.                 "
+    liftIO do
+      cursorUp 1
+      setCursorColumn 28
+      putStrLn "done.                 "
 
     DictState {..} <- liftIO $ readMVar varDictState
 
@@ -510,10 +520,8 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
                traceSample word $ "traceWord: in parseWordIO: " <> word
                                <> ": stenos: " <> showt stenos
 
-               let
-                   stenoInfos = toStenoCodeInfo <$> zip [0..] stenos
-                   (dst', cis) = Collision.resolve word stenoInfos dst
-               _ <- evaluate $ force dst'
+               let (dst', cis) = Collision.resolve word (force stenos) dst
+               _ <- evaluate dst'
                for_ cis \(CollisionInfo looser winner raw isLostEntirely) -> do
 
                    if isLostEntirely

@@ -52,7 +52,7 @@ import           Data.Functor                   ( (<$>)
 import           Data.Int                       ( Int )
 import           Data.List                      ( filter
                                                 , intersperse
-                                                , sortOn
+                                                , sortOn, zip
                                                 )
 import           Data.Maybe                     ( Maybe(..)
                                                 , catMaybes, maybe
@@ -122,6 +122,7 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 )
 import Control.Monad (when)
 import Palantype.Tools.TraceWords (TraceWords, traceSample)
+import Palantype.Tools.Collision (StenoCodeInfo, toStenoCodeInfo)
 
 data Score = Score
     { -- first criterion: make use of the maximum allowed greediness
@@ -166,6 +167,7 @@ addAcronymChord st@State {..} = st
                         : stProtoSteno
     , stNChords       = stNChords + 1
     , stMLevel = Just (0, patAcronym)
+    , stMaxPattern = patAcronym
     }
 
 data Verbosity
@@ -184,7 +186,7 @@ parseSeries
      . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
     -> Text
-    -> TraceWords (Either ParseError [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)])
+    -> TraceWords (Either ParseError [StenoCodeInfo key])
 parseSeries trie hyphenated =
     let
         -- calculate result for lower case word
@@ -231,7 +233,7 @@ parseSeries trie hyphenated =
               (_, Failure raw err) : _ -> Left $ PEParsec raw err
               [] ->
                   Left $ PEImpossible $ "Empty list for: " <> hyphenated
-              ls -> Right $ filterAlts $ snd <$> ls
+              ls -> Right $ toStenoCodeInfo <$> zip [0..] (filterAlts $ snd <$> ls)
 
   where
     filterAlts
