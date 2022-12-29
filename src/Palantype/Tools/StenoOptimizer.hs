@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Palantype.Tools.StenoOptimizer where
 
@@ -21,10 +22,8 @@ import           Control.Applicative            ( Applicative
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
-import           Data.Bifunctor                 ( Bifunctor(first, second) )
-import           Data.Bool                      ( Bool(False, True)
-                                                , not
-                                                , otherwise
+import           Data.Bifunctor                 ( Bifunctor(first) )
+import           Data.Bool                      ( Bool(False, True) , otherwise
                                                 )
 import           Data.ByteString                ( ByteString
                                                 , isInfixOf
@@ -55,13 +54,13 @@ import           Data.List                      ( filter
                                                 , sortOn, zip
                                                 )
 import           Data.Maybe                     ( Maybe(..)
-                                                , catMaybes, maybe
+                                                , catMaybes
                                                 )
 import           Data.Monoid                    ( (<>)
                                                 , mconcat
                                                 )
 import           Data.Ord                       ( Down(Down)
-                                                , Ord((<=), max)
+                                                , Ord((<=), max, compare)
                                                 , comparing
                                                 )
 import           Data.Ratio                     ( Rational )
@@ -72,9 +71,6 @@ import qualified Data.Text                     as Text
 import qualified Data.Text.Encoding            as Text
 import qualified Data.Trie                     as Trie
 import           Data.Trie                      ( Trie )
-import           Data.Tuple                     ( snd
-                                                , uncurry, fst
-                                                )
 import           Data.Word                      ( Word8 )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
@@ -90,7 +86,7 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , Palantype
                                                     ( PatternGroup
                                                     , patAcronym
-                                                    , patSimpleMulti, patZero
+                                                    , patZero
                                                     )
                                                 , keys
                                                 , kiAcronym
@@ -124,9 +120,10 @@ import Control.Monad (when)
 import Palantype.Tools.TraceWords (TraceWords, traceSample)
 import Palantype.Tools.Collision (StenoCodeInfo, toStenoCodeInfo)
 
-data Score = Score
-    { -- first criterion: make use of the maximum allowed greediness
-      scoreGreediness :: Int
+data Score key = Score
+    { -- | first criterion: make use of the maximum allowed level,
+      --   i.e. the highest pattern group/greediness
+      scoreLevel :: (PatternGroup key, Greediness)
 
       -- second criterion: maximize number of real-language letters per chord
     , scoreEfficiency :: Rational
@@ -134,18 +131,26 @@ data Score = Score
       -- third criterion: minimize number of steno letters
     , scoreBrevity    :: Int
     }
-    deriving stock (Eq, Ord)
 
-instance TextShow Score where
+deriving stock instance Palantype key => Eq  (Score key)
+-- deriving stock instance Palantype key => Ord (Score key)
+
+instance Palantype key => Ord (Score key) where
+  compare s1 s2 = compare (scoreEfficiency s1) (scoreEfficiency s2)
+               <> compare (scoreBrevity    s1) (scoreBrevity    s2)
+               -- lowest level scores higher
+               <> compare (scoreLevel      s2) (scoreLevel      s1)
+
+instance Palantype key => TextShow (Score key) where
     showb Score {..} =
-        showb scoreGreediness
+        showb scoreLevel
             <> fromText "-"
             <> fromString (printf "%.1f" $ fromRational @Double scoreEfficiency)
             <> fromText "("
             <> showb scoreBrevity
             <> fromText ")"
 
-instance Show Score where
+instance Palantype key => Show (Score key) where
     show = Text.unpack . showt
 
 data ParseError
@@ -166,8 +171,7 @@ addAcronymChord st@State {..} = st
                         : ProtoSlash
                         : stProtoSteno
     , stNChords       = stNChords + 1
-    , stMLevel = Just (0, patAcronym)
-    , stMaxPattern = patAcronym
+    , stLevel      = (patAcronym, 0)
     }
 
 data Verbosity
@@ -205,67 +209,49 @@ parseSeries trie hyphenated =
                     , stNChords    = 1
                     , stMFinger    = Nothing
                     , stMLastKey   = Nothing
-                    , stMLevel     = Nothing
-                    , stMaxPattern = patZero
+                    , stLevel      = (patZero, 0)
                     }
 
         levels =
             catMaybes
                 $   lsPatterns @key
-                <&> \(gpg, patterns) -> if any (`isInfixOf` str) patterns
-                        then Just gpg
+                <&> \(level, patterns) -> if any (`isInfixOf` str) patterns
+                        then Just level
                         else Nothing
 
         lsResultLc =
             levels
-                <&> \gpg -> ((gpg, False), )
-                        $ optimizeStenoSeries trie gpg st str
+                <&> \level -> optimizeStenoSeries trie level st str
 
         lsResult
-            | isAcronym = second (mapSuccess $ addAcronymChord @key) <$> lsResultLc
+            | isAcronym = mapSuccess (addAcronymChord @key) <$> lsResultLc
             | otherwise = lsResultLc
     in  do
 
           traceSample (Text.replace "|" "" hyphenated) $
             "Recognized greediness levels: " <> showt levels
 
-          pure case sortOn (Down . uncurry scoreWithG) lsResult of
-              (_, Failure raw err) : _ -> Left $ PEParsec raw err
-              [] ->
-                  Left $ PEImpossible $ "Empty list for: " <> hyphenated
-              ls -> Right $ toStenoCodeInfo <$> zip [0..] (filterAlts $ snd <$> ls)
+          pure case sortOn (Down . score) lsResult of
+              Failure raw err : _ -> Left $ PEParsec raw err
+              [] -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
+              ls -> Right $ toStenoCodeInfo <$> zip [0..] (filterAlts ls)
 
   where
     filterAlts
-        :: [Result (State key)] -> [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
+        :: [Result (State key)] -> [(RawSteno, (PatternGroup key, Greediness))]
     filterAlts []                 = []
     filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
         let
             rawSteno = protoToSteno $ stProtoSteno state
-            pgg      = case stMLevel state of
-                Just    p -> p
-                Nothing   -> error "impossible: pattern group Nothing"
-            maxPg    = stMaxPattern state
-            distinct (Failure _ _) = False
-            distinct (Success st2) =
-                rawSteno /= protoToSteno (stProtoSteno st2)
+
+            distinct = \case
+              Failure _ _ -> False
+              Success st2 -> rawSteno /= protoToSteno (stProtoSteno st2)
+
             as' = filter distinct as
         in
-            (rawSteno, pgg, maxPg) : filterAlts as'
-
--- | Scoring "with greediness"
---   This scoring serves to sort the result, no result is discarded
---   Given the efficiency AND brevity of a steno code, lower greediness is
---   preferred
-scoreWithG
-    :: forall k
-     . ((Greediness, PatternGroup k), Bool)
-    -> Result (State k)
-    -> (Rational, Int, Greediness, Bool)
-scoreWithG ((g, _), cOpt) result =
-    let Score {..} = score result
-    in  (scoreEfficiency, scoreBrevity, negate g, not cOpt)
+            (rawSteno, stLevel state) : filterAlts as'
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
@@ -352,8 +338,7 @@ data State key = State
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
     , stMLastKey      :: Maybe key
-    , stMLevel        :: Maybe (Greediness, PatternGroup key)
-    , stMaxPattern    :: PatternGroup key
+    , stLevel        :: (PatternGroup key, Greediness)
     }
 
 instance Palantype key => TextShow (State key) where
@@ -362,26 +347,15 @@ instance Palantype key => TextShow (State key) where
 bsPipe :: Word8
 bsPipe = 0x7C
 
--- | The score has two values, a primary score and a secondary score.
---
---   The primary score is the number of letters per chord.
---   A high number of letters per chords means high typing efficiency.
---
---   The secondary score is the number of steno keys.
---   A lower number is preferred.
---   The secondary score is used, when two series achieve the same primary score.
-score :: forall k . Result (State k) -> Score
-score (Success st ) = score' st
-score (Failure _ _) = Score 0 0 0
-
-score' :: forall k . State k -> Score
-score' State {..} =
-    -- let scoreGreediness = 0
-    let scoreGreediness = maybe 0 fst stMLevel
-        scoreEfficiency = fromIntegral (unCountLetters stNLetters)
-            / fromIntegral (unCountChords stNChords)
-        scoreBrevity = negate $ countKeys stProtoSteno
-    in  Score { .. }
+score :: forall k . Palantype k => Result (State k) -> Score k
+score (Failure _ _) = Score (patZero, 0) 0 0
+score (Success State{..} ) =
+  let scoreLevel = stLevel
+      scoreEfficiency =
+            fromIntegral (unCountLetters stNLetters)
+          / fromIntegral (unCountChords stNChords)
+      scoreBrevity = negate $ countKeys stProtoSteno
+  in  Score { .. }
 
 -- | Try to fit as many letters as possible into a steno
 --   chord (a chord contains keys that can be typed all at once).
@@ -403,27 +377,26 @@ optimizeStenoSeries
     :: forall key
      . Palantype key
     => Trie [(Greediness, RawSteno, PatternGroup key)]
-    -> (Greediness, PatternGroup key)
+    -> (PatternGroup key, Greediness)
     -> State key
     -> ByteString
     -> Result (State key)
 optimizeStenoSeries _ _ st "" = Success st
-optimizeStenoSeries trie gpg st str | BS.head str == bsPipe =
+optimizeStenoSeries trie level st str | BS.head str == bsPipe =
     let
         newState = st
-            { stProtoSteno    = stProtoSteno st <> [ProtoSlash]
-            , stNChords       = stNChords st + 1
-            , stMFinger       = Nothing
-            , stMLastKey      = Nothing
-            , stMLevel =
-                max (Just (0, patSimpleMulti)) $ stMLevel st
+            { stProtoSteno  = stProtoSteno st <> [ProtoSlash]
+            , stNChords     = stNChords st + 1
+            , stMFinger     = Nothing
+            , stMLastKey    = Nothing
+            , stLevel       = max (patZero, 0) $ stLevel st
             }
         str' = BS.tail str
-        r1   = optimizeStenoSeries trie gpg newState str'
-        r2   = optimizeStenoSeries trie gpg st str'
+        r1   = optimizeStenoSeries trie level newState str'
+        r2   = optimizeStenoSeries trie level st str'
     in
         maximumBy (comparing score) [r1, r2]
-optimizeStenoSeries trie maxGPg st str =
+optimizeStenoSeries trie level st str =
     let
         matches = filterGreediness $ flatten $ Trie.matches trie str
 
@@ -440,10 +413,9 @@ optimizeStenoSeries trie maxGPg st str =
                             , stNChords    = stNChords st + countChords proto
                             , stMFinger    = mFinger
                             , stMLastKey   = mLK
-                            , stMLevel     = max (Just (greediness, pg)) $ stMLevel st
-                            , stMaxPattern = max pg $ stMaxPattern st
+                            , stLevel     = max (pg, greediness) $ stLevel st
                             }
-                    in  optimizeStenoSeries trie maxGPg newState rem
+                    in  optimizeStenoSeries trie level newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -458,7 +430,7 @@ optimizeStenoSeries trie maxGPg st str =
              , ByteString
              )
            ]
-    filterGreediness = filter (\(_, (g', _, pg'), _) -> (g', pg') <= maxGPg)
+    filterGreediness = filter (\(_, (g', _, pg'), _) -> (pg', g') <= level)
 
     flatten
         :: [ ( ByteString

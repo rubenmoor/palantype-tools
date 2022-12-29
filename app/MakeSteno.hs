@@ -324,8 +324,8 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
                              <> " g" <> showt (fst $ sciLevel info)
                              <> "(" <> showt (snd $ sciLevel info) <> ")"
                 pure $ Map.insertWith (Map.unionWith (<>))
-                                      (sciMaxPatternGroup info)
-                                      (Map.singleton (fst $ sciLevel info) [(w, sciRawSteno info)])
+                                      (fst $ sciLevel info)
+                                      (Map.singleton (snd $ sciLevel info) [(w, sciRawSteno info)])
                                       m
             )
             Map.empty
@@ -416,12 +416,12 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
             <> showt interp <> ", "
             <> showt lsExcEntry
         let accExcEntry
-                :: ( [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
+                :: ( [(RawSteno, (PatternGroup key, Greediness))]
                    , Map RawSteno Text
                    )
                 -> (Greediness, RawSteno, PatternGroup key, Bool)
                 -> IO
-                       ( [(RawSteno, (Greediness, PatternGroup key), PatternGroup key)]
+                       ( [(RawSteno, (PatternGroup key, Greediness))]
                        , Map RawSteno Text
                        )
             accExcEntry (ls, mapEEStenoWord) (g, raw, pg, _) = do
@@ -432,7 +432,7 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                         pure
                             -- for the exceptions, the level pattern group and
                             -- the maximum pattern group are the same
-                            ( (rawParsed, (g, pg), pg) : ls
+                            ( (rawParsed, (pg, g)) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
@@ -488,18 +488,15 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
         -- but: words from the exception file marked
         --     "rule-addition" do not count as duplicates
         isDupl =
-            word
-                `Map.member`    mapWordStenos
-                &&              word
-                `Map.notMember` mapExceptions @key
+               word `Map.member`    mapWordStenos
+            && word `Map.notMember` mapExceptions @key
 
         -- a capitalized word that also appears in its lower-case
         -- version counts as duplicate
         isCaplDupl =
-            isCapitalized hyph
-                &&           not (isAcronym hyph)
-                &&           Text.toLower hyph
-                `Set.member` setLs
+               isCapitalized hyph
+            && not (isAcronym hyph)
+            && Text.toLower hyph `Set.member` setLs
 
     when isDupl $ do
         traceSample word $ "traceWord: in parseWordIO: "

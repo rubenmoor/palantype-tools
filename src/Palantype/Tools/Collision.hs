@@ -65,13 +65,10 @@ data StenoCodeInfo key = StenoCodeInfo
       sciIndex :: Int
       -- | the raw steno code
     , sciRawSteno :: RawSteno
-      -- | the level: the highest greediness that was applied to reach this code
-      --   at identical greediness, the levels are differentiated by the pattern
-    , sciLevel :: (Greediness, PatternGroup key)
-      -- | the highest pattern (regardless of greediness) that was applied
-      --   to reach this code. This information needs to be preserved apart,
-      --   to allow for a documentation by pattern first (greediness second)
-    , sciMaxPatternGroup :: PatternGroup key
+      -- | the level: the highest pattern group that was applied to reach this
+      --   code, at identical pattern groups,
+      --   the levels are differentiated by the pattern
+    , sciLevel :: (PatternGroup key, Greediness)
     }
     deriving stock (Generic)
 
@@ -82,12 +79,11 @@ instance Palantype key => TextShow (StenoCodeInfo key) where
        showb sciIndex    <> " "
     <> showb sciRawSteno <> " "
     <> showb sciLevel    <> " "
-    <> showb sciMaxPatternGroup
 
 toStenoCodeInfo
-  :: (Int, (RawSteno, (Greediness, PatternGroup key), PatternGroup key))
+  :: (Int, (RawSteno, (PatternGroup key, Greediness)))
   -> StenoCodeInfo key
-toStenoCodeInfo (i, (raw, (g, pg), maxPg)) = StenoCodeInfo i raw (g, pg) maxPg
+toStenoCodeInfo (i, (raw, (pg, g))) = StenoCodeInfo i raw (pg, g)
 
 data DictState key = DictState
     {
