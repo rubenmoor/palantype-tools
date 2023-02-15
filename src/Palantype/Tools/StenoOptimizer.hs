@@ -86,7 +86,7 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , Palantype
                                                     ( PatternGroup
                                                     , patAcronym
-                                                    , patZero, patCapitalize
+                                                    , patZero, patCapitalize, patSimpleMulti
                                                     )
                                                 , keys
                                                 , kiAcronym
@@ -421,7 +421,7 @@ optimizeStenoSeries trie level st str | BS.head str == bsPipe =
             , stNChords     = stNChords st + 1
             , stMFinger     = Nothing
             , stMLastKey    = Nothing
-            , stLevel       = max (patZero, 0) $ stLevel st
+            , stLevel       = max (patSimpleMulti, 0) $ stLevel st
             }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie level newState str'
