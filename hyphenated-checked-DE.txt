@@ -12332,3 +12332,11 @@ Sim|plon|tun|nel
 Film|pferd
 Film|pfer|de
 Al|pha|ar|chi|tek|tur
+un|fall|a|na|ly|ti|sche
+zwei|tau|send|und|drei|ßig
+zwei|tau|send|und|drei
+un|fall|a|na|ly|ti|schem
+un|fall|a|na|ly|tisch
+hell|äu|gi|gem
+hell|äu|gi|ge
+hell|äu|gi|gen

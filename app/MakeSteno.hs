@@ -115,39 +115,6 @@ import           Palantype.Common               ( ExceptionInterpretation(..)
                                                 )
 import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
-
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
--- lib
 import           Palantype.Tools.Collision      ( DictState
                                                     ( DictState
                                                     , dstMapWordStenos
@@ -274,7 +241,6 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
         hFlush stdout
 
     lock         <- liftIO Lock.new
-
     varDictState <- liftIO $ newMVar $ DictState mapInitWordStenos mapInitStenoWord
     varLs        <- liftIO $ newMVar (ls, 0 :: Int)
 
@@ -285,7 +251,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
                 loop = do
                     -- when (i `mod` 1000 == 0) $ liftIO do
                     mJob <- modifyMVar varLs $ \case
-                        ([], i)       -> pure (([], i), Nothing)
+                        ([], i)     -> pure (([], i), Nothing)
                         (j : js, i) -> do
                             when (i `mod` 1000 == 0) $ liftIO do
                               setCursorColumn 0
@@ -430,18 +396,14 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                     Right chords -> do
                         let rawParsed = unparts $ fromChord <$> chords
                         pure
-                            -- for the exceptions, the level pattern group and
-                            -- the maximum pattern group are the same
                             ( (rawParsed, (pg, g)) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
                         Text.putStrLn
                             $  "Error in exception table: "
-                            <> word
-                            <> ": "
-                            <> showt raw
-                            <> "; "
+                            <> word <> ": "
+                            <> showt raw <> "; "
                             <> Text.pack (show err)
                         pure (ls, mapEEStenoWord)
 
@@ -502,10 +464,12 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
         traceSample word $ "traceWord: in parseWordIO: "
                         <> word <> ": is duplicate"
         appendLine fileDuplicates word
+
     when isCaplDupl $ do
         traceSample word $ "traceWord: in parseWordIO: "
                         <> word <> ": is capitalized duplicate"
         appendLine fileDuplicates $ word <> " capitalized"
+
     unless (isReplByExc || isDupl || isCaplDupl) do
 
         traceSample word $ "traceWord: in parseWordIO: " <> word

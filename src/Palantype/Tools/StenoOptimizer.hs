@@ -86,11 +86,11 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , Palantype
                                                     ( PatternGroup
                                                     , patAcronym
-                                                    , patZero
+                                                    , patZero, patCapitalize
                                                     )
                                                 , keys
                                                 , kiAcronym
-                                                , lsPatterns
+                                                , lsPatterns, kiCapNext
                                                 )
 import qualified Palantype.Common.Indices      as KI
 import qualified Palantype.Common.RawSteno     as Raw
@@ -135,11 +135,34 @@ data Score key = Score
 deriving stock instance Palantype key => Eq  (Score key)
 -- deriving stock instance Palantype key => Ord (Score key)
 
-instance Palantype key => Ord (Score key) where
-  compare s1 s2 = compare (scoreEfficiency s1) (scoreEfficiency s2)
-               <> compare (scoreBrevity    s1) (scoreBrevity    s2)
-               -- lowest level scores higher
-               <> compare (scoreLevel      s2) (scoreLevel      s1)
+newtype ScoreLevelFirst key = ScoreLevelFirst { unScoreLevelFirst :: Score key }
+
+deriving stock instance Palantype key => Eq (ScoreLevelFirst key)
+
+instance Palantype key => Ord (ScoreLevelFirst key) where
+  compare slf1 slf2 =
+      -- highest level scores higher
+         compare (scoreLevel      s1) (scoreLevel      s2)
+      <> compare (scoreEfficiency s1) (scoreEfficiency s2)
+      <> compare (scoreBrevity    s1) (scoreBrevity    s2)
+    where
+      s1 = unScoreLevelFirst slf1
+      s2 = unScoreLevelFirst slf2
+
+newtype ScoreEfficiencyFirst key = ScoreEfficiencyFirst { unScoreEfficiencyFirst :: Score key }
+
+deriving stock instance Palantype key => Eq (ScoreEfficiencyFirst key)
+
+instance Palantype key => Ord (ScoreEfficiencyFirst key) where
+  compare sef1 sef2 =
+         compare (scoreEfficiency s1) (scoreEfficiency s2)
+      <> compare (scoreBrevity    s1) (scoreBrevity    s2)
+      -- lowest level scores higher
+      <> compare (scoreLevel      s2) (scoreLevel      s1)
+    where
+      s1 = unScoreEfficiencyFirst sef1
+      s2 = unScoreEfficiencyFirst sef2
+
 
 instance Palantype key => TextShow (Score key) where
     showb Score {..} =
@@ -167,11 +190,16 @@ isCapitalized str = isUpper $ Text.head str
 
 addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
-    { stProtoSteno    = ProtoChord (KI.toKeys kiAcronym)
-                        : ProtoSlash
-                        : stProtoSteno
-    , stNChords       = stNChords + 1
+    { stProtoSteno = ProtoChord (KI.toKeys kiAcronym) : ProtoSlash : stProtoSteno
+    , stNChords    = stNChords + 1
     , stLevel      = (patAcronym, 0)
+    }
+
+addCapNextChord :: forall key. Palantype key => State key -> State key
+addCapNextChord st@State{..} = st
+    { stProtoSteno = ProtoChord (KI.toKeys kiCapNext) : ProtoSlash : stProtoSteno
+    , stNChords    = stNChords + 1
+    , stLevel      = (patCapitalize, 0)
     }
 
 data Verbosity
@@ -220,25 +248,29 @@ parseSeries trie hyphenated =
                         else Nothing
 
         lsResultLc =
-            levels
-                <&> \level -> optimizeStenoSeries trie level st str
+            levels <&> \level -> optimizeStenoSeries trie level st str
 
         lsResult
-            | isAcronym = mapSuccess (addAcronymChord @key) <$> lsResultLc
-            | otherwise = lsResultLc
+            | isAcronym                 = mapSuccess (addAcronymChord @key) <$> lsResultLc
+            | isCapitalized hyphenated' = (mapSuccess (addCapNextChord @key) <$> lsResultLc) <> lsResultLc
+            | otherwise                 = lsResultLc
     in  do
 
           traceSample (Text.replace "|" "" hyphenated) $
             "Recognized greediness levels: " <> showt levels
 
-          pure case sortOn (Down . score) lsResult of
-              Failure raw err : _ -> Left $ PEParsec raw err
-              [] -> Left $ PEImpossible $ "Empty list for: " <> hyphenated
-              ls -> Right $ toStenoCodeInfo <$> zip [0..] (filterAlts ls)
+          case sortOn (Down . ScoreEfficiencyFirst . score) lsResult of
+              Failure raw err : _ -> pure $ Left $ PEParsec raw err
+              [] -> pure $ Left $ PEImpossible $ "Empty list for: " <> hyphenated
+              ls -> do
+                traceSample (Text.replace "|" "" hyphenated) $
+                  "Before filtering the alternatives for duplicates:\n" <> showt ls
+                pure $ Right $ toStenoCodeInfo <$> zip [0..] (filterAlts ls)
 
   where
     filterAlts
-        :: [Result (State key)] -> [(RawSteno, (PatternGroup key, Greediness))]
+        :: [Result (State key)]
+        -> [(RawSteno, (PatternGroup key, Greediness))]
     filterAlts []                 = []
     filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
@@ -395,7 +427,7 @@ optimizeStenoSeries trie level st str | BS.head str == bsPipe =
         r1   = optimizeStenoSeries trie level newState str'
         r2   = optimizeStenoSeries trie level st str'
     in
-        maximumBy (comparing score) [r1, r2]
+        maximumBy (comparing $ ScoreLevelFirst . score) [r1, r2]
 optimizeStenoSeries trie level st str =
     let
         matches = filterGreediness $ flatten $ Trie.matches trie str
@@ -421,7 +453,7 @@ optimizeStenoSeries trie level st str =
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
             ms -> matchToResult <$> ms
     in
-        maximumBy (comparing score) results
+        maximumBy (comparing $ ScoreLevelFirst . score) results
   where
     filterGreediness
         :: [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
