@@ -6,7 +6,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-redundant-record-wildcards #-}
 
 module Palantype.Tools.Collision where
 
@@ -36,14 +36,12 @@ import           Data.Tuple                     ( fst
 import           GHC.Enum                       ( maxBound )
 import           GHC.Err                        ( error )
 import           GHC.Num                        ( (-) )
-import           Palantype.Common               ( Greediness
-                                                , Palantype(PatternGroup)
-                                                , RawSteno
+import           Palantype.Common               ( RawSteno
                                                 )
 import Data.Bool (Bool (True, False))
 import Control.DeepSeq (NFData)
 import GHC.Generics (Generic)
-import TextShow (TextShow (showb))
+import Palantype.Tools.StenoCodeInfo (StenoCodeInfo (..))
 
 default (Int)
 
@@ -59,31 +57,6 @@ data CollisionInfo = CollisionInfo
     }
     deriving stock (Generic)
     deriving anyclass (NFData)
-
-data StenoCodeInfo key = StenoCodeInfo
-    { -- | the index orders the codes by efficiency, 0 being most efficient
-      sciIndex :: Int
-      -- | the raw steno code
-    , sciRawSteno :: RawSteno
-      -- | the level: the highest pattern group that was applied to reach this
-      --   code, at identical pattern groups,
-      --   the levels are differentiated by the pattern
-    , sciLevel :: (PatternGroup key, Greediness)
-    }
-    deriving stock (Generic)
-
-deriving anyclass instance Palantype key => NFData (StenoCodeInfo key)
-
-instance Palantype key => TextShow (StenoCodeInfo key) where
-  showb StenoCodeInfo{..} =
-       showb sciIndex    <> " "
-    <> showb sciRawSteno <> " "
-    <> showb sciLevel    <> " "
-
-toStenoCodeInfo
-  :: (Int, (RawSteno, (PatternGroup key, Greediness)))
-  -> StenoCodeInfo key
-toStenoCodeInfo (i, (raw, (pg, g))) = StenoCodeInfo i raw (pg, g)
 
 data DictState key = DictState
     {

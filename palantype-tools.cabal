@@ -29,6 +29,7 @@ library
         Palantype.Tools.Prepare
         Palantype.Tools.Collision
         Palantype.Tools.Hyphenate
+        Palantype.Tools.StenoCodeInfo
 
     build-depends:
         base

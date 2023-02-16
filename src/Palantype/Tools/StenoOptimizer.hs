@@ -118,12 +118,12 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 )
 import Control.Monad (when)
 import Palantype.Tools.TraceWords (TraceWords, traceSample)
-import Palantype.Tools.Collision (StenoCodeInfo, toStenoCodeInfo)
+import Palantype.Tools.StenoCodeInfo (StenoCodeInfo, StateStage (StateStage), toStenoCodeInfo)
 
 data Score key = Score
-    { -- | first criterion: make use of the maximum allowed level,
+    { -- | first criterion: make use of the maximum allowed stage,
       --   i.e. the highest pattern group/greediness
-      scoreLevel :: (PatternGroup key, Greediness)
+      scoreLevel :: StateStage key
 
       -- second criterion: maximize number of real-language letters per chord
     , scoreEfficiency :: Rational
@@ -192,14 +192,14 @@ addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
     { stProtoSteno = ProtoChord (KI.toKeys kiAcronym) : ProtoSlash : stProtoSteno
     , stNChords    = stNChords + 1
-    , stLevel      = (patAcronym, 0)
+    , stStage      = StateStage patAcronym 0
     }
 
 addCapNextChord :: forall key. Palantype key => State key -> State key
 addCapNextChord st@State{..} = st
     { stProtoSteno = ProtoChord (KI.toKeys kiCapNext) : ProtoSlash : stProtoSteno
     , stNChords    = stNChords + 1
-    , stLevel      = (patCapitalize, 0)
+    , stStage      = StateStage patCapitalize 0
     }
 
 data Verbosity
@@ -237,7 +237,7 @@ parseSeries trie hyphenated =
                     , stNChords    = 1
                     , stMFinger    = Nothing
                     , stMLastKey   = Nothing
-                    , stLevel      = (patZero, 0)
+                    , stStage      = StateStage patZero 0
                     }
 
         levels =
@@ -270,7 +270,7 @@ parseSeries trie hyphenated =
   where
     filterAlts
         :: [Result (State key)]
-        -> [(RawSteno, (PatternGroup key, Greediness))]
+        -> [(RawSteno, StateStage key)]
     filterAlts []                 = []
     filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
@@ -283,7 +283,7 @@ parseSeries trie hyphenated =
 
             as' = filter distinct as
         in
-            (rawSteno, stLevel state) : filterAlts as'
+            (rawSteno, stStage state) : filterAlts as'
 
 newtype CountLetters = CountLetters { unCountLetters :: Int }
   deriving newtype (Num, Eq, TextShow)
@@ -370,7 +370,7 @@ data State key = State
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
     , stMLastKey      :: Maybe key
-    , stLevel        :: (PatternGroup key, Greediness)
+    , stStage         :: StateStage key
     }
 
 instance Palantype key => TextShow (State key) where
@@ -380,9 +380,9 @@ bsPipe :: Word8
 bsPipe = 0x7C
 
 score :: forall k . Palantype k => Result (State k) -> Score k
-score (Failure _ _) = Score (patZero, 0) 0 0
+score (Failure _ _) = Score (StateStage patZero 0) 0 0
 score (Success State{..} ) =
-  let scoreLevel = stLevel
+  let scoreLevel = stStage
       scoreEfficiency =
             fromIntegral (unCountLetters stNLetters)
           / fromIntegral (unCountChords stNChords)
@@ -421,7 +421,7 @@ optimizeStenoSeries trie level st str | BS.head str == bsPipe =
             , stNChords     = stNChords st + 1
             , stMFinger     = Nothing
             , stMLastKey    = Nothing
-            , stLevel       = max (patSimpleMulti, 0) $ stLevel st
+            , stStage       = max (StateStage patSimpleMulti 0) $ stStage st
             }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie level newState str'
@@ -445,7 +445,7 @@ optimizeStenoSeries trie level st str =
                             , stNChords    = stNChords st + countChords proto
                             , stMFinger    = mFinger
                             , stMLastKey   = mLK
-                            , stLevel     = max (pg, greediness) $ stLevel st
+                            , stStage      = max (StateStage pg greediness) $ stStage st
                             }
                     in  optimizeStenoSeries trie level newState rem
 

@@ -118,7 +118,7 @@ import qualified Palantype.EN.Keys             as EN
 import           Palantype.Tools.Collision      ( DictState
                                                     ( DictState
                                                     , dstMapWordStenos
-                                                    ), CollisionInfo (CollisionInfo), StenoCodeInfo (..), toStenoCodeInfo
+                                                    ), CollisionInfo (CollisionInfo)
                                                 )
 import qualified Palantype.Tools.Collision     as Collision
 import           Palantype.Tools.StenoOptimizer ( ParseError(..)
@@ -142,6 +142,7 @@ import           Sort                           ( getMapFrequencies )
 import Control.Monad.IO.Class (liftIO)
 import Data.Int (Int)
 import GHC.Real (mod)
+import Palantype.Tools.StenoCodeInfo (StenoCodeInfo (sciIndex, sciRawSteno, sciLevel), toStenoCodeInfo, StateStage (StateStage))
 
 
 fileNoParse :: FilePath
@@ -382,12 +383,12 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
             <> showt interp <> ", "
             <> showt lsExcEntry
         let accExcEntry
-                :: ( [(RawSteno, (PatternGroup key, Greediness))]
+                :: ( [(RawSteno, StateStage key)]
                    , Map RawSteno Text
                    )
                 -> (Greediness, RawSteno, PatternGroup key, Bool)
                 -> IO
-                       ( [(RawSteno, (PatternGroup key, Greediness))]
+                       ( [(RawSteno, StateStage key)]
                        , Map RawSteno Text
                        )
             accExcEntry (ls, mapEEStenoWord) (g, raw, pg, _) = do
@@ -396,7 +397,7 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                     Right chords -> do
                         let rawParsed = unparts $ fromChord <$> chords
                         pure
-                            ( (rawParsed, (pg, g)) : ls
+                            ( (rawParsed, StateStage pg g) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
