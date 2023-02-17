@@ -243,22 +243,29 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
 
     lock         <- liftIO Lock.new
     varDictState <- liftIO $ newMVar $ DictState mapInitWordStenos mapInitStenoWord
-    varLs        <- liftIO $ newMVar (ls, 0 :: Int)
+    varLs        <- liftIO $ newMVar (ls, 0 :: Int, start)
+
+    let reportInterval = 1000
 
     if nj == 1
         then traverse_ (parseWordIO lock varDictState setReplByExc setLs) ls
         else
             let
                 loop = do
-                    -- when (i `mod` 1000 == 0) $ liftIO do
                     mJob <- modifyMVar varLs $ \case
-                        ([], i)     -> pure (([], i), Nothing)
-                        (j : js, i) -> do
-                            when (i `mod` 1000 == 0) $ liftIO do
-                              setCursorColumn 0
-                              Text.putStr $ showt i
-                              hFlush stdout
-                            pure ((js, i + 1), Just j)
+                        ls'@([], _, _)     -> pure (ls', Nothing)
+                        (j : js, i, last) -> do
+                            if i `mod` reportInterval == 0
+                              then liftIO do
+                                current <- liftIO $ getTime Monotonic
+                                setCursorColumn 0
+                                Text.putStr $ showt i <> "\t"
+                                fprint timeSpecs last current
+                                Text.putStr $ "/" <> showt reportInterval <> " words"
+                                hFlush stdout
+                                pure ((js, i + 1, current), Just j)
+                              else
+                                pure ((js, i + 1, last), Just j)
                     case mJob of
                         Just hyph ->
                             parseWordIO lock
