@@ -102,7 +102,7 @@ import GHC.Num (Num(negate, (+)))
 -- my-palantype
 import           Palantype.Common               ( ExceptionInterpretation(..)
                                                 , Greediness
-                                                , Lang(DE, EN)
+                                                , SystemLang(..)
                                                 , Palantype
                                                     ( PatternGroup
                                                     , mapExceptions
@@ -159,8 +159,8 @@ fileDuplicates = "makeSteno-duplicates.txt"
 
 makeSteno :: OptionsMakeSteno -> IO ()
 makeSteno (OMkStArg lang str) = case lang of
-    DE -> parseSeries' @DE.Key
-    EN -> parseSeries' @EN.Key
+    SystemDE -> parseSeries' @DE.Key
+    SystemEN -> parseSeries' @EN.Key
   where
     parseSeries' :: forall key . Palantype key => IO ()
     parseSeries' = runTraceWords Set.empty (parseSeries @key triePrimitives str) >>= \case
@@ -169,11 +169,11 @@ makeSteno (OMkStArg lang str) = case lang of
 makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
     = do
         runTraceWords (Set.fromList traceWords) $ case lang of
-            DE -> makeSteno' @DE.Key fileInput
+            SystemDE -> makeSteno' @DE.Key fileInput
                                      fileOutputPlover
                                      fileOutputPloverMin
                                      fileOutputDoc
-            EN -> makeSteno' @EN.Key fileInput
+            SystemEN -> makeSteno' @EN.Key fileInput
                                      fileOutputPlover
                                      fileOutputPloverMin
                                      fileOutputDoc

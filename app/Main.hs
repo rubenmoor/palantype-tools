@@ -42,7 +42,7 @@ import           Data.Traversable               ( Traversable(traverse) )
 import           GHC.Err                        ( error )
 import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
-import           Palantype.Common               ( Lang(DE, EN)
+import           Palantype.Common               ( SystemLang(..)
                                                 , parseSteno
                                                 , dictNumbers, dictCommands, dictSpecial, dictPlover
                                                 )
@@ -130,8 +130,8 @@ hyphenate (OptionsHyphenate filesHyphenated lang mode) = do
             Map.fromList $ (\w -> (Text.replace "|" "" w, w)) <$> lsExisting
 
         lang' = case lang of
-            DE -> KL.German_1996
-            EN -> KL.English_US
+            SystemDE -> KL.German_1996
+            SystemEN -> KL.English_US
 
         hyphenate' str = case Map.lookup str mapExisting of
             Just h  -> h
@@ -194,8 +194,8 @@ makeNumbers (OptionsMakeNumbers fileOutput lang) = do
     putStr $ "Writing numbers dict to " <> fileOutput <> " ..."
     hFlush stdout
     LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of
-        DE -> first (KI.toRaw @DE.Key) <$> dictNumbers
-        EN -> first (KI.toRaw @EN.Key) <$> dictNumbers
+        SystemDE -> first (KI.toRaw @DE.Key) <$> dictNumbers
+        SystemEN -> first (KI.toRaw @EN.Key) <$> dictNumbers
     putStrLn " done."
     nLines <- wcl fileOutput
     putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"
@@ -210,8 +210,8 @@ extraDict (OptionsExtraDict fileOutput lang) = do
              <> dictSpecial
              <> dictPlover
     LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of
-        DE -> first (KI.toRaw @DE.Key) <$> dict
-        EN -> first (KI.toRaw @EN.Key) <$> dict
+        SystemDE -> first (KI.toRaw @DE.Key) <$> dict
+        SystemEN -> first (KI.toRaw @EN.Key) <$> dict
     putStrLn " done."
     nLines <- wcl fileOutput
     putStrLn $ "Written " <> fileOutput <> " (" <> show nLines <> " lines)"

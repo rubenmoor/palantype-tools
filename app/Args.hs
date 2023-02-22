@@ -12,7 +12,10 @@ module Args
     , argOpts
     ) where
 
-import           Control.Applicative
+import Control.Applicative
+    ( Applicative((<*>), (<*), pure),
+      (<$>),
+      Alternative(some, many, (<|>)) )
 import           Data.Monoid                    ( Monoid(mempty) )
 import           Data.Semigroup                 ( (<>) )
 import           Data.String                    ( String )
@@ -35,7 +38,7 @@ import           Options.Applicative            ( InfoMod
                                                 , subparser
                                                 , value
                                                 )
-import           Palantype.Common               ( Lang(DE) )
+import           Palantype.Common               ( SystemLang (SystemDE) )
 import           System.IO                      ( FilePath )
 import Data.Function (($))
 
@@ -74,10 +77,10 @@ data OptionsPrepare
   = OPrepFile FilePath FilePath
   | OPrepArg Text
 
-data OptionsHyphenate = OptionsHyphenate [FilePath] Lang OptionsHyphenateMode
+data OptionsHyphenate = OptionsHyphenate [FilePath] SystemLang OptionsHyphenateMode
 
---   = OHyphFile FilePath [FilePath] FilePath Lang
---   | OHyphArg Lang Text
+--   = OHyphFile FilePath [FilePath] FilePath SystemLang
+--   | OHyphArg SystemLang Text
 
 data OptionsHyphenateMode
   = OHMFile FilePath FilePath
@@ -89,8 +92,8 @@ data OptionsShowChart = OSCHistScores
 
 data OptionsMakeSteno
   -- | input file: hyphenated words
-  = OMkStFile FilePath FilePath FilePath FilePath Lang [Text]
-  | OMkStArg Lang Text
+  = OMkStFile FilePath FilePath FilePath FilePath SystemLang [Text]
+  | OMkStArg SystemLang Text
 
 -- | input file: list of words
 --   frequency data
@@ -99,11 +102,11 @@ data OptionsSort = OptionsSort FilePath [FilePath]
 
 data OptionsMakeNumbers =
   -- | output file
-  OptionsMakeNumbers FilePath Lang
+  OptionsMakeNumbers FilePath SystemLang
 
 data OptionsExtraDict =
   -- | output file
-  OptionsExtraDict FilePath Lang
+  OptionsExtraDict FilePath SystemLang
 
 data OptionsFindDuplicates =
   OptionsFindDuplicates [FilePath]
@@ -151,12 +154,12 @@ arg :: String -> Parser Text
 arg hlp = strOption (long "arg" <> short 'a' <> help hlp)
 
 
-lang :: Parser Lang
+lang :: Parser SystemLang
 lang = option
     auto
     (  long "language"
     <> short 'l'
-    <> value DE
+    <> value SystemDE
     <> help "One of DE, EN"
     <> metavar "LANG"
     <> showDefault
