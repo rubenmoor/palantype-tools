@@ -38,6 +38,7 @@ library
       , containers
       , data-default
       , deepseq
+      , lens
       , mtl
       , my-palantype
       , parsec

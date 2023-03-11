@@ -8,6 +8,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Palantype.Tools.StenoOptimizer where
 
@@ -22,6 +23,8 @@ import           Control.Applicative            ( Applicative
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
+import Control.Lens (view)
+import Control.Lens.Tuple (_1)
 import           Data.Bifunctor                 ( Bifunctor(first) )
 import           Data.Bool                      ( Bool(False, True) , otherwise
                                                 )
@@ -82,6 +85,7 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 )
 import           Palantype.Common               ( Chord(Chord)
                                                 , Finger
+                                                , findStage
                                                 , Greediness
                                                 , Palantype
                                                     ( PatternGroup
@@ -91,10 +95,18 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , keys
                                                 , kiAcronym
                                                 , lsPatterns, kiCapNext
+                                                , stageIndexPatZero
+                                                , stageIndexPatAcronym
+                                                , stageIndexPatCapitalize
+                                                , stageIndexPatSimpleMulti
+                                                , StageIndex
+                                                , StageSpecialGeneric (..)
                                                 )
 import qualified Palantype.Common.Indices      as KI
 import qualified Palantype.Common.RawSteno     as Raw
 import           Palantype.Common.RawSteno.Type ( RawSteno(RawSteno) )
+import Palantype.Common.TH (failure, fromJust)
+import qualified Palantype.Common.Stage as Stage
 import qualified Text.Parsec                   as Parsec
 import           Text.Parsec                    ( Parsec
                                                 , char
@@ -118,12 +130,12 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 )
 import Control.Monad (when)
 import Palantype.Tools.TraceWords (TraceWords, traceSample)
-import Palantype.Tools.StenoCodeInfo (StenoCodeInfo, StateStage (StateStage), toStenoCodeInfo)
+import Palantype.Tools.StenoCodeInfo (StenoCodeInfo, toStenoCodeInfoMaybe)
 
 data Score key = Score
     { -- | first criterion: make use of the maximum allowed stage,
       --   i.e. the highest pattern group/greediness
-      scoreLevel :: StateStage key
+      scoreLevel :: StageIndex
 
       -- second criterion: maximize number of real-language letters per chord
     , scoreEfficiency :: Rational
@@ -192,14 +204,14 @@ addAcronymChord :: forall key . Palantype key => State key -> State key
 addAcronymChord st@State {..} = st
     { stProtoSteno = ProtoChord (KI.toKeys kiAcronym) : ProtoSlash : stProtoSteno
     , stNChords    = stNChords + 1
-    , stStage      = StateStage patAcronym 0
+    , stStage      = stageIndexPatAcronym
     }
 
 addCapNextChord :: forall key. Palantype key => State key -> State key
 addCapNextChord st@State{..} = st
     { stProtoSteno = ProtoChord (KI.toKeys kiCapNext) : ProtoSlash : stProtoSteno
     , stNChords    = stNChords + 1
-    , stStage      = StateStage patCapitalize 0
+    , stStage      = stageIndexPatCapitalize
     }
 
 data Verbosity
@@ -237,7 +249,7 @@ parseSeries trie hyphenated =
                     , stNChords    = 1
                     , stMFinger    = Nothing
                     , stMLastKey   = Nothing
-                    , stStage      = StateStage patZero 0
+                    , stStage      = stageIndexPatZero
                     }
 
         levels =
@@ -265,12 +277,19 @@ parseSeries trie hyphenated =
               ls -> do
                 traceSample (Text.replace "|" "" hyphenated) $
                   "Before filtering the alternatives for duplicates:\n" <> showt ls
-                pure $ Right $ toStenoCodeInfo <$> zip [0..] (filterAlts ls)
+                pure $ Right $ zip [0..] (filterAlts ls) <&> \pair@(_, (raw, si)) ->
+                  case toStenoCodeInfoMaybe pair of
+                    Just sci -> sci
+                    Nothing -> $failure $ Text.unpack $
+                               "raw steno "     <> showt raw
+                            <> ", stage index " <> showt si
+                            <> ", resulte in stage " <> showt (Stage.fromIndex @key si)
+
 
   where
     filterAlts
         :: [Result (State key)]
-        -> [(RawSteno, StateStage key)]
+        -> [(RawSteno, StageIndex)]
     filterAlts []                 = []
     filterAlts (Failure _ _ : as) = filterAlts as
     filterAlts (Success state : as) =
@@ -370,7 +389,7 @@ data State key = State
   -- | for compatibility with original palantype that relies on key order
   --   rather than on finger, because several keys per finger are allowed
     , stMLastKey      :: Maybe key
-    , stStage         :: StateStage key
+    , stStage         :: StageIndex
     }
 
 instance Palantype key => TextShow (State key) where
@@ -380,7 +399,7 @@ bsPipe :: Word8
 bsPipe = 0x7C
 
 score :: forall k . Palantype k => Result (State k) -> Score k
-score (Failure _ _) = Score (StateStage patZero 0) 0 0
+score (Failure _ _) = Score stageIndexPatZero 0 0
 score (Success State{..} ) =
   let scoreLevel = stStage
       scoreEfficiency =
@@ -421,7 +440,7 @@ optimizeStenoSeries trie level st str | BS.head str == bsPipe =
             , stNChords     = stNChords st + 1
             , stMFinger     = Nothing
             , stMLastKey    = Nothing
-            , stStage       = max (StateStage patSimpleMulti 0) $ stStage st
+            , stStage       = max stageIndexPatSimpleMulti $ stStage st
             }
         str' = BS.tail str
         r1   = optimizeStenoSeries trie level newState str'
@@ -437,6 +456,8 @@ optimizeStenoSeries trie level st str =
                 Left err -> Failure raw err
                 Right (proto, (mFinger, mLK)) ->
                     let
+                        -- TODO: get stage index from trie
+                        si = $fromJust $ getStageIndexMaybe pg greediness
                         newState = State
                             { stProtoSteno = stProtoSteno st <> proto
                             , stNLetters   =
@@ -445,7 +466,7 @@ optimizeStenoSeries trie level st str =
                             , stNChords    = stNChords st + countChords proto
                             , stMFinger    = mFinger
                             , stMLastKey   = mLK
-                            , stStage      = max (StateStage pg greediness) $ stStage st
+                            , stStage      = max si $ stStage st
                             }
                     in  optimizeStenoSeries trie level newState rem
 
@@ -550,3 +571,11 @@ whenJust
     -> m ()
 whenJust (Just x) func = func x
 whenJust Nothing  _    = pure ()
+
+getStageIndexMaybe
+  :: forall key
+  . Palantype key
+  => PatternGroup key
+  -> Greediness
+  -> Maybe StageIndex
+getStageIndexMaybe pg g = view _1 <$> findStage (StageGeneric pg g)

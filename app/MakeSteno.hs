@@ -4,6 +4,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module MakeSteno
     ( makeSteno
@@ -108,11 +109,13 @@ import           Palantype.Common               ( ExceptionInterpretation(..)
                                                     , mapExceptions
                                                     )
                                                 , RawSteno
+                                                , StageIndex
                                                 , fromChord
                                                 , parseWord
                                                 , triePrimitives
                                                 , unparts
                                                 )
+import Palantype.Common.TH (fromJust)
 import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
 import           Palantype.Tools.Collision      ( DictState
@@ -124,7 +127,7 @@ import qualified Palantype.Tools.Collision     as Collision
 import           Palantype.Tools.StenoOptimizer ( ParseError(..)
                                                 , acronym
                                                 , isCapitalized
-                                                , parseSeries
+                                                , parseSeries, getStageIndexMaybe
                                                 )
 import Palantype.Tools.TraceWords (TraceWords, runTraceWords, traceSample)
 
@@ -142,7 +145,7 @@ import           Sort                           ( getMapFrequencies )
 import Control.Monad.IO.Class (liftIO)
 import Data.Int (Int)
 import GHC.Real (mod)
-import Palantype.Tools.StenoCodeInfo (StenoCodeInfo (sciIndex, sciRawSteno, sciLevel), toStenoCodeInfo, StateStage (StateStage))
+import Palantype.Tools.StenoCodeInfo (StenoCodeInfo (sciIndex, sciRawSteno, sciLevel), toStenoCodeInfoMaybe)
 
 
 fileNoParse :: FilePath
@@ -390,12 +393,12 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
             <> showt interp <> ", "
             <> showt lsExcEntry
         let accExcEntry
-                :: ( [(RawSteno, StateStage key)]
+                :: ( [(RawSteno, StageIndex)]
                    , Map RawSteno Text
                    )
                 -> (Greediness, RawSteno, PatternGroup key, Bool)
                 -> IO
-                       ( [(RawSteno, StateStage key)]
+                       ( [(RawSteno, StageIndex)]
                        , Map RawSteno Text
                        )
             accExcEntry (ls, mapEEStenoWord) (g, raw, pg, _) = do
@@ -404,7 +407,7 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                     Right chords -> do
                         let rawParsed = unparts $ fromChord <$> chords
                         pure
-                            ( (rawParsed, StateStage pg g) : ls
+                            ( (rawParsed, $fromJust $ getStageIndexMaybe @key pg g) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
@@ -426,7 +429,8 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
               pure $ Set.insert word set
 
         pure
-            ( Map.insert word (toStenoCodeInfo <$> zip (negate <$> [1 ..]) lsStenoInfo) mapExcWordStenos
+            ( Map.insert word ($fromJust . toStenoCodeInfoMaybe <$>
+                zip (negate <$> [1 ..]) lsStenoInfo) mapExcWordStenos
             , m
             , set'
             )

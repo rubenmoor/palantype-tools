@@ -16,7 +16,7 @@ let
             overrides = self: super: {
               my-palantype = self.callCabal2nix "my-palantype" ../my-palantype { };
               #my-palantype = self.callCabal2nix "my-palantype" my-palantype-src { };
-              bytestring-trie = pkgs.haskell.lib.doJailbreak (super.bytestring-trie);
+              #bytestring-trie = pkgs.haskell.lib.doJailbreak (super.bytestring-trie);
             };
           };
         };
