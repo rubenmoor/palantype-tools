@@ -38,7 +38,6 @@ library
       , containers
       , data-default
       , deepseq
-      , lens
       , mtl
       , my-palantype
       , parsec
@@ -50,6 +49,7 @@ library
         LambdaCase
         NoImplicitPrelude
         OverloadedStrings
+        StrictData
     default-language: Haskell2010
     ghc-options:
       -Weverything

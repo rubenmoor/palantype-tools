@@ -61,7 +61,7 @@ import           Data.List                      ( minimumBy
                                                 )
 import qualified Data.Map.Strict               as Map
 import           Data.Map.Strict                ( Map )
-import           Data.Maybe                     ( Maybe(Just, Nothing) )
+import           Data.Maybe                     ( Maybe(..), fromMaybe )
 import           Data.Monoid                    ( (<>) )
 import           Data.Ord                       ( Down(Down)
                                                 , comparing
@@ -113,9 +113,9 @@ import           Palantype.Common               ( ExceptionInterpretation(..)
                                                 , fromChord
                                                 , parseWord
                                                 , triePrimitives
-                                                , unparts
+                                                , unparts, getStageIndexMaybe
                                                 )
-import Palantype.Common.TH (fromJust)
+import Palantype.Common.TH (fromJust, failure)
 import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
 import           Palantype.Tools.Collision      ( DictState
@@ -127,7 +127,7 @@ import qualified Palantype.Tools.Collision     as Collision
 import           Palantype.Tools.StenoOptimizer ( ParseError(..)
                                                 , acronym
                                                 , isCapitalized
-                                                , parseSeries, getStageIndexMaybe
+                                                , parseSeries
                                                 )
 import Palantype.Tools.TraceWords (TraceWords, runTraceWords, traceSample)
 
@@ -166,7 +166,7 @@ makeSteno (OMkStArg lang str) = case lang of
     SystemEN -> parseSeries' @EN.Key
   where
     parseSeries' :: forall key . Palantype key => IO ()
-    parseSeries' = runTraceWords Set.empty (parseSeries @key triePrimitives str) >>= \case
+    parseSeries' = runTraceWords Set.empty (parseSeries @key (triePrimitives @key) str) >>= \case
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
@@ -406,8 +406,13 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                 case parseWord @key raw of
                     Right chords -> do
                         let rawParsed = unparts $ fromChord <$> chords
+                            errorMsg = "stage index Nothing for "
+                              <> show pg <> " " <> show g
+                            -- covered by test
+                            si = fromMaybe ($failure errorMsg) $
+                              getStageIndexMaybe @key pg g
                         pure
-                            ( (rawParsed, $fromJust $ getStageIndexMaybe @key pg g) : ls
+                            ( (rawParsed, si) : ls
                             , Map.insert rawParsed word mapEEStenoWord
                             )
                     Left err -> do
@@ -487,7 +492,7 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
         traceSample word $ "traceWord: in parseWordIO: " <> word
                         <> ": computing stenos for " <> hyph
 
-        parseSeries @key triePrimitives hyph >>= \case
+        parseSeries @key (triePrimitives @key) hyph >>= \case
             Right stenos -> modifyMVar_ varDictState \dst -> do
 
                traceSample word $ "traceWord: in parseWordIO: " <> word

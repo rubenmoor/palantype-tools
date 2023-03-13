@@ -27,21 +27,12 @@ let
 
   pkgs = import <nixpkgs> { inherit config; };
 
-  easy-hls-src = pkgs.fetchFromGitHub {
-    owner = "jkachmar";
-    repo = "easy-hls-nix";
-    rev = "ecb85ab6ba0aab0531fff32786dfc51feea19370";
-    sha256 = "14v0jx8ik40vpkcq1af1b3377rhkh95f4v2cl83bbzpna9aq6hn2";
-  };
-  easy-hls = pkgs.callPackage easy-hls-src { ghcVersions = [ "8.10.7" ]; };
-
   drv = pkgs.haskell.packages."${compiler}".callCabal2nix "palantype-tools" ./. { };
   env =
     with pkgs.haskellPackages;
     drv.env.overrideAttrs ( oldAttrs: rec {
       nativeBuildInputs =
         oldAttrs.nativeBuildInputs ++ [
-          easy-hls
           cabal-install
         ];
     });

@@ -23,8 +23,6 @@ import           Control.Applicative            ( Applicative
 import           Control.Category               ( (<<<)
                                                 , Category((.))
                                                 )
-import Control.Lens (view)
-import Control.Lens.Tuple (_1)
 import           Data.Bifunctor                 ( Bifunctor(first) )
 import           Data.Bool                      ( Bool(False, True) , otherwise
                                                 )
@@ -85,7 +83,6 @@ import           GHC.Real                       ( Fractional((/), fromRational)
                                                 )
 import           Palantype.Common               ( Chord(Chord)
                                                 , Finger
-                                                , findStage
                                                 , Greediness
                                                 , Palantype
                                                     ( PatternGroup
@@ -228,7 +225,7 @@ data Verbosity
 parseSeries
     :: forall key
      . Palantype key
-    => Trie [(Greediness, RawSteno, PatternGroup key)]
+    => Trie [(RawSteno, StageIndex)]
     -> Text
     -> TraceWords (Either ParseError [StenoCodeInfo key])
 parseSeries trie hyphenated =
@@ -252,15 +249,13 @@ parseSeries trie hyphenated =
                     , stStage      = stageIndexPatZero
                     }
 
-        levels =
-            catMaybes
-                $   lsPatterns @key
-                <&> \(level, patterns) -> if any (`isInfixOf` str) patterns
-                        then Just level
-                        else Nothing
+        levels = catMaybes $ lsPatterns @key <&> \(level, patterns) ->
+          if any (`isInfixOf` str) patterns
+            then Just level
+            else Nothing
 
-        lsResultLc =
-            levels <&> \level -> optimizeStenoSeries trie level st str
+        lsResultLc = levels <&> \maxStage ->
+          optimizeStenoSeries trie maxStage st str
 
         lsResult
             | isAcronym                 = mapSuccess (addAcronymChord @key) <$> lsResultLc
@@ -353,7 +348,7 @@ countKeys = foldl' (\s p -> s + count p) 0
 --         KoSSlash       -> ((str, mkChord keys) : chords, ("", []))
 
 data Result a
-  = Success !a
+  = Success a
   | Failure RawSteno Parsec.ParseError
 
 instance TextShow a => TextShow (Result a) where
@@ -427,13 +422,13 @@ score (Success State{..} ) =
 optimizeStenoSeries
     :: forall key
      . Palantype key
-    => Trie [(Greediness, RawSteno, PatternGroup key)]
-    -> (PatternGroup key, Greediness)
+    => Trie [(RawSteno, StageIndex)]
+    -> StageIndex
     -> State key
     -> ByteString
     -> Result (State key)
 optimizeStenoSeries _ _ st "" = Success st
-optimizeStenoSeries trie level st str | BS.head str == bsPipe =
+optimizeStenoSeries trie maxStage st str | BS.head str == bsPipe =
     let
         newState = st
             { stProtoSteno  = stProtoSteno st <> [ProtoSlash]
@@ -443,21 +438,19 @@ optimizeStenoSeries trie level st str | BS.head str == bsPipe =
             , stStage       = max stageIndexPatSimpleMulti $ stStage st
             }
         str' = BS.tail str
-        r1   = optimizeStenoSeries trie level newState str'
-        r2   = optimizeStenoSeries trie level st str'
+        r1   = optimizeStenoSeries trie maxStage newState str'
+        r2   = optimizeStenoSeries trie maxStage st str'
     in
         maximumBy (comparing $ ScoreLevelFirst . score) [r1, r2]
-optimizeStenoSeries trie level st str =
+optimizeStenoSeries trie maxStage st str =
     let
         matches = filterGreediness $ flatten $ Trie.matches trie str
 
-        matchToResult (consumed, (greediness, raw, pg), rem) =
-            case parseKey (greediness, raw) (stMFinger st) (stMLastKey st) of
+        matchToResult (consumed, (raw, si), rem) =
+            case parseKey raw (stMFinger st) (stMLastKey st) of
                 Left err -> Failure raw err
                 Right (proto, (mFinger, mLK)) ->
                     let
-                        -- TODO: get stage index from trie
-                        si = $fromJust $ getStageIndexMaybe pg greediness
                         newState = State
                             { stProtoSteno = stProtoSteno st <> proto
                             , stNLetters   =
@@ -468,7 +461,7 @@ optimizeStenoSeries trie level st str =
                             , stMLastKey   = mLK
                             , stStage      = max si $ stStage st
                             }
-                    in  optimizeStenoSeries trie level newState rem
+                    in  optimizeStenoSeries trie maxStage newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -476,23 +469,24 @@ optimizeStenoSeries trie level st str =
     in
         maximumBy (comparing $ ScoreLevelFirst . score) results
   where
+    -- TODO:replace (pg, g) with stageIndex
     filterGreediness
-        :: [(ByteString, (Greediness, RawSteno, PatternGroup key), ByteString)]
+        :: [(ByteString, (RawSteno, StageIndex), ByteString)]
         -> [ ( ByteString
-             , (Greediness, RawSteno, PatternGroup key)
+             , (RawSteno, StageIndex)
              , ByteString
              )
            ]
-    filterGreediness = filter (\(_, (g', _, pg'), _) -> (pg', g') <= level)
+    filterGreediness = filter (\(_, (_, si), _) -> si <= maxStage)
 
     flatten
         :: [ ( ByteString
-             , [(Greediness, RawSteno, PatternGroup key)]
+             , [(RawSteno, StageIndex)]
              , ByteString
              )
            ]
         -> [ ( ByteString
-             , (Greediness, RawSteno, PatternGroup key)
+             , (RawSteno, StageIndex)
              , ByteString
              )
            ]
@@ -500,24 +494,24 @@ optimizeStenoSeries trie level st str =
       where
         expand
             :: ( ByteString
-               , [(Greediness, RawSteno, PatternGroup key)]
+               , [(RawSteno, StageIndex)]
                , ByteString
                )
             -> [ ( ByteString
-                 , (Greediness, RawSteno, PatternGroup key)
+                 , (RawSteno, StageIndex)
                  , ByteString
                  )
                ]
         expand (c, rs, rem) = (c, , rem) <$> rs
 
     parseKey
-        :: (Greediness, RawSteno)
+        :: RawSteno
         -> Maybe Finger
         -> Maybe key
         -> Either
                Parsec.ParseError
                ([ProtoSteno key], (Maybe Finger, Maybe key))
-    parseKey (_, RawSteno s) mFinger' mLastKey' =
+    parseKey (RawSteno s) mFinger' mLastKey' =
         let
             mFinger  = mFinger'
             mLastKey = mLastKey'
@@ -571,11 +565,3 @@ whenJust
     -> m ()
 whenJust (Just x) func = func x
 whenJust Nothing  _    = pure ()
-
-getStageIndexMaybe
-  :: forall key
-  . Palantype key
-  => PatternGroup key
-  -> Greediness
-  -> Maybe StageIndex
-getStageIndexMaybe pg g = view _1 <$> findStage (StageGeneric pg g)
