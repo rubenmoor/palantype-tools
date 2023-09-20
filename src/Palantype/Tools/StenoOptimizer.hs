@@ -25,6 +25,7 @@ import           Control.Category               ( (<<<)
                                                 )
 import           Data.Bifunctor                 ( Bifunctor(first) )
 import           Data.Bool                      ( Bool(False, True) , otherwise
+                                                , not, (||), (&&)
                                                 )
 import           Data.ByteString                ( ByteString
                                                 , isInfixOf
@@ -85,10 +86,6 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , Finger
                                                 , Greediness
                                                 , Palantype
-                                                    ( PatternGroup
-                                                    , patAcronym
-                                                    , patZero, patCapitalize, patSimpleMulti
-                                                    )
                                                 , keys
                                                 , kiAcronym
                                                 , lsPatterns, kiCapNext
@@ -97,7 +94,6 @@ import           Palantype.Common               ( Chord(Chord)
                                                 , stageIndexPatCapitalize
                                                 , stageIndexPatSimpleMulti
                                                 , StageIndex
-                                                , StageSpecialGeneric (..)
                                                 )
 import qualified Palantype.Common.Indices      as KI
 import qualified Palantype.Common.RawSteno     as Raw
@@ -125,7 +121,7 @@ import           TextShow                       ( TextShow(showb, showt)
                                                 , fromString
                                                 , fromText
                                                 )
-import Control.Monad (when)
+import Control.Monad (when, join)
 import Palantype.Tools.TraceWords (TraceWords, traceSample)
 import Palantype.Tools.StenoCodeInfo (StenoCodeInfo, toStenoCodeInfoMaybe)
 
@@ -225,7 +221,7 @@ data Verbosity
 parseSeries
     :: forall key
      . Palantype key
-    => Trie [(RawSteno, StageIndex)]
+    => Trie [(RawSteno, StageIndex, Greediness)]
     -> Text
     -> TraceWords (Either ParseError [StenoCodeInfo key])
 parseSeries trie hyphenated =
@@ -254,8 +250,10 @@ parseSeries trie hyphenated =
             then Just level
             else Nothing
 
-        lsResultLc = levels <&> \maxStage ->
-          optimizeStenoSeries trie maxStage st str
+        lsResultLc = join $ levels <&> \maxStage ->
+          [ optimizeStenoSeries trie maxStage True st str
+          , optimizeStenoSeries trie maxStage False st str
+          ]
 
         lsResult
             | isAcronym                 = mapSuccess (addAcronymChord @key) <$> lsResultLc
@@ -263,8 +261,13 @@ parseSeries trie hyphenated =
             | otherwise                 = lsResultLc
     in  do
 
+          let
+              lsTrace = zip ($fromJust . Stage.fromIndex @key <$> levels) lsResult
+              showPair (x, y) = showt x <> "\t" <> showt y
+
           traceSample (Text.replace "|" "" hyphenated) $
-            "Recognized greediness levels: " <> showt levels
+               "Recognized greediness levels:\n"
+            <> Text.unlines (showPair <$> lsTrace)
 
           case sortOn (Down . ScoreEfficiencyFirst . score) lsResult of
               Failure raw err : _ -> pure $ Left $ PEParsec raw err
@@ -393,7 +396,7 @@ instance Palantype key => TextShow (State key) where
 bsPipe :: Word8
 bsPipe = 0x7C
 
-score :: forall k . Palantype k => Result (State k) -> Score k
+score :: forall k . Result (State k) -> Score k
 score (Failure _ _) = Score stageIndexPatZero 0 0
 score (Success State{..} ) =
   let scoreLevel = stStage
@@ -422,13 +425,14 @@ score (Success State{..} ) =
 optimizeStenoSeries
     :: forall key
      . Palantype key
-    => Trie [(RawSteno, StageIndex)]
+    => Trie [(RawSteno, StageIndex, Greediness)]
     -> StageIndex
+    -> Bool
     -> State key
     -> ByteString
     -> Result (State key)
-optimizeStenoSeries _ _ st "" = Success st
-optimizeStenoSeries trie maxStage st str | BS.head str == bsPipe =
+optimizeStenoSeries _ _ _ st "" = Success st
+optimizeStenoSeries trie maxStage bG0 st str | BS.head str == bsPipe =
     let
         newState = st
             { stProtoSteno  = stProtoSteno st <> [ProtoSlash]
@@ -438,15 +442,15 @@ optimizeStenoSeries trie maxStage st str | BS.head str == bsPipe =
             , stStage       = max stageIndexPatSimpleMulti $ stStage st
             }
         str' = BS.tail str
-        r1   = optimizeStenoSeries trie maxStage newState str'
-        r2   = optimizeStenoSeries trie maxStage st str'
+        r1   = optimizeStenoSeries trie maxStage bG0 newState str'
+        r2   = optimizeStenoSeries trie maxStage bG0 st str'
     in
         maximumBy (comparing $ ScoreLevelFirst . score) [r1, r2]
-optimizeStenoSeries trie maxStage st str =
+optimizeStenoSeries trie maxStage bG0 st str =
     let
-        matches = filterGreediness $ flatten $ Trie.matches trie str
+        matches = filterByStage $ flatten $ Trie.matches trie str
 
-        matchToResult (consumed, (raw, si), rem) =
+        matchToResult (consumed, (raw, si, _), rem) =
             case parseKey raw (stMFinger st) (stMLastKey st) of
                 Left err -> Failure raw err
                 Right (proto, (mFinger, mLK)) ->
@@ -461,7 +465,7 @@ optimizeStenoSeries trie maxStage st str =
                             , stMLastKey   = mLK
                             , stStage      = max si $ stStage st
                             }
-                    in  optimizeStenoSeries trie maxStage newState rem
+                    in  optimizeStenoSeries trie maxStage bG0 newState rem
 
         results = case matches of
             [] -> [Failure "" $ Parsec.newErrorUnknown (initialPos "")]
@@ -469,24 +473,20 @@ optimizeStenoSeries trie maxStage st str =
     in
         maximumBy (comparing $ ScoreLevelFirst . score) results
   where
-    -- TODO:replace (pg, g) with stageIndex
-    filterGreediness
-        :: [(ByteString, (RawSteno, StageIndex), ByteString)]
-        -> [ ( ByteString
-             , (RawSteno, StageIndex)
-             , ByteString
-             )
-           ]
-    filterGreediness = filter (\(_, (_, si), _) -> si <= maxStage)
+    filterByStage
+        :: [(ByteString, (RawSteno, StageIndex, Greediness), ByteString)]
+        -> [(ByteString, (RawSteno, StageIndex, Greediness), ByteString)]
+    filterByStage =
+      filter (\(_, (_, si, g), _) -> (not bG0 || g == 0) && si <= maxStage)
 
     flatten
         :: [ ( ByteString
-             , [(RawSteno, StageIndex)]
+             , [(RawSteno, StageIndex, Greediness)]
              , ByteString
              )
            ]
         -> [ ( ByteString
-             , (RawSteno, StageIndex)
+             , (RawSteno, StageIndex, Greediness)
              , ByteString
              )
            ]
@@ -494,11 +494,11 @@ optimizeStenoSeries trie maxStage st str =
       where
         expand
             :: ( ByteString
-               , [(RawSteno, StageIndex)]
+               , [(RawSteno, StageIndex, Greediness)]
                , ByteString
                )
             -> [ ( ByteString
-                 , (RawSteno, StageIndex)
+                 , (RawSteno, StageIndex, Greediness)
                  , ByteString
                  )
                ]

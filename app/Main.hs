@@ -44,7 +44,11 @@ import           GHC.Float                      ( Double )
 import           Options.Applicative            ( execParser, Applicative (pure) )
 import           Palantype.Common               ( SystemLang(..)
                                                 , parseSteno
-                                                , dictNumbers, dictCommands, dictSpecial, dictPlover
+                                                , dictNumbers
+                                                , dictCommands
+                                                , dictFKeys
+                                                , dictSpecial
+                                                , dictPlover
                                                 )
 import qualified Palantype.DE.Keys             as DE
 import Palantype.DE.FingerSpelling (dictFingerSpelling)
@@ -207,6 +211,7 @@ extraDict (OptionsExtraDict fileOutput lang) = do
     hFlush stdout
     let dict =  dictFingerSpelling
              <> dictCommands
+             <> dictFKeys
              <> dictSpecial
              <> dictPlover
     LBS.writeFile fileOutput $ Aeson.encodePretty $ Map.fromList $ case lang of

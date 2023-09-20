@@ -165,8 +165,10 @@ makeSteno (OMkStArg lang str) = case lang of
     SystemDE -> parseSeries' @DE.Key
     SystemEN -> parseSeries' @EN.Key
   where
+    traceWord = Set.singleton $ Text.replace "|" "" str
+
     parseSeries' :: forall key . Palantype key => IO ()
-    parseSeries' = runTraceWords Set.empty (parseSeries @key (triePrimitives @key) str) >>= \case
+    parseSeries' = runTraceWords traceWord (parseSeries @key (triePrimitives @key) str) >>= \case
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
 makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
