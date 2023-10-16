@@ -92,7 +92,7 @@ data OptionsShowChart = OSCHistScores
 
 data OptionsMakeSteno
   -- | input file: hyphenated words
-  = OMkStFile FilePath FilePath FilePath FilePath SystemLang [Text]
+  = OMkStFile FilePath FilePath FilePath FilePath FilePath SystemLang [Text]
   | OMkStArg SystemLang Text
 
 -- | input file: list of words
@@ -255,6 +255,7 @@ optsMakeSteno :: Parser OptionsMakeSteno
 optsMakeSteno =
     ( OMkStFile <$> fileInput
                 <*> fileOutputPlover
+                <*> fileOutputPloverAnglicisms
                 <*> fileOutputPloverMin
                 <*> fileOutputDoc
                 <*> lang
@@ -284,6 +285,15 @@ optsMakeSteno =
         <> metavar "FILE"
         <> showDefault
         )
+
+    fileOutputPloverAnglicisms = strOption
+        (  long "file-output-plover-anglicisms"
+        <> value "palantype-DE-anglicisms.json"
+        <> help "A dictionary file for use with plover: all anglicism patterns."
+        <> metavar "FILE"
+        <> showDefault
+        )
+
 
     fileOutputPloverMin = strOption
         (  long "file-output-plover-minimal"

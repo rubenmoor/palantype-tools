@@ -36,7 +36,7 @@ import           Data.Tuple                     ( fst
 import           GHC.Enum                       ( maxBound )
 import           GHC.Err                        ( error )
 import           GHC.Num                        ( (-) )
-import           Palantype.Common               ( RawSteno
+import           Palantype.Common               ( RawSteno, Palantype (PatternGroup), Greediness
                                                 )
 import Data.Bool (Bool (True, False))
 import Control.DeepSeq (NFData)
@@ -64,7 +64,7 @@ data DictState key = DictState
       --   collision resolution
       dstMapWordStenos
           :: Map Text [StenoCodeInfo key]
-    , dstMapStenoWord :: Map RawSteno Text
+    , dstMapStenoWord :: Map RawSteno (Text, (PatternGroup key, Greediness))
     }
     deriving stock (Generic)
     deriving anyclass (NFData)
@@ -81,7 +81,7 @@ resolve word raws dst@DictState {..} =
         -- look up collisions ...
         mNAlts :: RawSteno -> (Int, Maybe Text)
         mNAlts raw = case Map.lookup raw dstMapStenoWord of
-            Just collision ->
+            Just (collision, _) ->
               -- ... and for every collisions the number of alternatives
               -- of the existing word, i.e. the gravity of the collision
               -- where 1 implicates that `raw` is inviable (soft squeeze B)
@@ -120,7 +120,7 @@ accAllocate word (nAlts, DictState {..}, ci) (info, (_, Nothing)) =
     ( nAlts
     , DictState
         { dstMapWordStenos = Map.insertWith (flip (<>)) word [info] dstMapWordStenos
-        , dstMapStenoWord  = Map.insert (sciRawSteno info) word dstMapStenoWord
+        , dstMapStenoWord  = Map.insert (sciRawSteno info) (word, sciLevel info) dstMapStenoWord
         }
     , ci
     )
@@ -142,7 +142,7 @@ accAllocate word (nAlts, dst@DictState {..}, ci) (info, (collisionNAlts, Just co
                 , DictState
                     { dstMapWordStenos = Map.insertWith (flip (<>)) word [info]
                         $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
-                    , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
+                    , dstMapStenoWord  = Map.insert raw (word, sciLevel info) dstMapStenoWord
                     }
                 , CollisionInfo collisionWord word raw False : ci
                 )
@@ -175,7 +175,7 @@ accAllocate word (nAlts, dst@DictState {..}, ci) (info, (collisionNAlts, Just co
                     { dstMapWordStenos =
                         Map.insertWith (flip (<>)) word [info]
                             $ Map.adjust deleteIRaw collisionWord dstMapWordStenos
-                    , dstMapStenoWord  = Map.insert raw word dstMapStenoWord
+                    , dstMapStenoWord  = Map.insert raw (word, sciLevel info) dstMapStenoWord
                     }
                 , CollisionInfo collisionWord word raw False : ci
                 )

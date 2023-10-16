@@ -120,7 +120,7 @@ import qualified Palantype.DE.Keys             as DE
 import qualified Palantype.EN.Keys             as EN
 import           Palantype.Tools.Collision      ( DictState
                                                     ( DictState
-                                                    , dstMapWordStenos
+                                                    , dstMapWordStenos, dstMapStenoWord
                                                     ), CollisionInfo (CollisionInfo)
                                                 )
 import qualified Palantype.Tools.Collision     as Collision
@@ -171,17 +171,23 @@ makeSteno (OMkStArg lang str) = case lang of
     parseSeries' = runTraceWords traceWord (parseSeries @key (triePrimitives @key) str) >>= \case
         Left  err -> Text.putStrLn $ showt err
         Right sds -> traverse_ (Text.putStrLn <<< showt) sds
-makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc lang traceWords)
+makeSteno (OMkStFile fileInput fileOutputPlover fileOutputPloverAnglicisms fileOutputPloverMin fileOutputDoc lang traceWords)
     = do
         runTraceWords (Set.fromList traceWords) $ case lang of
-            SystemDE -> makeSteno' @DE.Key fileInput
-                                     fileOutputPlover
-                                     fileOutputPloverMin
-                                     fileOutputDoc
-            SystemEN -> makeSteno' @EN.Key fileInput
-                                     fileOutputPlover
-                                     fileOutputPloverMin
-                                     fileOutputDoc
+
+            SystemDE -> makeSteno' @DE.Key
+                                   fileInput
+                                   fileOutputPlover
+                                   fileOutputPloverAnglicisms
+                                   fileOutputPloverMin
+                                   fileOutputDoc
+
+            SystemEN -> makeSteno' @EN.Key
+                                   fileInput
+                                   fileOutputPlover
+                                   fileOutputPloverAnglicisms
+                                   fileOutputPloverMin
+                                   fileOutputDoc
 
 makeSteno'
     :: forall key
@@ -190,13 +196,15 @@ makeSteno'
     -> FilePath
     -> FilePath
     -> FilePath
+    -> FilePath
     -> TraceWords ()
-makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
+makeSteno' fileInput fileOutputPlover fileOutputPloverAnglicisms fileOutputPloverMin fileOutputDoc = do
     start <- liftIO $ getTime Monotonic
 
     let lsFiles =
             [ fileNoParse
             , fileOutputPlover
+            , fileOutputPloverAnglicisms
             , fileOutputPloverMin
             , fileOutputDoc
             , fileCollisions
@@ -345,10 +353,19 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverMin fileOutputDoc = do
     uDoc <- liftIO $ LBS.writeFile fileOutputDoc $ Aeson.encodePretty mapStenoWordTake100
     liftIO $ putStrLn $ uDoc `seq` " done."
 
+    let
+        (mapStenoWordsAnglicisms, mapStenoWordsWOAnglicisms) =
+          Map.partition (Text.isPrefixOf "PatAngl" . showt . fst . snd) dstMapStenoWord
+
     writeJSONFile fileOutputPlover $
         sortOn (criterion <<< snd) $
             (Text.encodeUtf8 . showt *** Text.encodeUtf8)
-                <$> Map.toList dstMapStenoWord
+                <$> Map.toList (fst <$> mapStenoWordsWOAnglicisms)
+
+    writeJSONFile fileOutputPloverAnglicisms $
+        sortOn (criterion <<< snd) $
+            (Text.encodeUtf8 . showt *** Text.encodeUtf8)
+                <$> Map.toList (fst <$> mapStenoWordsAnglicisms)
 
     liftIO do
         LBS.writeFile fileOutputPloverMin $ Aeson.encodePretty mapStenoWordMin
@@ -374,7 +391,7 @@ accExceptions
     :: forall key
      . Palantype key
     => ( Map Text [StenoCodeInfo key]
-       , Map RawSteno Text
+       , Map RawSteno (Text, (PatternGroup key, Greediness))
        , Set Text
        )
     -> ( Text
@@ -384,7 +401,7 @@ accExceptions
        )
     -> TraceWords
            ( Map Text [StenoCodeInfo key]
-           , Map RawSteno Text
+           , Map RawSteno (Text, (PatternGroup key, Greediness))
            , Set Text
            )
 accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntry))
@@ -396,12 +413,12 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
             <> showt lsExcEntry
         let accExcEntry
                 :: ( [(RawSteno, StageIndex)]
-                   , Map RawSteno Text
+                   , Map RawSteno (Text, (PatternGroup key, Greediness))
                    )
                 -> (Greediness, RawSteno, PatternGroup key, Bool)
                 -> IO
                        ( [(RawSteno, StageIndex)]
-                       , Map RawSteno Text
+                       , Map RawSteno (Text, (PatternGroup key, Greediness))
                        )
             accExcEntry (ls, mapEEStenoWord) (g, raw, pg, _) = do
 
@@ -415,7 +432,7 @@ accExceptions (mapExcWordStenos, mapExcStenoWord, set) (word, (interp, lsExcEntr
                               getStageIndexMaybe @key pg g
                         pure
                             ( (rawParsed, si) : ls
-                            , Map.insert rawParsed word mapEEStenoWord
+                            , Map.insert rawParsed (word, (pg, g)) mapEEStenoWord
                             )
                     Left err -> do
                         Text.putStrLn
