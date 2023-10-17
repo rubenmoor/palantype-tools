@@ -309,7 +309,7 @@ countLetters :: Text -> CountLetters
 countLetters str = CountLetters $ sum $ Text.length <$> Text.splitOn "|" str
 
 newtype CountChords = CountChords { unCountChords :: Int }
-  deriving newtype (Num, TextShow)
+  deriving newtype (Eq, Num, TextShow)
 
 countChords :: [ProtoSteno k] -> CountChords
 countChords = CountChords <<< foldl' (\s p -> s + count p) 0
@@ -432,6 +432,8 @@ optimizeStenoSeries
     -> ByteString
     -> Result (State key)
 optimizeStenoSeries _ _ _ st "" = Success st
+optimizeStenoSeries _ _ _ st _ | stNChords st == 12 =
+    Failure (protoToSteno $ stProtoSteno st) $ Parsec.newErrorUnknown (initialPos "chord limit reached")
 optimizeStenoSeries trie maxStage bG0 st str | BS.head str == bsPipe =
     let
         newState = st

@@ -5,6 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module MakeSteno
     ( makeSteno
@@ -30,14 +31,13 @@ import           Control.DeepSeq                ( force )
 import           UnliftIO.Exception             ( evaluate )
 import           Control.Monad                  ( Monad((>>), (>>=))
                                                 , foldM
-                                                , unless
                                                 , when
                                                 )
 import qualified Data.Aeson.Encode.Pretty      as Aeson
 import           Data.Bool                      ( (&&)
                                                 , Bool
                                                 , not
-                                                , (||)
+                                                , otherwise
                                                 )
 import qualified Data.ByteString.Lazy          as LBS
 import           Data.Either                    ( Either(..)
@@ -65,6 +65,7 @@ import           Data.Maybe                     ( Maybe(..), fromMaybe )
 import           Data.Monoid                    ( (<>) )
 import           Data.Ord                       ( Down(Down)
                                                 , comparing
+                                                , (>)
                                                 )
 import qualified Data.Set                      as Set
 import           Data.Set                       ( Set
@@ -160,6 +161,9 @@ fileCollisions = "makeSteno-collisions.txt"
 fileDuplicates :: FilePath
 fileDuplicates = "makeSteno-duplicates.txt"
 
+fileTooManySyllables :: FilePath
+fileTooManySyllables = "makeSteno-tooManySyllables.txt"
+
 makeSteno :: OptionsMakeSteno -> IO ()
 makeSteno (OMkStArg lang str) = case lang of
     SystemDE -> parseSeries' @DE.Key
@@ -209,6 +213,7 @@ makeSteno' fileInput fileOutputPlover fileOutputPloverAnglicisms fileOutputPlove
             , fileOutputDoc
             , fileCollisions
             , fileDuplicates
+            , fileTooManySyllables
             , fileLost
             ]
     traverse_ (liftIO <<< moveFileDotOld) lsFiles
@@ -476,11 +481,15 @@ parseWordIO
 parseWordIO lock varDictState setReplByExc setLs hyph = do
     mapWordStenos <- dstMapWordStenos <$> readMVar varDictState
 
-    let word        = Text.replace "|" "" hyph
+    let
+        numSyllables = length $ Text.splitOn "|" hyph
+        hasTooManySyllables = numSyllables > 12
+
+        word = Text.replace "|" "" hyph
 
         -- exceptions marked as "substitution" replace the regular
         -- steno algorithm and are not computed again
-        isReplByExc = word `Set.member` setReplByExc
+        isReplacedByException = word `Set.member` setReplByExc
 
         -- duplicate? don't compute any word twice!
         -- but: words from the exception file marked
@@ -496,56 +505,64 @@ parseWordIO lock varDictState setReplByExc setLs hyph = do
             && not (isAcronym hyph)
             && Text.toLower hyph `Set.member` setLs
 
-    when isDupl $ do
-        traceSample word $ "traceWord: in parseWordIO: "
-                        <> word <> ": is duplicate"
-        appendLine fileDuplicates word
+    if
+      | hasTooManySyllables -> do
+          traceSample word $ "traceWord: in parseWordIO: "
+                          <> word <> ": has too many syllables"
+          appendLine fileTooManySyllables $ showt numSyllables <> "\t" <> word
 
-    when isCaplDupl $ do
-        traceSample word $ "traceWord: in parseWordIO: "
-                        <> word <> ": is capitalized duplicate"
-        appendLine fileDuplicates $ word <> " capitalized"
+      | isDupl -> do
+          traceSample word $ "traceWord: in parseWordIO: "
+                          <> word <> ": is duplicate"
+          appendLine fileDuplicates word
 
-    unless (isReplByExc || isDupl || isCaplDupl) do
+      | isCaplDupl -> do
+          traceSample word $ "traceWord: in parseWordIO: "
+                          <> word <> ": is capitalized duplicate"
+          appendLine fileDuplicates $ word <> " capitalized"
 
-        traceSample word $ "traceWord: in parseWordIO: " <> word
-                        <> ": computing stenos for " <> hyph
+      | isReplacedByException -> pure ()
 
-        parseSeries @key (triePrimitives @key) hyph >>= \case
-            Right stenos -> modifyMVar_ varDictState \dst -> do
+      | otherwise -> do
 
-               traceSample word $ "traceWord: in parseWordIO: " <> word
-                               <> ": stenos: " <> showt stenos
+          traceSample word $ "traceWord: in parseWordIO: " <> word
+                          <> ": computing stenos for " <> hyph
 
-               let (dst', cis) = Collision.resolve word (force stenos) dst
-               _ <- evaluate dst'
-               for_ cis \(CollisionInfo looser winner raw isLostEntirely) -> do
+          parseSeries @key (triePrimitives @key) hyph >>= \case
+              Right stenos -> modifyMVar_ varDictState \dst -> do
 
-                   if isLostEntirely
-                     then do
-                       appendLine fileCollisions $
-                         looser <> " " <> Text.intercalate " " (showt <$> stenos)
+                traceSample word $ "traceWord: in parseWordIO: " <> word
+                                <> ": stenos: " <> showt stenos
 
-                       traceSample looser $ "traceWord: in parseWordIO: " <> looser
-                                       <> " lost in collision without alternatives to "
-                                       <> winner
-                     else do
-                       traceSample looser $ "traceWord: in parseWordIO: " <> looser
-                                       <> " lost steno code " <> showt raw
-                                       <> " to " <> winner
+                let (dst', cis) = Collision.resolve word (force stenos) dst
+                _ <- evaluate dst'
+                for_ cis \(CollisionInfo looser winner raw isLostEntirely) -> do
 
-               pure dst'
-            Left pe -> case pe of
-                PEParsec raw _ -> do
-                    traceSample word $ "traceWord: in parseWordIO: " <> word
-                                    <> ": failed to parse"
+                    if isLostEntirely
+                      then do
+                        appendLine fileCollisions $
+                          looser <> " " <> Text.intercalate " " (showt <$> stenos)
 
-                    liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
-                        [word, hyph, showt raw]
-                PEImpossible str -> do
-                    liftIO $ Text.putStrLn $ "Seemingly impossible: " <> str
-                    liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
-                        [word, hyph]
+                        traceSample looser $ "traceWord: in parseWordIO: " <> looser
+                                        <> " lost in collision without alternatives to "
+                                        <> winner
+                      else do
+                        traceSample looser $ "traceWord: in parseWordIO: " <> looser
+                                        <> " lost steno code " <> showt raw
+                                        <> " to " <> winner
+
+                pure dst'
+              Left pe -> case pe of
+                  PEParsec raw _ -> do
+                      traceSample word $ "traceWord: in parseWordIO: " <> word
+                                      <> ": failed to parse"
+
+                      liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                          [word, hyph, showt raw]
+                  PEImpossible str -> do
+                      liftIO $ Text.putStrLn $ "Seemingly impossible: " <> str
+                      liftIO $ Lock.with lock $ appendLine fileNoParse $ Text.unwords
+                          [word, hyph]
 
 -- cf. https://hackage.haskell.org/package/relude-1.1.0.0/docs/Relude-Functor-Fmap.html
 (<<<&>>>)
